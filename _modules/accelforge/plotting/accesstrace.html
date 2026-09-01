@@ -1,0 +1,845 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.plotting.accesstrace &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/plotting/accesstrace';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script data-domain="accelergy-project.github.io/accelforge" defer="defer" src="https://plausible.emer.org/js/script.file-downloads.outbound-links.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.plotting.accesstrace</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.plotting.accesstrace</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Plot which tensor elements a LoopTree mapping touches at each timestep.</span>
+
+<span class="sd">The x-axis is the timestep (one iteration of the innermost temporal loop) and the</span>
+<span class="sd">y-axis is the tensor element being accessed, so the shape of the scatter *is* the</span>
+<span class="sd">mapping&#39;s data movement: horizontal streaks are elements held across many timesteps,</span>
+<span class="sd">diagonal sweeps are streaming accesses, and repeated blocks are refetches.</span>
+
+<span class="sd">Passing ``memory_level=`` additionally shades, behind the points, the tile that level</span>
+<span class="sd">holds at each timestep, which turns the same picture into a read on that level&#39;s</span>
+<span class="sd">capacity: a wide block is a long-lived tile, and a tall one is a large tile. Blocks show</span>
+<span class="sd">*live* residency, i.e. they stop at the tile&#39;s last use rather than running to the end of</span>
+<span class="sd">whatever the mapping reserved.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterable</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.colors</span> <span class="k">as</span> <span class="nn">mcolors</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">matplotlib.collections</span> <span class="kn">import</span> <span class="n">PatchCollection</span>
+<span class="kn">from</span> <span class="nn">matplotlib.lines</span> <span class="kn">import</span> <span class="n">Line2D</span>
+<span class="kn">from</span> <span class="nn">matplotlib.patches</span> <span class="kn">import</span> <span class="n">Patch</span><span class="p">,</span> <span class="n">Rectangle</span>
+
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.tracegen.accesstrace</span> <span class="kn">import</span> <span class="n">AccessTrace</span><span class="p">,</span> <span class="n">TensorAccessTrace</span><span class="p">,</span> <span class="n">trace_accesses</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;plot_access_trace&quot;</span><span class="p">]</span>
+
+
+<span class="c1"># Categorical slots, assigned in fixed order and never cycled. The first three are</span>
+<span class="c1"># validated for all-pairs separation (which is what a scatter needs); past that we</span>
+<span class="c1"># lean on the read/write marker shapes and the legend to carry identity.</span>
+<span class="n">_SERIES_COLORS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;#2a78d6&quot;</span><span class="p">,</span>  <span class="c1"># blue</span>
+    <span class="s2">&quot;#eb6834&quot;</span><span class="p">,</span>  <span class="c1"># orange</span>
+    <span class="s2">&quot;#1baf7a&quot;</span><span class="p">,</span>  <span class="c1"># aqua</span>
+    <span class="s2">&quot;#eda100&quot;</span><span class="p">,</span>  <span class="c1"># yellow</span>
+    <span class="s2">&quot;#e87ba4&quot;</span><span class="p">,</span>  <span class="c1"># magenta</span>
+    <span class="s2">&quot;#008300&quot;</span><span class="p">,</span>  <span class="c1"># green</span>
+    <span class="s2">&quot;#4a3aa7&quot;</span><span class="p">,</span>  <span class="c1"># violet</span>
+    <span class="s2">&quot;#e34948&quot;</span><span class="p">,</span>  <span class="c1"># red</span>
+<span class="p">)</span>
+<span class="n">_OTHER_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#8a8a85&quot;</span>
+
+<span class="n">_READ_MARKER</span> <span class="o">=</span> <span class="s2">&quot;o&quot;</span>
+<span class="n">_WRITE_MARKER</span> <span class="o">=</span> <span class="s2">&quot;s&quot;</span>
+
+<span class="c1"># A neutral block, so that shading a memory level never competes with the series colors</span>
+<span class="c1"># for attention.</span>
+<span class="n">_TILE_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#dcdcd4&quot;</span>
+
+
+<div class="viewcode-block" id="plot_access_trace">
+<a class="viewcode-back" href="../../../accelforge.plotting.html#accelforge.plotting.accesstrace.plot_access_trace">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_access_trace</span><span class="p">(</span>
+    <span class="n">trace</span><span class="p">,</span>
+    <span class="n">workload</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">tensors</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">color_by</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;einsum&quot;</span><span class="p">,</span>
+    <span class="n">rank</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">memory_level</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">level_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_TILE_COLOR</span><span class="p">,</span>
+    <span class="n">marker_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ncols</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">figsize</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">trace_kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot timestep (x) against accessed tensor element (y) for a LoopTree mapping.</span>
+
+<span class="sd">    One subplot is drawn per tensor, sharing the timestep axis, so that fusion and</span>
+<span class="sd">    reuse across tensors line up vertically.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    trace:</span>
+<span class="sd">        An :class:`~accelforge.tracegen.accesstrace.AccessTrace`, or anything</span>
+<span class="sd">        :func:`~accelforge.tracegen.accesstrace.trace_accesses` accepts (a</span>
+<span class="sd">        :class:`~accelforge.frontend.spec.Spec`, a mapper result, or a</span>
+<span class="sd">        :class:`~accelforge.frontend.mapping.Mapping`).</span>
+<span class="sd">    workload:</span>
+<span class="sd">        The workload, required only when ``trace`` is a bare ``Mapping``.</span>
+<span class="sd">    tensors:</span>
+<span class="sd">        Which tensors to plot, and in what order. Defaults to every traced tensor.</span>
+<span class="sd">    color_by:</span>
+<span class="sd">        ``&quot;einsum&quot;`` colors accesses by which Einsum made them; ``&quot;access&quot;`` colors</span>
+<span class="sd">        by read vs. write. Use ``&quot;access&quot;`` when many Einsums share one tensor.</span>
+<span class="sd">    rank:</span>
+<span class="sd">        Plot the coordinate along this tensor rank on the y-axis instead of the</span>
+<span class="sd">        flattened element index. Only applies to tensors that have this rank.</span>
+<span class="sd">    memory_level:</span>
+<span class="sd">        Shade, in a background block, the tile of each tensor that is resident in this</span>
+<span class="sd">        memory level (a storage component of the architecture, e.g. ``&quot;GlobalBuffer&quot;``).</span>
+<span class="sd">        One block covers one tile: its width is how long the tile is *live* -- from its</span>
+<span class="sd">        first touch to its last, not the whole span the mapping reserves for it -- and</span>
+<span class="sd">        its height is which elements it holds, so the blocks show directly what a level</span>
+<span class="sd">        is holding while the points show what is being touched. Tensors that this level</span>
+<span class="sd">        never holds are left unshaded.</span>
+<span class="sd">    level_color:</span>
+<span class="sd">        The background color of the ``memory_level`` blocks.</span>
+<span class="sd">    marker_size:</span>
+<span class="sd">        Marker size in points. Chosen from the data density if not given.</span>
+<span class="sd">    ncols:</span>
+<span class="sd">        Number of subplot columns.</span>
+<span class="sd">    ax:</span>
+<span class="sd">        Draw into this existing axes instead of making a figure. Only valid when a</span>
+<span class="sd">        single tensor is being plotted.</span>
+<span class="sd">    figsize:</span>
+<span class="sd">        Figure size. Scaled to the number of subplots if not given.</span>
+<span class="sd">    **trace_kwargs:</span>
+<span class="sd">        Passed to :func:`~accelforge.tracegen.accesstrace.trace_accesses` when</span>
+<span class="sd">        ``trace`` is not already an ``AccessTrace`` (e.g. ``max_timesteps=``,</span>
+<span class="sd">        ``einsums=``, ``max_points=``).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    (fig, axes)</span>
+<span class="sd">        The figure and a list of the axes drawn into.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">color_by</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;einsum&quot;</span><span class="p">,</span> <span class="s2">&quot;access&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;color_by must be &#39;einsum&#39; or &#39;access&#39;. Got </span><span class="si">{</span><span class="n">color_by</span><span class="si">!r}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">AccessTrace</span><span class="p">):</span>
+        <span class="n">trace</span> <span class="o">=</span> <span class="n">trace_accesses</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">workload</span><span class="o">=</span><span class="n">workload</span><span class="p">,</span> <span class="n">tensors</span><span class="o">=</span><span class="n">tensors</span><span class="p">,</span> <span class="o">**</span><span class="n">trace_kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">trace_kwargs</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">trace_kwargs</span><span class="p">)</span><span class="si">}</span><span class="s2">, but `trace` is already an AccessTrace. Pass &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;those arguments to trace_accesses() instead.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">tensors</span><span class="p">)</span> <span class="k">if</span> <span class="n">tensors</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">]</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">trace</span><span class="o">.</span><span class="n">for_tensor</span><span class="p">(</span><span class="n">t</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;No traced accesses for tensor(s) </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">. The trace covers &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">trace</span><span class="o">.</span><span class="n">tensors</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The trace contains no tensor accesses to plot.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">memory_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">memory_level</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">memory_level</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">tile_lifetime</span><span class="p">(</span><span class="n">memory_level</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">names</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Memory level </span><span class="si">{</span><span class="n">memory_level</span><span class="si">!r}</span><span class="s2"> holds none of the tensors being plotted &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">). The mapping stores tensors in </span><span class="si">{</span><span class="n">trace</span><span class="o">.</span><span class="n">memory_levels</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="n">color_of</span> <span class="o">=</span> <span class="n">_color_assignment</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">)</span>
+
+    <span class="c1"># --- Figure layout ---------------------------------------------------------------</span>
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;ax= draws a single tensor, but </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2"> were requested. Drop ax= &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;or pass tensors=[&#39;</span><span class="si">{</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39;].&quot;</span>
+            <span class="p">)</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_figure</span><span class="p">(),</span> <span class="p">[</span><span class="n">ax</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ncols</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">ncols</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)))</span>
+        <span class="n">nrows</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">//</span> <span class="n">ncols</span><span class="p">)</span>
+        <span class="n">figsize</span> <span class="o">=</span> <span class="n">figsize</span> <span class="ow">or</span> <span class="p">(</span><span class="mf">6.5</span> <span class="o">*</span> <span class="n">ncols</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">nrows</span> <span class="o">+</span> <span class="mf">0.6</span><span class="p">)</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">grid</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span>
+            <span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="n">figsize</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">squeeze</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">flat</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">extra</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="p">:]:</span>
+            <span class="n">extra</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)]</span>
+
+    <span class="n">x_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">n_timesteps</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">names</span><span class="p">):</span>
+        <span class="n">subtraces</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">for_tensor</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+        <span class="n">_plot_one</span><span class="p">(</span>
+            <span class="n">axis</span><span class="p">,</span>
+            <span class="n">tensor</span><span class="p">,</span>
+            <span class="n">subtraces</span><span class="p">,</span>
+            <span class="n">color_of</span><span class="p">,</span>
+            <span class="n">color_by</span><span class="p">,</span>
+            <span class="n">rank</span><span class="p">,</span>
+            <span class="n">marker_size</span><span class="p">,</span>
+            <span class="n">x_max</span><span class="p">,</span>
+            <span class="p">[]</span> <span class="k">if</span> <span class="n">memory_level</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">trace</span><span class="o">.</span><span class="n">tile_lifetime</span><span class="p">(</span><span class="n">memory_level</span><span class="p">,</span> <span class="n">tensor</span><span class="p">),</span>
+            <span class="n">level_color</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># `sharex` hides tick labels on every row but the last, which leaves a short</span>
+    <span class="c1"># column dangling. Re-enable them on whichever axes actually sits at the bottom.</span>
+    <span class="n">bottom</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">{</span><span class="mi">0</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="p">{</span><span class="nb">max</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">))</span> <span class="k">if</span> <span class="n">i</span> <span class="o">%</span> <span class="n">ncols</span> <span class="o">==</span> <span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncols</span><span class="p">)}</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bottom</span><span class="p">:</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Timestep&quot;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">labelbottom</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">handles</span> <span class="o">=</span> <span class="n">_legend_handles</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">color_of</span><span class="p">,</span> <span class="n">color_by</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">memory_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">Patch</span><span class="p">(</span>
+                <span class="n">facecolor</span><span class="o">=</span><span class="n">level_color</span><span class="p">,</span>
+                <span class="n">edgecolor</span><span class="o">=</span><span class="n">_darken</span><span class="p">(</span><span class="n">level_color</span><span class="p">),</span>
+                <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;tile in </span><span class="si">{</span><span class="n">memory_level</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">handles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span>
+            <span class="n">handles</span><span class="o">=</span><span class="n">handles</span><span class="p">,</span>
+            <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;upper center&quot;</span><span class="p">,</span>
+            <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="n">ncol</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">handles</span><span class="p">),</span> <span class="mi">4</span><span class="p">),</span>
+            <span class="n">frameon</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">fontsize</span><span class="o">=</span><span class="s2">&quot;small&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">(</span><span class="n">rect</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.99</span> <span class="o">-</span> <span class="mf">0.03</span> <span class="o">*</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">handles</span><span class="p">)</span> <span class="o">//</span> <span class="mi">4</span><span class="p">)))</span>
+    <span class="k">elif</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">trace</span><span class="o">.</span><span class="n">truncated</span><span class="p">:</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+            <span class="mf">0.99</span><span class="p">,</span>
+            <span class="mf">0.005</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;truncated to the first </span><span class="si">{</span><span class="n">trace</span><span class="o">.</span><span class="n">n_timesteps</span><span class="si">}</span><span class="s2"> timesteps&quot;</span><span class="p">,</span>
+            <span class="n">ha</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+            <span class="n">va</span><span class="o">=</span><span class="s2">&quot;bottom&quot;</span><span class="p">,</span>
+            <span class="n">fontsize</span><span class="o">=</span><span class="s2">&quot;x-small&quot;</span><span class="p">,</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span></div>
+
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Internals</span>
+<span class="c1"># ======================================================================================</span>
+<span class="k">def</span> <span class="nf">_color_assignment</span><span class="p">(</span><span class="n">trace</span><span class="p">:</span> <span class="n">AccessTrace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Map each series key to a fixed categorical slot.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">color_by</span> <span class="o">==</span> <span class="s2">&quot;access&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="kc">False</span><span class="p">:</span> <span class="n">_SERIES_COLORS</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="kc">True</span><span class="p">:</span> <span class="n">_SERIES_COLORS</span><span class="p">[</span><span class="mi">1</span><span class="p">]}</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">einsum</span><span class="p">:</span> <span class="p">(</span><span class="n">_SERIES_COLORS</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">_SERIES_COLORS</span><span class="p">)</span> <span class="k">else</span> <span class="n">_OTHER_COLOR</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">einsums</span><span class="p">)</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">_series_key</span><span class="p">(</span><span class="n">subtrace</span><span class="p">:</span> <span class="n">TensorAccessTrace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span> <span class="k">if</span> <span class="n">color_by</span> <span class="o">==</span> <span class="s2">&quot;access&quot;</span> <span class="k">else</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">einsum</span>
+
+
+<span class="k">def</span> <span class="nf">_y_values</span><span class="p">(</span><span class="n">subtrace</span><span class="p">:</span> <span class="n">TensorAccessTrace</span><span class="p">,</span> <span class="n">rank</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The y-coordinate of each access, and the label and extent of the axis.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">rank</span> <span class="ow">in</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">ranks</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">ranks</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">rank</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rank</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">tensor_shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="s2">&quot;Element&quot;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subtrace</span><span class="o">.</span><span class="n">ranks</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">subtrace</span><span class="o">.</span><span class="n">ranks</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">element</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">tensor_size</span>
+
+
+<span class="k">def</span> <span class="nf">_marker_size</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">n_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_y</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_points</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pick a marker size that fills the axes without smearing into a solid block.&quot;&quot;&quot;</span>
+    <span class="n">bbox</span> <span class="o">=</span> <span class="n">axis</span><span class="o">.</span><span class="n">get_window_extent</span><span class="p">()</span>
+    <span class="n">dpi</span> <span class="o">=</span> <span class="n">axis</span><span class="o">.</span><span class="n">get_figure</span><span class="p">()</span><span class="o">.</span><span class="n">dpi</span> <span class="ow">or</span> <span class="mf">100.0</span>
+    <span class="n">width_pt</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">bbox</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">72.0</span> <span class="o">/</span> <span class="n">dpi</span>
+    <span class="n">height_pt</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">bbox</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">72.0</span> <span class="o">/</span> <span class="n">dpi</span>
+    <span class="n">per_cell</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">width_pt</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_x</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">height_pt</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_y</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="c1"># Sparse traces get a visible dot; dense ones shrink so structure stays legible.</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">per_cell</span> <span class="o">*</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">6.0</span> <span class="k">if</span> <span class="n">n_points</span> <span class="o">&lt;</span> <span class="mi">20_000</span> <span class="k">else</span> <span class="mf">3.0</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_darken</span><span class="p">(</span><span class="n">color</span><span class="p">,</span> <span class="n">factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.82</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A slightly darker shade of ``color``, for outlining a fill of it.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">channel</span> <span class="o">*</span> <span class="n">factor</span> <span class="k">for</span> <span class="n">channel</span> <span class="ow">in</span> <span class="n">mcolors</span><span class="o">.</span><span class="n">to_rgb</span><span class="p">(</span><span class="n">color</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_tile_blocks</span><span class="p">(</span>
+    <span class="n">subtraces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccessTrace</span><span class="p">],</span> <span class="n">windows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span> <span class="n">rank</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One rectangle per contiguous run of elements resident in a memory level, per window.</span>
+
+<span class="sd">    The tile a level holds over a window is exactly the set of elements touched while it</span>
+<span class="sd">    is resident, so the blocks are read straight off the trace rather than recomputed</span>
+<span class="sd">    from tile shapes. Splitting each tile into its contiguous runs keeps a tile that is</span>
+<span class="sd">    strided in the flattened element index from shading the gaps it leaves.</span>
+
+<span class="sd">    A window is what the mapping *reserves*; a tile is only *live* within it from its</span>
+<span class="sd">    first touch to its last, so each block is clipped to that span. The reservation of a</span>
+<span class="sd">    Storage node that sits above a Sequential split, for instance, covers every branch,</span>
+<span class="sd">    but a tensor only one branch touches is live for only that branch.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">windows</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">subtraces</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">timestep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">t</span><span class="o">.</span><span class="n">timestep</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">subtraces</span><span class="p">])</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">_y_values</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">rank</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">subtraces</span><span class="p">])</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">timestep</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;stable&quot;</span><span class="p">)</span>
+    <span class="n">timestep</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">timestep</span><span class="p">[</span><span class="n">order</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
+
+    <span class="n">blocks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="n">windows</span><span class="p">:</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">timestep</span><span class="p">,</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">hi</span> <span class="o">&lt;=</span> <span class="n">lo</span><span class="p">:</span>
+            <span class="k">continue</span>  <span class="c1"># This level reserves room here, but nothing touches the tensor.</span>
+        <span class="c1"># `timestep` is sorted, so the ends of the slice are the live span. A tile is</span>
+        <span class="c1"># allocated and freed as a unit, so all of its runs share that span.</span>
+        <span class="n">live_start</span><span class="p">,</span> <span class="n">live_end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">timestep</span><span class="p">[</span><span class="n">lo</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">timestep</span><span class="p">[</span><span class="n">hi</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">resident</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="n">lo</span><span class="p">:</span><span class="n">hi</span><span class="p">])</span>
+        <span class="n">runs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">resident</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">resident</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">blocks</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">Rectangle</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">live_start</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">run</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">),</span>
+                <span class="n">live_end</span> <span class="o">-</span> <span class="n">live_start</span><span class="p">,</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">run</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">run</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">run</span> <span class="ow">in</span> <span class="n">runs</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">blocks</span>
+
+
+<span class="k">def</span> <span class="nf">_plot_one</span><span class="p">(</span>
+    <span class="n">axis</span><span class="p">,</span>
+    <span class="n">tensor</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">subtraces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccessTrace</span><span class="p">],</span>
+    <span class="n">color_of</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="n">color_by</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">rank</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">marker_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">x_max</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">windows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span>
+    <span class="n">level_color</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">y_label</span><span class="p">,</span> <span class="n">y_extent</span> <span class="o">=</span> <span class="s2">&quot;Element&quot;</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="n">n_points</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">n_accesses</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">subtraces</span><span class="p">)</span>
+
+    <span class="n">blocks</span> <span class="o">=</span> <span class="n">_tile_blocks</span><span class="p">(</span><span class="n">subtraces</span><span class="p">,</span> <span class="n">windows</span><span class="p">,</span> <span class="n">rank</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">blocks</span><span class="p">:</span>
+        <span class="c1"># Below the gridlines (which set_axisbelow puts at 0.5) and the points.</span>
+        <span class="n">axis</span><span class="o">.</span><span class="n">add_collection</span><span class="p">(</span>
+            <span class="n">PatchCollection</span><span class="p">(</span>
+                <span class="n">blocks</span><span class="p">,</span>
+                <span class="n">facecolor</span><span class="o">=</span><span class="n">level_color</span><span class="p">,</span>
+                <span class="n">edgecolor</span><span class="o">=</span><span class="n">_darken</span><span class="p">(</span><span class="n">level_color</span><span class="p">),</span>
+                <span class="n">linewidths</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>
+                <span class="n">zorder</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">rasterized</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2_000</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">subtrace</span> <span class="ow">in</span> <span class="n">subtraces</span><span class="p">:</span>
+        <span class="n">y</span><span class="p">,</span> <span class="n">y_label</span><span class="p">,</span> <span class="n">y_extent</span> <span class="o">=</span> <span class="n">_y_values</span><span class="p">(</span><span class="n">subtrace</span><span class="p">,</span> <span class="n">rank</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">marker_size</span> <span class="ow">or</span> <span class="n">_marker_size</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">x_max</span><span class="p">,</span> <span class="n">y_extent</span><span class="p">,</span> <span class="n">n_points</span><span class="p">)</span>
+        <span class="n">axis</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+            <span class="n">subtrace</span><span class="o">.</span><span class="n">timestep</span><span class="p">,</span>
+            <span class="n">y</span><span class="p">,</span>
+            <span class="n">s</span><span class="o">=</span><span class="n">size</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+            <span class="n">c</span><span class="o">=</span><span class="n">color_of</span><span class="p">[</span><span class="n">_series_key</span><span class="p">(</span><span class="n">subtrace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">)],</span>
+            <span class="n">marker</span><span class="o">=</span><span class="n">_WRITE_MARKER</span> <span class="k">if</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span> <span class="k">else</span> <span class="n">_READ_MARKER</span><span class="p">,</span>
+            <span class="n">linewidths</span><span class="o">=</span><span class="mf">0.5</span> <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;=</span> <span class="mi">4</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;none&quot;</span> <span class="k">if</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="mi">4</span> <span class="k">else</span> <span class="n">axis</span><span class="o">.</span><span class="n">get_facecolor</span><span class="p">(),</span>
+            <span class="n">rasterized</span><span class="o">=</span><span class="n">n_points</span> <span class="o">&gt;</span> <span class="mi">50_000</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">y_label</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tensor</span><span class="si">}</span><span class="s2">  [</span><span class="si">{</span><span class="s1">&#39;x&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">subtraces</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tensor_shape</span><span class="p">)</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">,</span>
+        <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span>
+        <span class="n">fontsize</span><span class="o">=</span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">x_max</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">y_extent</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">))</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.25</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_axisbelow</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">side</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;top&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">):</span>
+        <span class="n">axis</span><span class="o">.</span><span class="n">spines</span><span class="p">[</span><span class="n">side</span><span class="p">]</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_legend_handles</span><span class="p">(</span><span class="n">trace</span><span class="p">:</span> <span class="n">AccessTrace</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">color_of</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">color_by</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build legend entries for exactly the series on screen. Read vs. write always gets</span>
+<span class="sd">    its own marker shape, so identity never rests on color alone.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">seen</span><span class="p">,</span> <span class="n">handles</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">subtrace</span> <span class="ow">in</span> <span class="n">trace</span><span class="o">.</span><span class="n">for_tensor</span><span class="p">(</span><span class="n">tensor</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">_series_key</span><span class="p">(</span><span class="n">subtrace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">),</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="p">(</span><span class="s2">&quot;write&quot;</span> <span class="k">if</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span> <span class="k">else</span> <span class="s2">&quot;read&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">color_by</span> <span class="o">==</span> <span class="s2">&quot;access&quot;</span>
+                <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">subtrace</span><span class="o">.</span><span class="n">einsum</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;write&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;read&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="p">)</span>
+            <span class="n">handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Line2D</span><span class="p">(</span>
+                    <span class="p">[],</span>
+                    <span class="p">[],</span>
+                    <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+                    <span class="n">marker</span><span class="o">=</span><span class="n">_WRITE_MARKER</span> <span class="k">if</span> <span class="n">subtrace</span><span class="o">.</span><span class="n">is_output</span> <span class="k">else</span> <span class="n">_READ_MARKER</span><span class="p">,</span>
+                    <span class="n">markersize</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                    <span class="n">color</span><span class="o">=</span><span class="n">color_of</span><span class="p">[</span><span class="n">_series_key</span><span class="p">(</span><span class="n">subtrace</span><span class="p">,</span> <span class="n">color_by</span><span class="p">)],</span>
+                    <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">handles</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

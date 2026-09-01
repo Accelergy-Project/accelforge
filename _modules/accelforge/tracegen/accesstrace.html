@@ -1,0 +1,1350 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.tracegen.accesstrace &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=cb8930eaaf36d9849b67" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=cb8930eaaf36d9849b67"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/tracegen/accesstrace';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script data-domain="accelergy-project.github.io/accelforge" defer="defer" src="https://plausible.emer.org/js/script.file-downloads.outbound-links.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.tracegen.accesstrace</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.tracegen.accesstrace</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Trace which tensor elements a LoopTree mapping touches at each timestep.</span>
+
+<span class="sd">The entry point is :func:`trace_accesses`, which walks a</span>
+<span class="sd">:class:`~accelforge.frontend.mapping.Mapping` and returns an :class:`AccessTrace`:</span>
+<span class="sd">a record of ``(timestep, tensor element)`` pairs, plus the timestep spans over which</span>
+<span class="sd">each memory level holds one tile. Feeding that to</span>
+<span class="sd">:func:`accelforge.plotting.accesstrace.plot_access_trace` gives the classic</span>
+<span class="sd">&quot;iteration space vs. data space&quot; picture, from which reuse, tiling, and fusion</span>
+<span class="sd">behavior are directly readable.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapping</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Compute</span><span class="p">,</span>
+    <span class="n">Loop</span><span class="p">,</span>
+    <span class="n">Mapping</span><span class="p">,</span>
+    <span class="n">MappingNode</span><span class="p">,</span>
+    <span class="n">Nested</span><span class="p">,</span>
+    <span class="n">Sequential</span><span class="p">,</span>
+    <span class="n">Spatial</span><span class="p">,</span>
+    <span class="n">Split</span><span class="p">,</span>
+    <span class="n">Storage</span><span class="p">,</span>
+    <span class="n">Temporal</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.workload</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Einsum</span><span class="p">,</span>
+    <span class="n">EinsumName</span><span class="p">,</span>
+    <span class="n">Rank</span><span class="p">,</span>
+    <span class="n">RankVariable</span><span class="p">,</span>
+    <span class="n">TensorName</span><span class="p">,</span>
+    <span class="n">Workload</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;AccessTrace&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;TensorAccessTrace&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;trace_accesses&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="n">DEFAULT_MAX_POINTS</span> <span class="o">=</span> <span class="mi">2_000_000</span>
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Result types</span>
+<span class="c1"># ======================================================================================</span>
+<div class="viewcode-block" id="TensorAccessTrace">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.TensorAccessTrace">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">TensorAccessTrace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The accesses that one Einsum makes to one tensor, as a flat list of</span>
+<span class="sd">    ``(timestep, element)`` pairs.</span>
+
+<span class="sd">    All arrays share a length: entry ``i`` of every array describes the same access.</span>
+<span class="sd">    Duplicate accesses within a single timestep are removed, so an element that is</span>
+<span class="sd">    read many times in one timestep appears once.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of the tensor being accessed. &quot;&quot;&quot;</span>
+    <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of the Einsum making the accesses. &quot;&quot;&quot;</span>
+    <span class="n">is_output</span><span class="p">:</span> <span class="nb">bool</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Whether this Einsum writes the tensor (``True``) or reads it (``False``). &quot;&quot;&quot;</span>
+
+    <span class="n">timestep</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Integer array of timesteps at which each access happens. &quot;&quot;&quot;</span>
+    <span class="n">element</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Integer array of flattened (row-major) tensor element indices. &quot;&quot;&quot;</span>
+    <span class="n">coordinates</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; ``(n_accesses, n_ranks)`` integer array of per-rank tensor coordinates. &quot;&quot;&quot;</span>
+
+    <span class="n">ranks</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The names of the tensor&#39;s ranks, in the order used by ``coordinates``. &quot;&quot;&quot;</span>
+    <span class="n">tensor_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The size of each of the tensor&#39;s ranks, in the order used by ``coordinates``. &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">n_accesses</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of distinct (timestep, element) accesses in this trace.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timestep</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of elements in the tensor.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tensor_shape</span><span class="p">))</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_shape</span> <span class="k">else</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">kind</span> <span class="o">=</span> <span class="s2">&quot;writes&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_output</span> <span class="k">else</span> <span class="s2">&quot;reads&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;TensorAccessTrace(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">einsum</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tensor</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="s1">&#39;x&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">tensor_shape</span><span class="p">))</span><span class="si">}</span><span class="s2">], &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_accesses</span><span class="si">}</span><span class="s2"> accesses)&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="AccessTrace">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.AccessTrace">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">AccessTrace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A full record of which tensor elements a mapping accesses at each timestep.</span>
+
+<span class="sd">    A *timestep* is one iteration of the innermost temporal loop, i.e. one step of</span>
+<span class="sd">    the sequential schedule that the LoopTree describes. Spatial loops do not advance</span>
+<span class="sd">    the timestep, so spatially-parallel accesses share an x-coordinate.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">traces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccessTrace</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; One entry per (Einsum, tensor) pair that the mapping touches. &quot;&quot;&quot;</span>
+    <span class="n">n_timesteps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The total number of timesteps in the mapping. &quot;&quot;&quot;</span>
+    <span class="n">tensor_shapes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The shape of each traced tensor. &quot;&quot;&quot;</span>
+    <span class="n">tensor_ranks</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The rank names of each traced tensor, ordered to match ``tensor_shapes``. &quot;&quot;&quot;</span>
+    <span class="n">einsum_timespans</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; ``{einsum: (first_timestep, last_timestep + 1)}`` for each Einsum. &quot;&quot;&quot;</span>
+    <span class="n">tile_windows</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    ``{memory_level: {tensor: [(first_timestep, last_timestep + 1), ...]}}``: the</span>
+<span class="sd">    timestep spans over which one tile of the tensor stays resident in that memory</span>
+<span class="sd">    level. A memory level is the ``component`` of a</span>
+<span class="sd">    :class:`~accelforge.frontend.mapping.Storage` node, and a new span starts whenever a</span>
+<span class="sd">    loop outside that node advances.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">truncated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Whether the trace was cut short by the ``max_timesteps`` argument. &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensors</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The names of all traced tensors, in the order they are first accessed.&quot;&quot;&quot;</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">traces</span><span class="p">:</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">seen</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">einsums</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The names of all traced Einsums, in the order they are first executed.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">einsum_timespans</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">memory_levels</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The names of the storage components the mapping holds tensors in, outermost</span>
+<span class="sd">        first.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_windows</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AccessTrace.for_tensor">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.AccessTrace.for_tensor">[docs]</a>
+    <span class="k">def</span> <span class="nf">for_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccessTrace</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return every :class:`TensorAccessTrace` that touches ``tensor``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">traces</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">tensor</span> <span class="o">==</span> <span class="n">tensor</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="AccessTrace.tile_lifetime">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.AccessTrace.tile_lifetime">[docs]</a>
+    <span class="k">def</span> <span class="nf">tile_lifetime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">memory_level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The timestep spans over which one tile of ``tensor`` stays resident in</span>
+<span class="sd">        ``memory_level``. Empty if that level never holds the tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_windows</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">memory_level</span><span class="p">),</span> <span class="p">{})</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">level</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">TensorName</span><span class="p">(</span><span class="n">tensor</span><span class="p">),</span> <span class="p">[]))</span></div>
+
+
+<div class="viewcode-block" id="AccessTrace.to_dataframe">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.AccessTrace.to_dataframe">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dataframe</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a tidy ``pandas.DataFrame`` with one row per access and columns</span>
+<span class="sd">        ``einsum``, ``tensor``, ``is_output``, ``timestep``, and ``element``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">pandas</span> <span class="k">as</span> <span class="n">pd</span>
+
+        <span class="n">frames</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;einsum&quot;</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">einsum</span><span class="p">,</span>
+                    <span class="s2">&quot;tensor&quot;</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
+                    <span class="s2">&quot;is_output&quot;</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">is_output</span><span class="p">,</span>
+                    <span class="s2">&quot;timestep&quot;</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">timestep</span><span class="p">,</span>
+                    <span class="s2">&quot;element&quot;</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">element</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">traces</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">frames</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;einsum&quot;</span><span class="p">,</span> <span class="s2">&quot;tensor&quot;</span><span class="p">,</span> <span class="s2">&quot;is_output&quot;</span><span class="p">,</span> <span class="s2">&quot;timestep&quot;</span><span class="p">,</span> <span class="s2">&quot;element&quot;</span><span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;AccessTrace(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">traces</span><span class="p">)</span><span class="si">}</span><span class="s2"> tensor traces, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_timesteps</span><span class="si">}</span><span class="s2"> timesteps&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;, truncated&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">truncated</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Public entry point</span>
+<span class="c1"># ======================================================================================</span>
+<div class="viewcode-block" id="trace_accesses">
+<a class="viewcode-back" href="../../../accelforge.tracegen.html#accelforge.tracegen.accesstrace.trace_accesses">[docs]</a>
+<span class="k">def</span> <span class="nf">trace_accesses</span><span class="p">(</span>
+    <span class="n">spec_or_mapping</span><span class="p">,</span>
+    <span class="n">workload</span><span class="p">:</span> <span class="n">Workload</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tensors</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">einsums</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_timesteps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_points</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_POINTS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AccessTrace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Trace which tensor elements a LoopTree mapping accesses at each timestep.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec_or_mapping:</span>
+<span class="sd">        Either a :class:`~accelforge.frontend.spec.Spec` (whose ``mapping`` and</span>
+<span class="sd">        ``workload`` are used), a :class:`~accelforge.mapper.FFM.Mappings` result</span>
+<span class="sd">        (whose single mapping is used), or a</span>
+<span class="sd">        :class:`~accelforge.frontend.mapping.Mapping`. If a bare ``Mapping`` is</span>
+<span class="sd">        given, ``workload`` is required.</span>
+<span class="sd">    workload:</span>
+<span class="sd">        The workload the mapping targets. Required only when ``spec_or_mapping``</span>
+<span class="sd">        is a bare ``Mapping``.</span>
+<span class="sd">    tensors:</span>
+<span class="sd">        If given, only trace these tensors.</span>
+<span class="sd">    einsums:</span>
+<span class="sd">        If given, only trace these Einsums. Timesteps are still numbered as if all</span>
+<span class="sd">        Einsums ran, so traces stay aligned on the x-axis.</span>
+<span class="sd">    max_timesteps:</span>
+<span class="sd">        If given, trace only the first this-many timesteps. Useful for peeking at</span>
+<span class="sd">        the start of a schedule too large to enumerate in full.</span>
+<span class="sd">    max_points:</span>
+<span class="sd">        Safety limit on the number of iteration-space points enumerated for a single</span>
+<span class="sd">        Einsum. Raises :class:`ValueError` if exceeded; raise the limit or use</span>
+<span class="sd">        ``max_timesteps`` to see a prefix instead.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    AccessTrace</span>
+<span class="sd">        The traced accesses, and the tile-residency spans of every memory level the</span>
+<span class="sd">        mapping stores tensors in. Pass to</span>
+<span class="sd">        :func:`accelforge.plotting.accesstrace.plot_access_trace` to visualize.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapping</span><span class="p">,</span> <span class="n">workload</span> <span class="o">=</span> <span class="n">_resolve_mapping_and_workload</span><span class="p">(</span><span class="n">spec_or_mapping</span><span class="p">,</span> <span class="n">workload</span><span class="p">)</span>
+
+    <span class="n">tensor_filter</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">tensors</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">tensors</span><span class="p">))</span>
+    <span class="n">einsum_filter</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">einsums</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">einsums</span><span class="p">))</span>
+    <span class="n">cache</span> <span class="o">=</span> <span class="n">_Cache</span><span class="p">(</span><span class="n">workload</span><span class="p">)</span>
+
+    <span class="n">state</span> <span class="o">=</span> <span class="n">_Layout</span><span class="p">()</span>
+    <span class="n">n_timesteps</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_measure</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">max_timesteps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">budget</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_timesteps</span><span class="p">))</span>
+        <span class="n">n_timesteps</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">_clip</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">budget</span><span class="p">),</span> <span class="n">budget</span><span class="p">)</span>
+
+    <span class="n">leaves</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Leaf</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">holders</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Held</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">_emit</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">leaves</span><span class="p">,</span> <span class="n">holders</span><span class="p">)</span>
+
+    <span class="n">traces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccessTrace</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">einsum_timespans</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="c1"># Coordinates are collected first and flattened to element indices afterwards, so</span>
+    <span class="c1"># that every Einsum touching a tensor agrees on the flattening.</span>
+    <span class="n">pending</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">leaf</span> <span class="ow">in</span> <span class="n">leaves</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">einsum_filter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">einsum_filter</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">einsum</span> <span class="o">=</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">]</span>
+        <span class="n">timestep</span><span class="p">,</span> <span class="n">rank_var_coords</span> <span class="o">=</span> <span class="n">_enumerate_leaf</span><span class="p">(</span><span class="n">leaf</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">max_points</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_timesteps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Clipping loop counts gets close; this makes the cut exact.</span>
+            <span class="n">keep</span> <span class="o">=</span> <span class="n">timestep</span> <span class="o">&lt;</span> <span class="n">n_timesteps</span>
+            <span class="n">timestep</span> <span class="o">=</span> <span class="n">timestep</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+            <span class="n">rank_var_coords</span> <span class="o">=</span> <span class="p">{</span><span class="n">rv</span><span class="p">:</span> <span class="n">c</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span> <span class="k">for</span> <span class="n">rv</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">rank_var_coords</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">if</span> <span class="n">timestep</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+            <span class="n">span</span> <span class="o">=</span> <span class="n">einsum_timespans</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">)</span>
+            <span class="n">new_span</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">timestep</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span> <span class="nb">int</span><span class="p">(</span><span class="n">timestep</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">einsum_timespans</span><span class="p">[</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">new_span</span>
+                <span class="k">if</span> <span class="n">span</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">span</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">new_span</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">max</span><span class="p">(</span><span class="n">span</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">new_span</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">access</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">tensor_filter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">access</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tensor_filter</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">coords</span> <span class="o">=</span> <span class="n">_project</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">,</span> <span class="n">access</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">rank_var_coords</span><span class="p">)</span>
+            <span class="n">t</span><span class="p">,</span> <span class="n">coords</span> <span class="o">=</span> <span class="n">_dedup</span><span class="p">(</span><span class="n">timestep</span><span class="p">,</span> <span class="n">coords</span><span class="p">)</span>
+            <span class="n">pending</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">TensorName</span><span class="p">(</span><span class="n">access</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">,</span> <span class="n">access</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">coords</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="n">tensor_ranks</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">tensor_shapes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">_einsum</span><span class="p">,</span> <span class="n">_out</span><span class="p">,</span> <span class="n">_t</span><span class="p">,</span> <span class="n">coords</span> <span class="ow">in</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">shape_dict</span> <span class="o">=</span> <span class="n">workload</span><span class="o">.</span><span class="n">get_tensor_shape</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+        <span class="n">ranks</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">shape_dict</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+        <span class="c1"># Projections with halos (e.g. convolution) can reach outside the nominal</span>
+        <span class="c1"># box, so grow it to cover everything actually touched.</span>
+        <span class="k">if</span> <span class="n">coords</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">coords</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">tensor_shapes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+        <span class="n">tensor_shapes</span><span class="p">[</span><span class="n">tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">prev</span><span class="p">)))</span>
+        <span class="p">)</span>
+        <span class="n">tensor_ranks</span><span class="p">[</span><span class="n">tensor</span><span class="p">]</span> <span class="o">=</span> <span class="n">ranks</span>
+
+    <span class="k">for</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">einsum</span><span class="p">,</span> <span class="n">is_output</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">coords</span> <span class="ow">in</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">tensor_shapes</span><span class="p">[</span><span class="n">tensor</span><span class="p">]</span>
+        <span class="n">element</span> <span class="o">=</span> <span class="n">_ravel</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+        <span class="n">traces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">TensorAccessTrace</span><span class="p">(</span>
+                <span class="n">tensor</span><span class="o">=</span><span class="n">tensor</span><span class="p">,</span>
+                <span class="n">einsum</span><span class="o">=</span><span class="n">einsum</span><span class="p">,</span>
+                <span class="n">is_output</span><span class="o">=</span><span class="n">is_output</span><span class="p">,</span>
+                <span class="n">timestep</span><span class="o">=</span><span class="n">t</span><span class="p">,</span>
+                <span class="n">element</span><span class="o">=</span><span class="n">element</span><span class="p">,</span>
+                <span class="n">coordinates</span><span class="o">=</span><span class="n">coords</span><span class="p">,</span>
+                <span class="n">ranks</span><span class="o">=</span><span class="n">tensor_ranks</span><span class="p">[</span><span class="n">tensor</span><span class="p">],</span>
+                <span class="n">tensor_shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">AccessTrace</span><span class="p">(</span>
+        <span class="n">traces</span><span class="o">=</span><span class="n">traces</span><span class="p">,</span>
+        <span class="n">n_timesteps</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">n_timesteps</span><span class="p">),</span>
+        <span class="n">tensor_shapes</span><span class="o">=</span><span class="n">tensor_shapes</span><span class="p">,</span>
+        <span class="n">tensor_ranks</span><span class="o">=</span><span class="n">tensor_ranks</span><span class="p">,</span>
+        <span class="n">einsum_timespans</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+            <span class="nb">sorted</span><span class="p">(</span><span class="n">einsum_timespans</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="n">kv</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="p">),</span>
+        <span class="n">tile_windows</span><span class="o">=</span><span class="n">_storage_windows</span><span class="p">(</span><span class="n">holders</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_timesteps</span><span class="p">),</span> <span class="n">tensor_filter</span><span class="p">),</span>
+        <span class="n">truncated</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">truncated</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">_resolve_mapping_and_workload</span><span class="p">(</span><span class="n">spec_or_mapping</span><span class="p">,</span> <span class="n">workload</span><span class="p">):</span>
+    <span class="n">mapping</span> <span class="o">=</span> <span class="n">spec_or_mapping</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="s2">&quot;workload&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="s2">&quot;mapping&quot;</span><span class="p">):</span>  <span class="c1"># a Spec</span>
+        <span class="n">workload</span> <span class="o">=</span> <span class="n">workload</span> <span class="k">if</span> <span class="n">workload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">mapping</span><span class="o">.</span><span class="n">workload</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">mapping</span>
+    <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="s2">&quot;mapping&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>  <span class="c1"># a Mappings result</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">mapping</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">MappingNode</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Expected a Spec, Mappings, or Mapping. Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">spec_or_mapping</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">workload</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;A workload is required when tracing a bare Mapping. Pass a Spec, or &quot;</span>
+            <span class="s2">&quot;supply the workload= argument.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Compute</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;The mapping has no Compute nodes, so there is nothing to trace. Did you &quot;</span>
+            <span class="s2">&quot;forget to load a mapping into the Spec?&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">workload</span>
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Walking the LoopTree</span>
+<span class="c1"># ======================================================================================</span>
+<span class="k">class</span> <span class="nc">_Cache</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Per-trace scratch space. Workloads and Einsums are Pydantic models and are not</span>
+<span class="sd">    hashable, so the memoized lookups they feed are cached here by name instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workload</span><span class="p">:</span> <span class="n">Workload</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workload</span> <span class="o">=</span> <span class="n">workload</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_projections</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="n">TensorName</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The extent of each of ``einsum``&#39;s rank variables.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">einsum</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">accelforge.frontend._workload_isl._isl</span> <span class="kn">import</span> <span class="n">get_rank_variable_bounds</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="n">get_rank_variable_bounds</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workload</span><span class="p">,</span> <span class="n">einsum</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        ``((rank, (rank_variable, ...), callable), ...)`` for projecting ``einsum``&#39;s</span>
+<span class="sd">        rank variables into ``tensor``&#39;s coordinates.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">tensor</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projections</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">accelforge.frontend._workload_isl._symbolic</span> <span class="kn">import</span> <span class="n">get_projection_expr</span>
+
+            <span class="n">exprs</span> <span class="o">=</span> <span class="n">get_projection_expr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">einsum</span><span class="p">],</span> <span class="n">tensor</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_projections</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="n">rank</span><span class="p">,</span>
+                    <span class="nb">tuple</span><span class="p">(</span><span class="n">RankVariable</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">))</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="nb">str</span><span class="p">)),</span>
+                    <span class="n">sympy</span><span class="o">.</span><span class="n">lambdify</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="nb">str</span><span class="p">),</span> <span class="n">expr</span><span class="p">,</span> <span class="s2">&quot;numpy&quot;</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projections</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">_LoopLevel</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One enclosing loop, with everything needed to place its iterations in time.&quot;&quot;&quot;</span>
+
+    <span class="n">loop</span><span class="p">:</span> <span class="n">Loop</span>
+    <span class="n">n_iterations</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; How many timesteps one iteration of this loop consumes. Zero for Spatial. &quot;&quot;&quot;</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">_Held</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A Storage node together with the loops that enclose it.&quot;&quot;&quot;</span>
+
+    <span class="n">node</span><span class="p">:</span> <span class="n">Storage</span>
+    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_LoopLevel</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Only the loops *outside* the node, i.e. the ones that change its tile. &quot;&quot;&quot;</span>
+    <span class="n">t0</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The timestep at which the node&#39;s first tile arrives. &quot;&quot;&quot;</span>
+    <span class="n">duration</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; How many timesteps one tile stays resident. &quot;&quot;&quot;</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">_Leaf</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A Compute node together with the loop nest that encloses it.&quot;&quot;&quot;</span>
+
+    <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span>
+    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_LoopLevel</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">t0</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The timestep at which this leaf&#39;s first iteration runs. &quot;&quot;&quot;</span>
+    <span class="n">n_timesteps</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; How many timesteps this leaf spans, counting gaps left by sibling branches. &quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">_terminal_child</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Nested</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MappingNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The single child of a ``Nested`` that continues the tree, if there is one.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="p">(</span><span class="n">Nested</span><span class="p">,</span> <span class="n">Split</span><span class="p">,</span> <span class="n">Compute</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">child</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">_loops_of</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Nested</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Loop</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">child</span> <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">Loop</span><span class="p">)]</span>
+
+
+<span class="k">def</span> <span class="nf">_measure</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">MappingNode</span><span class="p">,</span> <span class="n">cache</span><span class="p">:</span> <span class="n">_Cache</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="s2">&quot;_Layout&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bottom-up pass: record each loop&#39;s iteration count and each node&#39;s duration.</span>
+
+<span class="sd">    Returns ``(n_timesteps, representative_einsum)``. The representative Einsum names</span>
+<span class="sd">    the iteration space that the enclosing loops are bound to; loops fused across</span>
+<span class="sd">    Einsums iterate the same number of times for all of them.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Compute</span><span class="p">):</span>
+        <span class="n">einsum</span> <span class="o">=</span> <span class="n">EinsumName</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">einsum</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">einsum</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cache</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Compute node targets Einsum &#39;</span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&#39;, which is not in the &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;workload (which has </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">cache</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">)</span><span class="si">}</span><span class="s2">).&quot;</span>
+            <span class="p">)</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">,</span> <span class="n">einsum</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Split</span><span class="p">):</span>
+        <span class="c1"># Sequential branches run one after another; Pipeline/Parallel branches</span>
+        <span class="c1"># overlap, so the split lasts as long as its longest branch.</span>
+        <span class="n">sizes</span><span class="p">,</span> <span class="n">einsum</span> <span class="o">=</span> <span class="p">[],</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="n">size</span><span class="p">,</span> <span class="n">child_einsum</span> <span class="o">=</span> <span class="n">_measure</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+            <span class="n">sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+            <span class="n">einsum</span> <span class="o">=</span> <span class="n">einsum</span> <span class="ow">or</span> <span class="n">child_einsum</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Sequential</span><span class="p">)</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="n">sizes</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="n">total</span>
+        <span class="k">return</span> <span class="n">total</span><span class="p">,</span> <span class="n">einsum</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Nested</span><span class="p">):</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="n">_terminal_child</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="n">size</span><span class="p">,</span> <span class="n">einsum</span> <span class="o">=</span> <span class="n">_measure</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">loop</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">_loops_of</span><span class="p">(</span><span class="n">node</span><span class="p">)):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">_loop_n_iterations</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">einsum</span><span class="p">,</span> <span class="n">cache</span><span class="p">)</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loop</span><span class="p">)]</span> <span class="o">=</span> <span class="n">n</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">Temporal</span><span class="p">):</span>
+                <span class="n">size</span> <span class="o">*=</span> <span class="n">n</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="k">return</span> <span class="n">size</span><span class="p">,</span> <span class="n">einsum</span>
+
+    <span class="c1"># Storage / Reservation / TextBox: no iteration of their own.</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">_clip</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">MappingNode</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="s2">&quot;_Layout&quot;</span><span class="p">,</span> <span class="n">budget</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shrink loop iteration counts so that ``node`` fits in ``budget`` timesteps,</span>
+<span class="sd">    keeping inner loops intact so the result is a genuine prefix of the schedule.</span>
+<span class="sd">    Returns the clipped duration of ``node``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">&lt;=</span> <span class="n">budget</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">truncated</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Split</span><span class="p">):</span>
+        <span class="n">sequential</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Sequential</span><span class="p">)</span>
+        <span class="n">total</span><span class="p">,</span> <span class="n">longest</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">_clip</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">budget</span> <span class="o">-</span> <span class="n">total</span><span class="p">)</span> <span class="k">if</span> <span class="n">sequential</span> <span class="k">else</span> <span class="n">budget</span><span class="p">)</span>
+            <span class="n">longest</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">longest</span><span class="p">,</span> <span class="p">(</span><span class="n">total</span> <span class="k">if</span> <span class="n">sequential</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">size</span><span class="p">)</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">size</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">total</span> <span class="k">if</span> <span class="n">sequential</span> <span class="k">else</span> <span class="n">longest</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Nested</span><span class="p">):</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="n">_terminal_child</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">_clip</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">budget</span><span class="p">)</span> <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">loop</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">_loops_of</span><span class="p">(</span><span class="n">node</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">Temporal</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">allowed</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">budget</span> <span class="o">//</span> <span class="nb">max</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loop</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loop</span><span class="p">)],</span> <span class="n">allowed</span><span class="p">)</span>
+            <span class="n">size</span> <span class="o">*=</span> <span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loop</span><span class="p">)]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span>
+
+    <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]</span> <span class="o">=</span> <span class="n">size</span>
+    <span class="k">return</span> <span class="n">size</span>
+
+
+<span class="k">def</span> <span class="nf">_emit</span><span class="p">(</span>
+    <span class="n">node</span><span class="p">:</span> <span class="n">MappingNode</span><span class="p">,</span>
+    <span class="n">state</span><span class="p">:</span> <span class="s2">&quot;_Layout&quot;</span><span class="p">,</span>
+    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_LoopLevel</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">t0</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">leaves</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Leaf</span><span class="p">],</span>
+    <span class="n">holders</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Held</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Top-down pass: give every Compute its loop levels and starting timestep, and every</span>
+<span class="sd">    Storage node the loops that enclose it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Compute</span><span class="p">):</span>
+        <span class="n">leaves</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_Leaf</span><span class="p">(</span>
+                <span class="n">einsum</span><span class="o">=</span><span class="n">EinsumName</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">einsum</span><span class="p">),</span>
+                <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">,</span>
+                <span class="n">t0</span><span class="o">=</span><span class="n">t0</span><span class="p">,</span>
+                <span class="n">n_timesteps</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)],</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Split</span><span class="p">):</span>
+        <span class="n">sequential</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Sequential</span><span class="p">)</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">Storage</span><span class="p">):</span>
+                <span class="c1"># A Storage directly under a Split spans the whole Split.</span>
+                <span class="n">holders</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_Held</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">t0</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)]))</span>
+                <span class="k">continue</span>
+            <span class="n">_emit</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">t0</span> <span class="o">+</span> <span class="n">offset</span><span class="p">,</span> <span class="n">leaves</span><span class="p">,</span> <span class="n">holders</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sequential</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">+=</span> <span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">child</span><span class="p">)]</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Nested</span><span class="p">):</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="n">_terminal_child</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="c1"># A loop&#39;s stride is the duration of everything nested inside it, so measure the</span>
+        <span class="c1"># subtree at each depth from the inside out. `inner[i]` is how long the subtree</span>
+        <span class="c1"># at or below loop `i` runs; `inner[0]` is the whole Nested.</span>
+        <span class="n">loops</span> <span class="o">=</span> <span class="n">_loops_of</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="n">inner</span> <span class="o">=</span> <span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">child</span><span class="p">)]]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">loops</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">loops</span><span class="p">))):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loops</span><span class="p">[</span><span class="n">i</span><span class="p">])]</span>
+            <span class="n">inner</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">inner</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">loops</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">Temporal</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># Spatial iterations happen at the same time as one another, so they get no</span>
+        <span class="c1"># stride.</span>
+        <span class="n">my_levels</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_LoopLevel</span><span class="p">(</span>
+                <span class="n">loop</span><span class="p">,</span>
+                <span class="n">state</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">loop</span><span class="p">)],</span>
+                <span class="n">inner</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">Temporal</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">loop</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">loops</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Loops and Storage nodes interleave inside a Nested, and the order of</span>
+        <span class="c1"># `node.nodes` is the nesting order: the loops listed before a Storage node are</span>
+        <span class="c1"># the ones outside it, so they are the ones that swap its tile.</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">Loop</span><span class="p">):</span>
+                <span class="n">depth</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">Storage</span><span class="p">):</span>
+                <span class="n">holders</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">_Held</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">levels</span> <span class="o">+</span> <span class="n">my_levels</span><span class="p">[:</span><span class="n">depth</span><span class="p">],</span> <span class="n">t0</span><span class="p">,</span> <span class="n">inner</span><span class="p">[</span><span class="n">depth</span><span class="p">])</span>
+                <span class="p">)</span>
+        <span class="n">_emit</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">levels</span> <span class="o">+</span> <span class="n">my_levels</span><span class="p">,</span> <span class="n">t0</span><span class="p">,</span> <span class="n">leaves</span><span class="p">,</span> <span class="n">holders</span><span class="p">)</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">_Layout</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scratch state shared by the measure/clip/emit passes.&quot;&quot;&quot;</span>
+
+    <span class="n">sizes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">n_iterations</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">truncated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">def</span> <span class="nf">_storage_windows</span><span class="p">(</span>
+    <span class="n">holders</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Held</span><span class="p">],</span> <span class="n">n_timesteps</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tensor_filter</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Group the Storage nodes by memory level and tensor, and turn each one into the</span>
+<span class="sd">    timestep spans over which a single tile of it stays resident.</span>
+
+<span class="sd">    A tile is swapped out exactly when a loop outside the Storage node advances, so one</span>
+<span class="sd">    tile lasts as long as the subtree beneath the node, and the spans are the iterations</span>
+<span class="sd">    of the enclosing temporal loops. Spatial loops do not advance the timestep, so the</span>
+<span class="sd">    copies they make share a span.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">windows</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">held</span> <span class="ow">in</span> <span class="n">holders</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">held</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">component</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">held</span><span class="o">.</span><span class="n">duration</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">tensors</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">held</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">tensors</span>
+            <span class="k">if</span> <span class="n">tensor_filter</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="ow">in</span> <span class="n">tensor_filter</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">tensors</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">outer</span> <span class="o">=</span> <span class="p">[</span><span class="n">lvl</span> <span class="k">for</span> <span class="n">lvl</span> <span class="ow">in</span> <span class="n">held</span><span class="o">.</span><span class="n">levels</span> <span class="k">if</span> <span class="n">lvl</span><span class="o">.</span><span class="n">stride</span><span class="p">]</span>
+        <span class="n">starts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">held</span><span class="o">.</span><span class="n">t0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">outer</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span>
+                <span class="nb">tuple</span><span class="p">(</span><span class="n">lvl</span><span class="o">.</span><span class="n">n_iterations</span> <span class="k">for</span> <span class="n">lvl</span> <span class="ow">in</span> <span class="n">outer</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">outer</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">starts</span> <span class="o">=</span> <span class="n">held</span><span class="o">.</span><span class="n">t0</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="n">idx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">lvl</span><span class="o">.</span><span class="n">stride</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lvl</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">outer</span><span class="p">))</span>
+        <span class="n">spans</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="n">held</span><span class="o">.</span><span class="n">duration</span><span class="p">,</span> <span class="n">n_timesteps</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">starts</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">n_timesteps</span>
+        <span class="p">}</span>
+
+        <span class="n">level</span> <span class="o">=</span> <span class="n">windows</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">held</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">component</span><span class="p">),</span> <span class="p">{})</span>
+        <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">:</span>
+            <span class="n">level</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="p">{</span><span class="n">tensor</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span> <span class="k">for</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">spans</span> <span class="ow">in</span> <span class="n">level</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">windows</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">_loop_rank_variable</span><span class="p">(</span><span class="n">loop</span><span class="p">:</span> <span class="n">Loop</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RankVariable</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The rank variable that ``loop`` iterates for ``einsum``, if any.&quot;&quot;&quot;</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">rank_variable</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">)):</span>
+        <span class="c1"># A loop fused across Einsums records each Einsum&#39;s own rank variable.</span>
+        <span class="n">per_einsum</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="s2">&quot;_einsum_to_rank_variable&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="n">per_einsum</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">RankVariable</span><span class="p">(</span><span class="n">per_einsum</span><span class="p">[</span><span class="n">einsum</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">RankVariable</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">rv</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">RankVariable</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_as_int</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coerce a mapping attribute to an int, with a message pointing at the node.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is not a number.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> is the symbolic expression </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">. Trace a &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;concrete mapping (e.g. one returned by the mapper or parsed from &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;YAML with numeric tile shapes) instead.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">, which is not an integer.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_tile_shapes</span><span class="p">(</span><span class="n">loop</span><span class="p">:</span> <span class="n">Loop</span><span class="p">,</span> <span class="n">node_desc</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``(stride, initial_tile_shape)`` for ``loop``.&quot;&quot;&quot;</span>
+    <span class="n">stride</span> <span class="o">=</span> <span class="n">_as_int</span><span class="p">(</span><span class="n">loop</span><span class="o">.</span><span class="n">tile_shape</span><span class="p">,</span> <span class="s2">&quot;tile_shape&quot;</span><span class="p">,</span> <span class="n">node_desc</span><span class="p">)</span>
+    <span class="n">initial</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">initial_tile_shape</span>
+    <span class="k">if</span> <span class="n">initial</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">initial</span> <span class="o">==</span> <span class="s2">&quot;symbol&quot;</span><span class="p">:</span>
+        <span class="n">initial</span> <span class="o">=</span> <span class="n">stride</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">initial</span> <span class="o">=</span> <span class="n">_as_int</span><span class="p">(</span><span class="n">initial</span><span class="p">,</span> <span class="s2">&quot;initial_tile_shape&quot;</span><span class="p">,</span> <span class="n">node_desc</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stride</span><span class="p">,</span> <span class="n">initial</span>
+
+
+<span class="k">def</span> <span class="nf">_loop_n_iterations</span><span class="p">(</span><span class="n">loop</span><span class="p">:</span> <span class="n">Loop</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cache</span><span class="p">:</span> <span class="n">_Cache</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">calculated_n_iterations</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">!=</span> <span class="s2">&quot;symbol&quot;</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_as_int</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="s2">&quot;calculated_n_iterations&quot;</span><span class="p">,</span> <span class="n">loop</span><span class="o">.</span><span class="n">compact_str</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>  <span class="c1"># Fall through to computing it from the tile shape.</span>
+
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">einsum</span><span class="p">)</span> <span class="k">if</span> <span class="n">einsum</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="n">_loop_rank_variable</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">einsum</span><span class="p">)</span> <span class="k">if</span> <span class="n">einsum</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">rv</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">bounds</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Cannot determine the number of iterations of loop &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">loop</span><span class="o">.</span><span class="n">compact_str</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; for Einsum &#39;</span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&#39;. Evaluate the mapping &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;first (e.g. with spec.evaluate_mapping()) so that iteration counts are &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;filled in.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">stride</span><span class="p">,</span> <span class="n">initial</span> <span class="o">=</span> <span class="n">_tile_shapes</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">loop</span><span class="o">.</span><span class="n">compact_str</span><span class="p">())</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">bounds</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">shape</span> <span class="o">&lt;=</span> <span class="n">initial</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">shape</span> <span class="o">-</span> <span class="n">initial</span><span class="p">)</span> <span class="o">//</span> <span class="n">stride</span><span class="p">)</span>  <span class="c1"># 1 + ceil((shape - initial) / stride)</span>
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Enumerating the iteration space of one leaf</span>
+<span class="c1"># ======================================================================================</span>
+<span class="k">def</span> <span class="nf">_tile_offsets</span><span class="p">(</span><span class="n">loop</span><span class="p">:</span> <span class="n">Loop</span><span class="p">,</span> <span class="n">n_iterations</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">node_desc</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return ``(offsets, extents)``: where each tile of ``loop`` starts, and how many</span>
+<span class="sd">    indices it covers.</span>
+
+<span class="sd">    Tile 0 covers ``[0, initial)``; tile ``i &gt; 0`` covers</span>
+<span class="sd">    ``[initial + (i - 1) * stride, ... + stride)``. When ``initial == stride`` this</span>
+<span class="sd">    reduces to the usual ``i * stride``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stride</span><span class="p">,</span> <span class="n">initial</span> <span class="o">=</span> <span class="n">_tile_shapes</span><span class="p">(</span><span class="n">loop</span><span class="p">,</span> <span class="n">node_desc</span><span class="p">)</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_iterations</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">offsets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">initial</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">stride</span><span class="p">)</span>
+    <span class="n">extents</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">initial</span><span class="p">,</span> <span class="n">stride</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">offsets</span><span class="p">,</span> <span class="n">extents</span>
+
+
+<span class="k">def</span> <span class="nf">_enumerate_leaf</span><span class="p">(</span><span class="n">leaf</span><span class="p">:</span> <span class="n">_Leaf</span><span class="p">,</span> <span class="n">cache</span><span class="p">:</span> <span class="n">_Cache</span><span class="p">,</span> <span class="n">max_points</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Enumerate every operation-space point under ``leaf``.</span>
+
+<span class="sd">    Returns ``(timestep, rank_var_coords)``, where ``timestep`` is a 1-D array and</span>
+<span class="sd">    ``rank_var_coords`` maps each rank variable to a 1-D array of the same length.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">einsum</span><span class="p">:</span> <span class="n">Einsum</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">]</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">)</span>
+    <span class="n">rank_vars</span> <span class="o">=</span> <span class="p">[</span><span class="n">rv</span> <span class="k">for</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">rank_variables</span><span class="p">]</span>
+
+    <span class="c1"># --- Per-loop tile offsets, and which rank variable each loop drives ------------</span>
+    <span class="n">loop_rank_vars</span><span class="p">,</span> <span class="n">loop_offsets</span><span class="p">,</span> <span class="n">loop_extents</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">leaf</span><span class="o">.</span><span class="n">levels</span><span class="p">:</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">_loop_rank_variable</span><span class="p">(</span><span class="n">level</span><span class="o">.</span><span class="n">loop</span><span class="p">,</span> <span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="p">)</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span> <span class="k">if</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">bounds</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">offsets</span><span class="p">,</span> <span class="n">extents</span> <span class="o">=</span> <span class="n">_tile_offsets</span><span class="p">(</span>
+            <span class="n">level</span><span class="o">.</span><span class="n">loop</span><span class="p">,</span> <span class="n">level</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">,</span> <span class="n">level</span><span class="o">.</span><span class="n">loop</span><span class="o">.</span><span class="n">compact_str</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">loop_rank_vars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span>
+        <span class="n">loop_offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offsets</span><span class="p">)</span>
+        <span class="n">loop_extents</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">extents</span><span class="p">)</span>
+
+    <span class="n">loop_iters</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="o">.</span><span class="n">n_iterations</span><span class="p">)</span> <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">leaf</span><span class="o">.</span><span class="n">levels</span><span class="p">]</span>
+    <span class="n">n_loop_points</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">loop_iters</span><span class="p">))</span> <span class="k">if</span> <span class="n">loop_iters</span> <span class="k">else</span> <span class="mi">1</span>
+
+    <span class="c1"># A rank variable with no loop over it is fully covered by every compute; one with</span>
+    <span class="c1"># loops is covered up to the extent of its innermost loop.</span>
+    <span class="n">innermost</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">rv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">loop_rank_vars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">innermost</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+    <span class="n">residual_shape</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">loop_extents</span><span class="p">[</span><span class="n">innermost</span><span class="p">[</span><span class="n">rv</span><span class="p">]]</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="k">if</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">innermost</span> <span class="k">else</span> <span class="nb">int</span><span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="n">rv</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">rank_vars</span>
+    <span class="p">]</span>
+    <span class="n">n_residual</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">residual_shape</span><span class="p">))</span> <span class="k">if</span> <span class="n">residual_shape</span> <span class="k">else</span> <span class="mi">1</span>
+
+    <span class="n">total</span> <span class="o">=</span> <span class="n">n_loop_points</span> <span class="o">*</span> <span class="n">n_residual</span>
+    <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="n">max_points</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Tracing Einsum &#39;</span><span class="si">{</span><span class="n">leaf</span><span class="o">.</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&#39; would enumerate </span><span class="si">{</span><span class="n">total</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> operation-space &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;points, which exceeds max_points=</span><span class="si">{</span><span class="n">max_points</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2">. Use a smaller workload, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;pass max_timesteps= to trace a prefix, or raise max_points.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># --- Loop indices, timesteps, and per-rank-variable tile bases -------------------</span>
+    <span class="n">loop_idx</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">loop_iters</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">loop_iters</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">loop_iters</span>
+        <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">timestep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_loop_points</span><span class="p">,</span> <span class="n">leaf</span><span class="o">.</span><span class="n">t0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">levels</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">level</span><span class="o">.</span><span class="n">stride</span><span class="p">:</span>
+            <span class="n">timestep</span> <span class="o">=</span> <span class="n">timestep</span> <span class="o">+</span> <span class="n">loop_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">level</span><span class="o">.</span><span class="n">stride</span>
+
+    <span class="n">base</span> <span class="o">=</span> <span class="p">{</span><span class="n">rv</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_loop_points</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">for</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">rank_vars</span><span class="p">}</span>
+    <span class="n">extent</span> <span class="o">=</span> <span class="p">{</span><span class="n">rv</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_loop_points</span><span class="p">,</span> <span class="n">bounds</span><span class="p">[</span><span class="n">rv</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">for</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">rank_vars</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">rv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">loop_rank_vars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">base</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">=</span> <span class="n">base</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">+</span> <span class="n">loop_offsets</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">loop_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="k">if</span> <span class="n">innermost</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">==</span> <span class="n">i</span><span class="p">:</span>
+            <span class="n">extent</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">=</span> <span class="n">loop_extents</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">loop_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+
+    <span class="c1"># --- Expand each tile into its individual elements -------------------------------</span>
+    <span class="n">residual</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">residual_shape</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rank_vars</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rank_vars</span>
+        <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">timestep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">timestep</span><span class="p">,</span> <span class="n">n_residual</span><span class="p">)</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">rv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">rank_vars</span><span class="p">):</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">residual</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">n_loop_points</span><span class="p">)</span>
+        <span class="n">coord</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">base</span><span class="p">[</span><span class="n">rv</span><span class="p">],</span> <span class="n">n_residual</span><span class="p">)</span> <span class="o">+</span> <span class="n">delta</span>
+        <span class="c1"># Drop points past the end of a partial tile or past the rank&#39;s bound.</span>
+        <span class="n">valid</span> <span class="o">&amp;=</span> <span class="n">delta</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="n">rv</span><span class="p">],</span> <span class="n">n_residual</span><span class="p">)</span>
+        <span class="n">valid</span> <span class="o">&amp;=</span> <span class="n">coord</span> <span class="o">&lt;</span> <span class="n">bounds</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span>
+        <span class="n">coords</span><span class="p">[</span><span class="n">rv</span><span class="p">]</span> <span class="o">=</span> <span class="n">coord</span>
+
+    <span class="n">timestep</span> <span class="o">=</span> <span class="n">timestep</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="p">{</span><span class="n">rv</span><span class="p">:</span> <span class="n">c</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span> <span class="k">for</span> <span class="n">rv</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">coords</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="n">timestep</span><span class="p">,</span> <span class="n">coords</span>
+
+
+<span class="c1"># ======================================================================================</span>
+<span class="c1"># Projecting operation-space points into tensor coordinates</span>
+<span class="c1"># ======================================================================================</span>
+<span class="k">def</span> <span class="nf">_project</span><span class="p">(</span>
+    <span class="n">cache</span><span class="p">:</span> <span class="n">_Cache</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">,</span> <span class="n">rank_var_coords</span><span class="p">:</span> <span class="nb">dict</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Map operation-space points to ``(n_points, n_ranks)`` tensor coordinates.&quot;&quot;&quot;</span>
+    <span class="n">n_points</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">rank_var_coords</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)))</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_rank</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">cache</span><span class="o">.</span><span class="n">projection</span><span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">tensor</span><span class="p">):</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">symbols</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rank_var_coords</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Projection of Einsum &#39;</span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&#39; into tensor &#39;</span><span class="si">{</span><span class="n">tensor</span><span class="si">}</span><span class="s2">&#39; uses &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;rank variable(s) </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">, which are not in the Einsum&#39;s iteration &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;space.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">fn</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">rank_var_coords</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">])</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="p">(</span><span class="n">n_points</span><span class="p">,))</span>
+        <span class="n">columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">columns</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_points</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_dedup</span><span class="p">(</span><span class="n">timestep</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span><span class="p">,</span> <span class="n">coords</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collapse repeated accesses to the same element within the same timestep.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">timestep</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">timestep</span><span class="p">,</span> <span class="n">coords</span>
+    <span class="c1"># Pack (timestep, coords) into one integer key so np.unique stays on the fast path.</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">timestep</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">span</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">coords</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">key</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="n">span</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">coords</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">keep</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">timestep</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span> <span class="n">coords</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_ravel</span><span class="p">(</span><span class="n">coords</span><span class="p">:</span> <span class="s2">&quot;np.ndarray&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;np.ndarray&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten per-rank coordinates into row-major element indices.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel_multi_index</span><span class="p">(</span>
+        <span class="nb">tuple</span><span class="p">(</span><span class="n">coords</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=cb8930eaaf36d9849b67"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=cb8930eaaf36d9849b67"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.21.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
