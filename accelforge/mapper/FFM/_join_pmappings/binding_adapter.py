@@ -415,7 +415,7 @@ class BindingAdaptation:
         How many times over one side's binding replicates the tensor along each
         spatial dimension: the product of the iteration counts of its binding loops
         that bind no rank at all. The same quantity as
-        :func:`~accelforge.model._looptree.reuse.symbolic._symbolic.replicated_binding_iterations`,
+        :func:`~accelforge.model._looptree.reuse.symbolic._binding.replicated_binding_iterations`,
         which is what divided the occupancies this adapter reads.
         """
         replication: dict[str, float] = {}

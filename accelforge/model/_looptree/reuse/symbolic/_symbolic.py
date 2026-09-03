@@ -59,7 +59,7 @@ from ._common import (
     SequenceOfRepatedvalues,
     RepeatedValue,
 )
-from ._binding import index_bindings
+from ._binding import index_bindings, replicated_binding_iterations
 from ._stats import ComputeStats, BuffetStats, NetworkStats, SymbolicAnalysisOutput
 from ._network import NetworkAnalyzer
 from accelforge.util.indent import print
@@ -744,28 +744,6 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     return result_accumulator
 
 
-def replicated_binding_iterations(
-    component: str, tensor: TensorName, info: AnalysisInfo
-) -> dict[str, Any]:
-    """
-    How many times over the binding of `tensor` in `component` replicates it
-    along each spatial dimension: the product of the iteration counts of the
-    binding loops that bind :data:`~accelforge.frontend.renames.RANK_ANY` rather
-    than a rank. Dimensions that the binding partitions along are absent, i.e.
-    they replicate once.
-    """
-    replication: dict[str, Any] = {}
-    for spatial_id, dim in info.bindings.replicating_loops.get((component, tensor), ()):
-        # Recorded for every loop by the first (tensor=None) analysis pass, which
-        # is the only place the model's iteration counts and this mapping's loop
-        # identities are both available.
-        iterations = info.precomputed_iterations.get(spatial_id)
-        if iterations is None:
-            continue
-        replication[dim] = replication.get(dim, 1) * iterations
-    return replication
-
-
 def analyze_storage(
     node_idx: int,
     current_shape: dict[str, int],
@@ -904,7 +882,10 @@ def analyze_storage(
             )
             if component_object._is_distributed() and next_spatial is not None:
                 replication = replicated_binding_iterations(
-                    node.component, tensor, info
+                    node.component,
+                    tensor,
+                    info.bindings,
+                    info.precomputed_iterations,
                 )
                 for (b, e), dim_fanout in child_result.fanout.items():
                     if b != next_spatial.name:

@@ -1,0 +1,50 @@
+# MatmulA is A[m, nA] = sum over nI of I[m, nI] * WA[nI, nA], held in a 2-D
+# DistributedBuffer.
+#
+# By default the X loop is over the reduced rank nI, which A does not project
+# onto: the model infers a replicating binding there and the partials are
+# all-reduced. The Y loop is over m, which A does project onto, so A is
+# partitioned along Y and each Y instance holds M / FANOUT_Y of the tile that
+# the X reduction combines.
+#
+# `SPATIAL_RANK_X` / `SPATIAL_RANK_Y` override either loop's rank. Putting the
+# reduced rank on both makes A replicated in both dimensions and reduced along
+# both, so neither dimension spreads the tile for the other.
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [I, WA, A]
+
+  - !Storage
+    component: DistributedBuffer
+    tensors: [A]
+
+  - !Spatial
+    rank_variable: {{ SPATIAL_RANK_X | default('nI') }}
+    tile_shape: {{ SPATIAL_TILE_X }}
+    component: Array
+    name: X
+
+  - !Spatial
+    rank_variable: {{ SPATIAL_RANK_Y | default('m') }}
+    tile_shape: {{ SPATIAL_TILE_Y }}
+    component: Array
+    name: Y
+
+  - !Storage
+    component: Scratchpad
+    tensors: [I, WA, A]
+
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nA
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nI
+    tile_shape: 1
+  - !Compute
+    einsum: MatmulA
+    component: MAC

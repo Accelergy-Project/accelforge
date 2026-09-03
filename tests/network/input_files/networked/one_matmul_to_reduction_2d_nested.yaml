@@ -1,0 +1,53 @@
+# MatmulA held in a 2-D DistributedBuffer, with the reduced rank nI spread over
+# two loops on X with the Y loop nested between them.
+#
+# That nest is what tells apart the two things a binding's replication count can
+# mean. A is replicated along X (nI is a rank it does not project onto), and
+# `replicated_binding_iterations` reports the replication of *both* X loops
+# together. Only the inner one is below the Y loop, so only that one spreads
+# anything for the Y loop to divide by -- read the pair's product as the spread
+# below and the Y loop divides by more instances than share its tile.
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [I, WA, A]
+
+  - !Storage
+    component: DistributedBuffer
+    tensors: [A]
+
+  - !Spatial
+    rank_variable: nI
+    tile_shape: {{ TILE_X_OUTER }}
+    component: Array
+    name: X
+
+  - !Spatial
+    rank_variable: nI
+    tile_shape: {{ TILE_Y }}
+    component: Array
+    name: Y
+
+  - !Spatial
+    rank_variable: nI
+    tile_shape: {{ TILE_X_INNER }}
+    component: Array
+    name: X
+
+  - !Storage
+    component: Scratchpad
+    tensors: [I, WA, A]
+
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nA
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nI
+    tile_shape: 1
+  - !Compute
+    einsum: MatmulA
+    component: MAC

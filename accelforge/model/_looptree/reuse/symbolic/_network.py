@@ -19,7 +19,7 @@ from accelforge.util._sympy.broadcast_max import (
     min_take_zero,
 )
 
-from ._binding import binding_is_local
+from ._binding import binding_is_local, replicated_binding_iterations
 from ._common import AnalysisInfo
 from ._stats import NetworkStats, SymbolicAnalysisOutput
 
@@ -672,17 +672,43 @@ class NetworkAnalyzer:
                 accumulated_network_stats.max_hops,
                 overall_max_hops + child_network_stats.max_hops,
             )
+            # The topology model is handed the tile *one destination of this
+            # loop* asks for, which is the right unit for anything summed over
+            # the array and the wrong one for anything measured per instance: a
+            # spatial loop below this one on another array dimension has already
+            # spread that tile across the instances along it, and they work on
+            # their own slices side by side. Both per-instance figures below
+            # divide by that, and this is the only place it can come off -- the
+            # topology model divides by the instances along its own dimension and
+            # knows nothing of the others.
+            if (
+                per_loop_transfer_cost.max_reduction_tiles_per_unit != 0
+                or per_loop_transfer_cost.max_traffic != 0
+            ):
+                sharers_along_other_dims = self._sharers_along_other_dims(
+                    network, src_component, child_result
+                )
+            else:
+                sharers_along_other_dims = 1
             # What the memories at either end owe for the combining, in values --
             # which is what a buffet counts its accesses in, not the network's
             # own actions.
             occupancy = self._get_tile_occupancy(network, child_shape)
+            # `analyze_storage` exempts the peer figures from the
+            # `n_units_holding_the_tile` normalization it applies to the parent
+            # and child ones, so the reduction's share of a tile arrives here
+            # un-normalized.
+            per_unit_occupancy = occupancy
+            if per_loop_transfer_cost.max_reduction_tiles_per_unit != 0:
+                per_unit_occupancy = occupancy / sharers_along_other_dims
             accumulated_network_stats.total_reduction_values += (
                 per_loop_transfer_cost.reduction_tiles * occupancy
                 + child_network_stats.total_reduction_values * shape_repeats
             )
             accumulated_network_stats.max_per_unit_reduction_values = max_nonzero(
                 accumulated_network_stats.max_per_unit_reduction_values,
-                per_loop_transfer_cost.max_reduction_tiles_per_unit * occupancy
+                per_loop_transfer_cost.max_reduction_tiles_per_unit
+                * per_unit_occupancy
                 + child_network_stats.max_per_unit_reduction_values,
             )
             # Traffic the child puts on the links of *other* dimensions crosses
@@ -698,7 +724,17 @@ class NetworkAnalyzer:
                 )
             accumulated_network_stats.max_traffic[own_dim] = max_nonzero(
                 accumulated_network_stats.max_traffic.get(own_dim, 0),
-                per_loop_transfer_cost.max_traffic
+                # A link is one instance's worth of this dimension, so the busiest
+                # one carries a slice and not the whole tile the topology model
+                # costed. When this loop is the *outer* of two on the array, the
+                # loop below has not cut `child_shape` yet and the model is handed
+                # a tile that no single line ever carries -- there are that many
+                # lines side by side, each with a share of it. Nested the other way
+                # round `child_shape` is already cut and the divisor is 1, which is
+                # the point: the two orderings are the same machine.
+                # `total_cost` is left alone. Summed over the lines the slices add
+                # back up to the whole tile, so it was right as it stood.
+                per_loop_transfer_cost.max_traffic / sharers_along_other_dims
                 + child_network_stats.max_traffic.get(own_dim, 0),
             )
 
@@ -735,6 +771,55 @@ class NetworkAnalyzer:
             network.tensor in einsum.output_tensor_names
             and not self.info.is_copy_operation
         )
+
+    def _sharers_along_other_dims(self, network, src_component, child_result):
+        """How many instances of the source memory share the tile one destination
+        of this loop asks for, counting only the array dimensions *other* than
+        the one this loop fans out over.
+
+        Spatial loops below this one on the array's other dimensions split that
+        tile across the instances along them -- unless the binding replicates it
+        there, in which case each of those instances holds a whole copy and none
+        of the tile comes off.
+
+        This is `analyze_storage`'s `n_units_holding_the_tile` restricted to the
+        other dimensions, and deliberately the same formula: the slice it leaves
+        is what both of this loop's per-instance figures are measured against --
+        an instance's share of a reduction, and what one link of this dimension
+        carries -- so the three have to agree on how big that slice is. The one
+        addition is the cap below, which `analyze_storage` has no need of because
+        the binding loops it reads are all below the storage it reads them for.
+        """
+        fanout_below = child_result.fanout.get(
+            (self.node.component, self.einsum_name), {}
+        )
+        replication = replicated_binding_iterations(
+            network.source.level,
+            network.tensor,
+            self.info.bindings,
+            self.info.precomputed_iterations,
+        )
+        sharers = 1
+        for dim, fanout in fanout_below.items():
+            # This loop's own dimension is already divided out by the topology
+            # model, which counts its source instances as `n_srcs`.
+            if dim == self.node.name or not src_component._has_physical_dim(dim):
+                continue
+            stride = src_component._get_physical_stride_along(dim)
+            replicated = replication.get(dim)
+            if replicated is None:
+                divisor = stride
+            else:
+                # `replication` counts every binding loop on `dim`, including one
+                # sitting *above* this loop -- which spreads nothing below here.
+                # Capping it at the fanout that is actually below keeps a tensor
+                # replicated along an outer dimension (a reduction along both
+                # array dimensions, say) from dividing the tile by more instances
+                # than share it, and so from charging one instance for more than
+                # the whole tile.
+                divisor = max_nonzero(min_nonzero(replicated, fanout), stride)
+            sharers = sharers * fanout / divisor
+        return sharers
 
     def _get_tile_occupancy(self, network, child_shape):
         """The tile one destination asks for, in values.

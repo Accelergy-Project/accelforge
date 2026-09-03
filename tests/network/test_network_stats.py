@@ -15,6 +15,7 @@ of their own.
 """
 
 from types import SimpleNamespace
+from typing import override
 from unittest import TestCase
 
 from accelforge.frontend._workload_isl._symbolic import Irrelevant, Relevant
@@ -143,7 +144,11 @@ class _Accumulates:
         info = SimpleNamespace(
             job=SimpleNamespace(flattened_arch=_Arch(above=False)),
             tensor_to_relevancy={"A": {"m": Irrelevant()}, "I": {"m": Relevant("M")}},
-            bindings=SimpleNamespace(rank_by_loop={}),
+            bindings=SimpleNamespace(rank_by_loop={}, replicating_loops={}),
+            # No binding loop iteration counts recorded, so nothing replicates
+            # and no dimension's share of the tile comes off. `child.fanout` is
+            # empty here anyway, so there is no other dimension to divide by.
+            precomputed_iterations={},
             workload=SimpleNamespace(
                 einsums={"MatmulA": SimpleNamespace(output_tensor_names=["A"])}
             ),
@@ -242,3 +247,137 @@ class TestOnlyTheArraysOwnDimensionsAreCharged(_Accumulates, TestCase):
         finally:
             _Component._physical_spatial_component = "Array"
         self.assertEqual(stats.max_traffic.get("X"), 30)
+
+
+class _DistributedComponent(_Component):
+    """A source memory with one instance at every coordinate of a 4(X) x 2(Y)
+    array, the coordinates numbered with Y innermost -- so a step along X skips
+    two of them and a step along Y skips one."""
+
+    FANOUT = {"X": 4, "Y": 2}
+    STRIDE = {"X": 2, "Y": 1}
+
+    def _has_physical_dim(self, dim_name):
+        return dim_name in self.FANOUT
+
+    @override
+    def _get_physical_fanout_along(self, dim_name, default=1):
+        return self.FANOUT.get(dim_name, default)
+
+    def _get_physical_stride_along(self, dim_name):
+        return self.STRIDE[dim_name]
+
+
+class _DistributedArch(_Arch):
+    """The source is distributed; the network is still the plain switch."""
+
+    def __getitem__(self, name):
+        return _Component() if name == "NoC" else _DistributedComponent()
+
+
+# The Y binding loop, which `_accumulate_across` may make a replicating one.
+_Y_BINDING_LOOP = 1
+
+
+class _AccumulatesAcrossTwoDimensions:
+    """One spatial loop on X over a source distributed in both X and Y, with a
+    spatial loop on Y already accounted for below it.
+
+    The reduction is the same one `_Accumulates` costs -- four partials of
+    `VOLUME`, over two instances along X -- so the figures here are that one's
+    divided by whatever share of the tile the Y loop has taken away.
+    """
+
+    # Floats because the figures reach the test as sympy Floats, which compare
+    # equal to a Python float and not to an int.
+    UNDIVIDED_TRAFFIC = 15.0
+    """3 partials of VOLUME crossing, over the 2 instances along X."""
+    UNDIVIDED_REDUCTION_VALUES = 3.0
+    """1.5 tiles of OCCUPANCY, the share of the combining one X owner does."""
+
+    def _accumulate_across(self, child_fanout, *, replicated_along_y=None):
+        node = SimpleNamespace(name="X", component="Array", rank_variable="m")
+        replicating_loops = {}
+        precomputed_iterations = {}
+        if replicated_along_y is not None:
+            replicating_loops[("DistributedBuffer", "A")] = [(_Y_BINDING_LOOP, "Y")]
+            precomputed_iterations[_Y_BINDING_LOOP] = replicated_along_y
+        info = SimpleNamespace(
+            job=SimpleNamespace(flattened_arch=_DistributedArch(above=False)),
+            tensor_to_relevancy={"A": {"m": Irrelevant()}},
+            bindings=SimpleNamespace(
+                rank_by_loop={}, replicating_loops=replicating_loops
+            ),
+            precomputed_iterations=precomputed_iterations,
+            workload=SimpleNamespace(
+                einsums={"MatmulA": SimpleNamespace(output_tensor_names=["A"])}
+            ),
+            is_copy_operation=None,
+        )
+        child = SymbolicAnalysisOutput()
+        child.network_stats[NETWORK] = NetworkStats(total_hops=5, max_hops=1)
+        child.fanout[("Array", "MatmulA")] = dict(child_fanout)
+
+        accumulated = {}
+        _Analyzer(accumulated, info, "MatmulA", node).accumulate_child_result(
+            child, 4, {}
+        )
+        return accumulated[NETWORK]
+
+
+class TestTheLinesBesideThisOneCarryTheirOwnShare(
+    _AccumulatesAcrossTwoDimensions, TestCase
+):
+    """A link is one instance's worth of this dimension, so the busiest one
+    carries a slice of the tile the topology model costed and not the whole of
+    it: the Y loop below has spread that tile over the Y instances, and each of
+    them reduces its own slice along a line of X links of its own.
+
+    The topology model divides by the instances along X and has no way to know
+    about Y, and `child_shape` -- which is what fixes the tile it is costing --
+    has not been cut by the Y loop yet, because that loop is *below* this one.
+    Left undivided, the model charges one line for traffic that FANOUT_Y lines
+    carry between them, and the bandwidth term of the network's latency does not
+    move at all as the array grows along Y.
+    """
+
+    def test_with_nothing_below_the_whole_tile_crosses(self):
+        # The baseline: no second dimension, so nothing comes off.
+        stats = self._accumulate_across({})
+        self.assertEqual(stats.max_traffic.get("X"), self.UNDIVIDED_TRAFFIC)
+
+    def test_the_other_dimension_takes_its_share_of_the_traffic(self):
+        # Two Y instances share the tile, so each X line carries half of it.
+        stats = self._accumulate_across({"Y": 2})
+        self.assertEqual(stats.max_traffic.get("X"), self.UNDIVIDED_TRAFFIC / 2)
+
+    def test_the_reduction_share_is_divided_the_same_way(self):
+        # The two per-instance figures are measured against the same slice.
+        stats = self._accumulate_across({"Y": 2})
+        self.assertEqual(
+            stats.max_per_unit_reduction_values,
+            self.UNDIVIDED_REDUCTION_VALUES / 2,
+        )
+
+    def test_a_tile_replicated_along_the_other_dimension_is_not_divided(self):
+        # Each Y instance holds a whole copy rather than a slice, so every X line
+        # really does carry the whole tile.
+        stats = self._accumulate_across({"Y": 2}, replicated_along_y=2)
+        self.assertEqual(stats.max_traffic.get("X"), self.UNDIVIDED_TRAFFIC)
+
+    def test_wiring_inside_an_array_unit_is_not_a_dimension_to_divide_by(self):
+        # A PE grid under the source is not somewhere the source has instances,
+        # so it spreads nothing.
+        stats = self._accumulate_across({"reuse_input": 2})
+        self.assertEqual(stats.max_traffic.get("X"), self.UNDIVIDED_TRAFFIC)
+
+    def test_the_total_is_not_divided(self):
+        # Summed over the lines the slices add back up to the whole tile, so the
+        # hop count -- and the energy it drives -- was right as it stood.
+        for child_fanout in ({}, {"Y": 2}):
+            with self.subTest(child_fanout=child_fanout):
+                stats = self._accumulate_across(child_fanout)
+                self.assertEqual(stats.total_hops, 30 + 5 * 4)
+                self.assertEqual(
+                    stats.total_reduction_values, 3 * _Analyzer.OCCUPANCY
+                )

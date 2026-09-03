@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 from accelforge.frontend._workload_isl._symbolic import Irrelevant, Relevant, PartiallyRelevant
 from accelforge.frontend.mapping import MappingNode, iter_binding_blocks
@@ -65,3 +66,28 @@ def index_bindings(nodes: list[MappingNode]) -> BindingLookups:
                     (id(spatial), spatial.name)
                 )
     return lookups
+
+
+def replicated_binding_iterations(
+    component: str,
+    tensor: TensorName,
+    bindings: BindingLookups,
+    precomputed_iterations: dict[int, Any],
+) -> dict[str, Any]:
+    """
+    How many times over the binding of `tensor` in `component` replicates it
+    along each spatial dimension: the product of the iteration counts of the
+    binding loops that bind :data:`~accelforge.frontend.renames.RANK_ANY` rather
+    than a rank. Dimensions that the binding partitions along are absent, i.e.
+    they replicate once.
+    """
+    replication: dict[str, Any] = {}
+    for spatial_id, dim in bindings.replicating_loops.get((component, tensor), ()):
+        # Recorded for every loop by the first (tensor=None) analysis pass, which
+        # is the only place the model's iteration counts and this mapping's loop
+        # identities are both available.
+        iterations = precomputed_iterations.get(spatial_id)
+        if iterations is None:
+            continue
+        replication[dim] = replication.get(dim, 1) * iterations
+    return replication
