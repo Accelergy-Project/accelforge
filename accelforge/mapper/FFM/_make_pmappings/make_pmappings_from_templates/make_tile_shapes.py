@@ -898,7 +898,10 @@ def get_padded_choices(
             raise ValueError(f"Can't tell if {s} is increasing or decreasing")
         else:
             new_s = 1
-        formula = formula.xreplace({s: new_s})
+        # sympify: xreplace returns the replacement verbatim when the whole
+        # expression is what matched, so a formula that is a bare symbol becomes a
+        # plain Python int here and loses .free_symbols for the next iteration.
+        formula = sympy.sympify(formula.xreplace({s: new_s}))
         substitutions[s] = new_s
         for k, v in substitutions.items():
             if v == s:
