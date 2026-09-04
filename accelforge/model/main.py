@@ -125,7 +125,7 @@ def _model_pmappings(
 
     # needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
 
-    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    fusable_tensors = spec.workload.shared_tensor_names()
     stride_and_halo = get_stride_and_halo(spec.workload)
 
     assert not getattr(spec, "_evaluated", False), s
