@@ -185,7 +185,7 @@ arch:
       weight: weight.bits_per_value * (20 / 50) * max_weight_bits_per_slice
       output: output.bits_per_value / encoded_output_bits
       input: 0
-    actions: [{name: read, latency: cycle_period}]
+    actions: [{name: read, throughput: 1 / cycle_period, latency: 0}]
 
   # Each row receives a different input slice. Rows share outputs.
   - !Container

@@ -111,11 +111,13 @@ class TestModelMesh(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
-        # The longest route is the links between the first and last destination,
-        # (n - 1) * spacing, matching the multicast and unicast hop counts checked
-        # above. PeArray spans four Scratchpads one coordinate apart, so 3; the
-        # two-wide MacArray is 1; overall latency is the greater of the two.
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 3)
+        # PeArray is bandwidth-bound at 1 bit/s. Its busiest link carries, per
+        # iteration of the outer m loop, T0 (3 * 64) + W0 (3 * 128) + T1 (256) = 832
+        # bits, and link traffic is counted over the whole run, so the two iterations
+        # of that loop make 1664. The MacArray is latency-bound instead: its longest
+        # route is one hop, paid winding down and back up, and those 2 units overlap
+        # with the PeArray's busy time rather than adding to it.
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 1664)
 
     def test_hierarchical(self):
         M = 8
@@ -283,7 +285,7 @@ class TestModelMesh(TestCase):
             (M / M_TILE * KN // MAC_TILE * M_TILE * MAC_TILE * BITS_PER_VALUE),
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>RowBuffer"].iloc[0],
+            result.data["Matmul0<SEP>component_latency<SEP>RowBuffer"].iloc[0],
             (
                 M
                 / M_TILE
@@ -296,7 +298,7 @@ class TestModelMesh(TestCase):
             ),
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>DistributedBuffer"].iloc[0],
+            result.data["Matmul0<SEP>component_latency<SEP>DistributedBuffer"].iloc[0],
             (  # Reads from child
                 M
                 / M_TILE
@@ -394,13 +396,13 @@ class TestModelAllToAll(TestCase):
         )
 
         # --- Latency ------------------------------------------------------
-        # The switch routes every pair in one hop however far apart they are. The
-        # mesh PeArray spans the links between its first and last destination,
-        # (n - 1) * spacing; with KN // MAC_TILE = 2 of them one coordinate apart
-        # that is also 1, so here the two topologies happen to agree.
-        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1)
-        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 1)
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 1)
+        # Both networks are latency-bound here, and hops surface as communication
+        # latency. The switch routes every pair in one hop however far apart they
+        # are; the mesh PeArray spans the links between its first and last
+        # destination, (n - 1) * spacing, and with KN // MAC_TILE = 2 of them one
+        # coordinate apart that is also 1. So the worst input winds down to compute
+        # in 1 + 1 hops and the output winds back up in 1 + 1: 4 in all.
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 4)
 
 
 class TestMapper(TestCase):

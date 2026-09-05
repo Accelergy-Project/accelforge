@@ -145,7 +145,7 @@ class TestReducedOutputIsAllReduced(SpatialReductionTestCase):
         )
 
 
-LATENCY = "MatmulA<SEP>latency<SEP>NoC"
+LATENCY = "MatmulA<SEP>component_latency<SEP>NoC"
 
 
 class TestNetworkLatencyCountsTheWholeRun(SpatialReductionTestCase):
@@ -217,7 +217,7 @@ class TestTotalTrafficIsConserved(SpatialReductionTestCase):
 
 READ = "MatmulA<SEP>action<SEP>DistributedBuffer<SEP>{tensor}<SEP>read"
 WRITE = "MatmulA<SEP>action<SEP>DistributedBuffer<SEP>{tensor}<SEP>write"
-BUFFER_LATENCY = "MatmulA<SEP>latency<SEP>DistributedBuffer"
+BUFFER_LATENCY = "MatmulA<SEP>component_latency<SEP>DistributedBuffer"
 
 
 class TestTheMergePointPaysForCombining(SpatialReductionTestCase):

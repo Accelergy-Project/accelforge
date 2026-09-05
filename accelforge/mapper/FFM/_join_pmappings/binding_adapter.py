@@ -102,9 +102,7 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import add_to_col, tensor2col
 from accelforge.util import delayed, oset, parallel
-from accelforge.util._basetypes import EvalableList
-from accelforge.util._eval_expressions import eval_expression
-from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero, Min, max_nonzero
+from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero, max_nonzero
 
 logger = logging.getLogger(__name__)
 
@@ -128,32 +126,9 @@ a worker process, so the workers of one join share its entries and no two target
 ever share an entry."""
 
 _VOLUME = sympy.Symbol("adapter_volume_per_destination")
-"""Stands in for the per-destination volume while the network's `total_latency`
-expression is evaluated, so that one evaluation covers every row: hops and traffic
-are both linear in the volume, and the longest route does not depend on it at all."""
-
-
-# `max`, `min` and `sum` as a component's `total_latency` expression sees them. Spelled
-# out here rather than imported from
-# :mod:`accelforge.model._looptree.latency.memory`, whose versions build symengine
-# expressions: an adapter's latency is a sympy expression of :data:`_VOLUME`, and the
-# two libraries do not mix.
-def _sum(*args):
-    if len(args) == 1 and hasattr(args[0], "__iter__"):
-        args = tuple(args[0])
-    return sum(args) if args else 0
-
-
-def _max(*args):
-    if len(args) == 1 and hasattr(args[0], "__iter__"):
-        args = tuple(args[0])
-    return Max(*args)
-
-
-def _min(*args):
-    if len(args) == 1 and hasattr(args[0], "__iter__"):
-        args = tuple(args[0])
-    return Min(*args)
+"""Stands in for the per-destination volume while an adaptation's latency is built, so
+that one expression covers every row: hops and traffic are both linear in the volume,
+and the longest route does not depend on it at all."""
 
 
 class AdapterUnavailable(Exception):
@@ -468,38 +443,25 @@ class BindingAdaptation:
             * network.actions["hop"].energy
         )
 
-    def _latency_expression(self, hops, max_hops, traffic) -> Any:
+    def _latency_expression(self, max_hops, traffic) -> Any:
         """
-        The network's own ``total_latency`` expression, evaluated with this
-        adaptation's hops and traffic, in terms of :data:`_VOLUME`. This is the same
-        expression, and the same ``max_hops`` / ``max_link_traffic`` keywords, that
-        :func:`~accelforge.model._looptree.latency.memory.component_latency` gives a
-        network when the model runs it.
+        What the adaptation's traffic takes to move, in terms of :data:`_VOLUME`,
+        costed the way the model costs every other transfer over the network. A
+        network is latency-bound by its longest route, at the ``hop`` action's
+        ``latency`` per hop -- what
+        :func:`~accelforge.model._looptree.latency.memory.communication_latency`
+        charges for winding data down and back up -- and bandwidth-bound by the
+        traffic over its most congested link, at the ``hop`` action's ``throughput``
+        -- what :func:`~accelforge.model._looptree.latency.memory.component_latency`
+        charges its ``hop`` actions. Whichever of the two binds is what the shuffle
+        takes.
         """
         network = self.target.network
+        hop = network.actions["hop"]
         scale = getattr(network, "actions_scale", 1)
-        actions = EvalableList()
-        for action in network.actions:
-            action = action.model_copy()
-            action._set_n_calls((hops * _VOLUME * scale) if action.name == "hop" else 0)
-            actions.append(action)
-
-        dump = network.shallow_model_dump(include_None=True)
-        dump["actions"] = actions
-        dump["max_hops"] = max_hops
-        dump["max_link_traffic"] = traffic * _VOLUME
-        symbol_table = {
-            **self._symbol_table,
-            **dump,
-            "max": _max,
-            "min": _min,
-            "sum": _sum,
-        }
-        return eval_expression(
-            network.total_latency,
-            symbol_table,
-            attr_name="total_latency",
-            location=network.name,
+        return Max(
+            max_hops * hop.latency,
+            traffic * _VOLUME * scale / hop.throughput,
         )
 
     def _per_unit_volume(self, iterations: tuple[int | float, ...]):
@@ -515,7 +477,7 @@ class BindingAdaptation:
         key = self._key(iterations)
         if key not in _HOP_MODEL:
             hops, max_hops, traffic = self._hops(iterations)
-            latency = self._latency_expression(hops, max_hops, traffic)
+            latency = self._latency_expression(max_hops, traffic)
             _HOP_MODEL[key] = (
                 self._energy_per_unit_volume(hops),
                 # Not the mapper's `_lambdify_type_check`: that one insists on the

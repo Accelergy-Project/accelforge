@@ -557,26 +557,24 @@ class TestAdapterInTheJoiner(unittest.TestCase):
             data[c].iloc[0] for c in data.columns if "action<SEP>NoC" in c
         )
 
-    @staticmethod
-    def einsum_latency(data) -> float:
-        """The latency the two Einsums are charged for on their own: each one's
-        longest component, summed, which is what the joiner adds up."""
-        total = 0.0
-        for einsum in ("Matmul0", "Matmul1"):
-            prefix = f"{einsum}<SEP>latency<SEP>"
-            total += max(
-                data[c].iloc[0] for c in data.columns if c.startswith(prefix)
-            )
-        return total
+    EINSUM_LATENCY = 6
+    """
+    The latency the two Einsums are charged for on their own, which the adapter's is
+    deliberately not part of. No component of the fixture has a throughput that
+    binds, so all that is left of it is each Einsum winding its own data down to
+    compute and the result back up over the NoC -- two hops' worth for one of them
+    and four for the other, at the fixture's one unit of hop latency each. That is
+    the same however the two bindings name their ranks, so it is the baseline an
+    adaptation is charged on top of.
+    """
 
     def adapter_energy(self, **jinja) -> float:
         data = self.evaluate(**jinja)
         hop_energy = jinja.get("HOP_ENERGY", 1)
         return data["Total<SEP>energy"].iloc[0] - self.einsum_hops(data) * hop_energy
 
-    def adapter_latency(self, **jinja) -> float:
-        data = self.evaluate(**jinja)
-        return data["Total<SEP>latency"].iloc[0] - self.einsum_latency(data)
+    def total_latency(self, **jinja) -> float:
+        return self.evaluate(**jinja)["Total<SEP>latency"].iloc[0]
 
     def test_disagreeing_bindings_do_not_fuse_without_an_adapter(self):
         with self.assertRaises(ValueError):
@@ -601,10 +599,10 @@ class TestAdapterInTheJoiner(unittest.TestCase):
 
     def test_the_adapter_lengthens_the_critical_path(self):
         # One switch traversal, on top of everything the two Einsums do themselves.
-        self.assertEqual(self.adapter_latency(), 1)
+        self.assertEqual(self.total_latency(), self.EINSUM_LATENCY + 1)
 
     def test_agreeing_bindings_lengthen_nothing(self):
-        self.assertEqual(self.adapter_latency(MATMUL1_Y="N1"), 0)
+        self.assertEqual(self.total_latency(MATMUL1_Y="N1"), self.EINSUM_LATENCY)
 
 
 class TestAdapterInTheVisualization(unittest.TestCase):

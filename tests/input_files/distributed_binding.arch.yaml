@@ -9,8 +9,8 @@ arch:
     # SharedBuffer's physical instances is part of the mapspace.
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 0, throughput: inf, latency: 0}
+    - {name: write, energy: 0, throughput: inf, latency: 0}
 
   - !Array
     name: Array
@@ -25,8 +25,8 @@ arch:
       leak_power: 0
       tensors: {keep: ~Intermediates, may_keep: All}
       actions:
-      - {name: read, energy: 0, throughput: inf}
-      - {name: write, energy: 0, throughput: inf}
+      - {name: read, energy: 0, throughput: inf, latency: 0}
+      - {name: write, energy: 0, throughput: inf, latency: 0}
 
     # Physically distributed: it has a spatial fanout of its own, so the tensor it
     # holds is spread over its physical instances by the spatial loops below it.
@@ -37,8 +37,8 @@ arch:
       leak_power: 0
       tensors: {keep: All, may_keep: All}
       actions:
-      - {name: read, energy: 5, throughput: 1}
-      - {name: write, energy: 5, throughput: inf}
+      - {name: read, energy: 5, throughput: 1, latency: 0}
+      - {name: write, energy: 5, throughput: inf, latency: 0}
       spatial:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
@@ -48,4 +48,4 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 1, throughput: inf}
+    - {name: compute, energy: 1, throughput: inf, latency: 0}

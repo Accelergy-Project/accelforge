@@ -140,8 +140,18 @@ class TestArchRender(unittest.TestCase):
                     name="MainMemory",
                     size=1_000_000,
                     actions=[
-                        {"name": "read", "energy": 1, "latency": 0},
-                        {"name": "write", "energy": 1, "latency": 0},
+                        {
+                            "name": "read",
+                            "energy": 1,
+                            "throughput": float("inf"),
+                            "latency": 0,
+                        },
+                        {
+                            "name": "write",
+                            "energy": 1,
+                            "throughput": float("inf"),
+                            "latency": 0,
+                        },
                     ],
                     leak_power=0,
                     area=0,
@@ -150,15 +160,27 @@ class TestArchRender(unittest.TestCase):
                     name="GlobalBuffer",
                     size=100_000,
                     actions=[
-                        {"name": "read", "energy": 0.5, "latency": 0},
-                        {"name": "write", "energy": 0.5, "latency": 0},
+                        {
+                            "name": "read",
+                            "energy": 0.5,
+                            "throughput": float("inf"),
+                            "latency": 0,
+                        },
+                        {
+                            "name": "write",
+                            "energy": 0.5,
+                            "throughput": float("inf"),
+                            "latency": 0,
+                        },
                     ],
                     leak_power=0,
                     area=0,
                 ),
                 Compute(
                     name="MAC",
-                    actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                    actions=[
+                        {"name": "compute", "energy": 1, "throughput": 1, "latency": 0}
+                    ],
                     leak_power=0,
                     area=0,
                 ),
@@ -218,8 +240,13 @@ class TestArchRenderHelpers(unittest.TestCase):
             name="TestMem",
             size=100,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
             leak_power=0,
             area=0,
@@ -233,8 +260,13 @@ class TestArchRenderHelpers(unittest.TestCase):
             name="TestMem",
             size=100,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
             leak_power=0,
             area=0,
@@ -248,8 +280,13 @@ class TestArchRenderHelpers(unittest.TestCase):
             name="TestMem",
             size=100,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
             leak_power=0,
             area=0,
@@ -260,7 +297,7 @@ class TestArchRenderHelpers(unittest.TestCase):
     def test_render_node_compute(self):
         comp = Compute(
             name="MAC",
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             leak_power=0,
             area=0,
         )

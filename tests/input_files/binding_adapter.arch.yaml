@@ -14,8 +14,8 @@ arch:
     leak_power: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 0, throughput: inf, latency: 0}
+    - {name: write, energy: 0, throughput: inf, latency: 0}
 
   - !Array
     name: Array
@@ -31,8 +31,8 @@ arch:
       leak_power: 0
       tensors: {keep: ~Intermediates, may_keep: All}
       actions:
-      - {name: read, energy: 0, throughput: inf}
-      - {name: write, energy: 0, throughput: inf}
+      - {name: read, energy: 0, throughput: inf, latency: 0}
+      - {name: write, energy: 0, throughput: inf, latency: 0}
     {% endif %}
 
     # Finite, so the fractional occupancy the mapper carries converts back to bits --
@@ -44,8 +44,8 @@ arch:
       leak_power: 0
       tensors: {keep: All, may_keep: All}
       actions:
-      - {name: read, energy: 0, throughput: inf}
-      - {name: write, energy: 0, throughput: inf}
+      - {name: read, energy: 0, throughput: inf, latency: 0}
+      - {name: write, energy: 0, throughput: inf, latency: 0}
       spatial:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
@@ -75,12 +75,12 @@ arch:
     leak_power: 0
     tensors: {keep: All, may_keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 0, throughput: inf, latency: 0}
+    - {name: write, energy: 0, throughput: inf, latency: 0}
 
   - !Compute
     name: MAC
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, throughput: inf}
+    - {name: compute, energy: 0, throughput: inf, latency: 0}

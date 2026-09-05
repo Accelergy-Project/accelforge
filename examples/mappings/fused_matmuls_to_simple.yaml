@@ -46,9 +46,6 @@ mapping:
         component: MAC
     {% endfor %}
   {% else %}
-  - !Storage
-    tensors: [{{tensor_name(0)}}, {{tensor_name(1)}}]
-    component: GlobalBuffer
   - !Temporal
     rank_variable: n{{tensor_name(0)}}
     tile_shape: 1
