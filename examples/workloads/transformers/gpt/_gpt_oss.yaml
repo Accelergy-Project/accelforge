@@ -1,0 +1,25 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference implementation:
+# https://huggingface.co/openai/gpt-oss-120b
+#
+# There are a total of 36 layers.
+# This is only the grouped query attention + MoE. Every other layer should be sliding window attention.
+# TODO: missing sliding window attention
+
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% set ATTENTION = include("grouped_query.yaml", "") %}
+{% set FEEDFORWARD = include("mixture_of_experts_shared.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value: {All: 4}  # MXFP4
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  - {{ATTENTION}}.workload.einsums
+  - {{FEEDFORWARD}}.workload.einsums
