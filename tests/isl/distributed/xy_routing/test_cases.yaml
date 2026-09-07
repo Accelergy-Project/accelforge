@@ -1,0 +1,83 @@
+###################################################
+# XY (dimension-order) routing test cases.         #
+#                                                  #
+# Packets route along X first, then Y, so a        #
+# multicast tree = X-segment along the source row  #
+# + an independent Y-segment down each destination #
+# column from the source row.                      #
+#   cost = x_extent({xs} u dst columns)            #
+#          + sum_col y_extent({ys} u dsts in col)  #
+#                                                  #
+# Expected xy_routing_hops are HAND-DERIVED (no    #
+# oracle exists in the repo); each case lists the  #
+# geometry so the number can be re-checked.        #
+#                                                  #
+# Ordering: extent_DOR (floor) <= XY <= hypercube. #
+###################################################
+
+# A. Unicast (0,0) -> (2,2): X=2 + col2 Y={0,2}=2 -> 4 (== floor).
+-   occ: "{ noc[x, y] -> data[c] : c = 0 and x = 0 and y = 0 }"
+    fill: "{ noc[x, y] -> data[c] : c = 0 and x = 2 and y = 2 }"
+    dims: &2d_spatial
+        -   type: Spatial
+            spatial_dim: 0
+            target: 0
+        -   type: Spatial
+            spatial_dim: 1
+            target: 0
+    dist_fn: &2d_manhattan |
+        {
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
+                xd >= xs and yd >= ys;
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] :
+                xd < xs and yd < ys;
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + (yd - ys)] :
+                xd < xs and yd >= ys;
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + -(yd - ys)] :
+                xd >= xs and yd < ys
+        }
+    expected:
+        xy_routing_hops: 4
+
+# B. Source (1,0) -> (0,2),(2,2): X={0,1,2}=2 + col0 {0,2}=2 + col2 {0,2}=2 -> 6.
+#    Discriminator: floor 4 < XY 6 < hypercube 8.
+-   occ: "{ noc[x, y] -> data[c] : c = 0 and x = 1 and y = 0 }"
+    fill: "{ noc[x, y] -> data[c] : c = 0 and ((x = 0 and y = 2) or (x = 2 and y = 2)) }"
+    dims: *2d_spatial
+    dist_fn: *2d_manhattan
+    expected:
+        xy_routing_hops: 6
+
+# C. Three corners from (0,0) -> (2,0),(0,2),(2,2): X={0,2}=2 + col0 {0,2}=2 + col2 {0,2}=2 -> 6.
+-   occ: "{ noc[x, y] -> data[c] : c = 0 and x = 0 and y = 0 }"
+    fill: "{ noc[x, y] -> data[c] : c = 0 and ((x = 2 and y = 0) or (x = 0 and y = 2) or (x = 2 and y = 2)) }"
+    dims: *2d_spatial
+    dist_fn: *2d_manhattan
+    expected:
+        xy_routing_hops: 6
+
+# D. 1-D column (0,1) -> column x=0, y=0..3: X=0 + col0 {0..3}=3 -> 3 (== floor).
+-   occ: "{ noc[x, y] -> data[c] : c = 0 and x = 0 and y = 1 }"
+    fill: "{ noc[x, y] -> data[c] : c = 0 and x = 0 and 0 <= y < 4 }"
+    dims: *2d_spatial
+    dist_fn: *2d_manhattan
+    expected:
+        xy_routing_hops: 3
+
+# E. Replicated source (0,0)&(2,0) -> (0,2),(2,2): per-dst nearest splits into two
+#    self-column trees, each 2 -> 4 (a single-root tree would cost 6).
+-   occ: "{ noc[x, y] -> data[c] : c = 0 and ((x = 0 and y = 0) or (x = 2 and y = 0)) }"
+    fill: "{ noc[x, y] -> data[c] : c = 0 and ((x = 0 and y = 2) or (x = 2 and y = 2)) }"
+    dims: *2d_spatial
+    dist_fn: *2d_manhattan
+    expected:
+        xy_routing_hops: 4
+
+# F. Scale: 8x8, each datum data[d0,d1] held at (d0,d1), requested by column x=d0.
+#    Per datum: X=0 + Y=7 -> 7; 64 data -> 448.
+-   occ: "{ noc[xs, ys] -> data[d0, d1] : d0 = xs and d1 = ys and 0 <= xs < 8 and 0 <= ys < 8 }"
+    fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd and 0 <= d1 < 8 and 0 <= xd < 8 and 0 <= yd < 8 }"
+    dims: *2d_spatial
+    dist_fn: *2d_manhattan
+    expected:
+        xy_routing_hops: 448

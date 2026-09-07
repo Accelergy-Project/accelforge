@@ -1,0 +1,34 @@
+mapping:
+  nodes:
+  - !Storage
+    tensors: [I, S]
+    component: Network
+  - !Spatial
+    rank_variable: nodes
+    # bound is nodes
+    tile_shape: {{ nodes }}
+  - !Storage
+    tensors: [S, G]
+    component: NV100
+  - !Sequential
+    nodes:
+      - !Nested
+        nodes:
+        - !Temporal
+          rank_variable: vec_len
+          # Bound is vec_len.
+          tile_shape: {{ vec_len }}
+          component: MAC
+        - !Compute
+          einsum: scatter
+          component: MAC
+      - !Gather
+        nodes:
+        - !Temporal
+          rank_variable: vec_len
+          # Bound is vec_len.
+          tile_shape: {{ vec_len }}
+          component: MAC
+        - !Compute
+          einsum: all_gather
+          component: MAC
