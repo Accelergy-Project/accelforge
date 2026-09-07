@@ -328,6 +328,39 @@ class Array(Branch, Spatialable):
         for node in self.nodes:
             if isinstance(node, Fork):
                 raise EvaluationError("cannot have fork inside array")
+        self._check_node_spatial()
+
+    def _check_node_spatial(self) -> None:
+        """
+        Checks if the spatial dimensions of members of Array.nodes are valid.
+        """
+        array_dim2fanout = {s.name: s.fanout for s in self.spatial}
+        for node in self.nodes:
+            if not isinstance(node, Spatialable):
+                continue
+            for i, s in enumerate(node.spatial):
+                source_field = f"{node.name}.spatial[{i}]"
+                if s.name not in array_dim2fanout:
+                    raise EvaluationError(
+                        f"Spatial dimension '{s.name}' of {node.name} does not exist "
+                        f"in the enclosing Array '{self.name}'.",
+                        source_field=source_field,
+                    )
+                array_fanout = array_dim2fanout[s.name]
+                if not isinstance(s.fanout, int) or not isinstance(array_fanout, int):
+                    continue
+                if array_fanout % s.fanout != 0:
+                    raise EvaluationError(
+                        f"Spatial fanout {s.fanout} of dimension '{s.name}' of "
+                        f"{node.name} must divide the Array '{self.name}' fanout "
+                        f"{array_fanout} along '{s.name}'.",
+                        source_field=source_field,
+                    )
+
+    def _eval_expressions(self, *args, **kwargs):
+        evaluated, symbol_table = super()._eval_expressions(*args, **kwargs)
+        evaluated._check_node_spatial()
+        return evaluated, symbol_table
 
     def _flatten(
         self,
