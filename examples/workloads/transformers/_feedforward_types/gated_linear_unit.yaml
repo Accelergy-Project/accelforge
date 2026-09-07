@@ -1,7 +1,7 @@
 {{include_text("../../_renames_default.yaml")}}
 
 # Used by: Llama 3, Qwen3 (dense), Gemma 3, Llama 4 (dense layers), DeepSeek-V3 (dense
-# layers).
+# layers), Kimi K3 (dense layer).
 #
 # Gated-linear-unit feedforward: down(act(gate x) * up x). The gate activation is
 # elementwise and omitted. Reads the attention output Z.

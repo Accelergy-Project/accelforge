@@ -8,7 +8,7 @@
 # Assumes softmax can be performed elementwise and includes causal mask plus score
 # scaling. Omits NoPE/RoPE split and focuses only on the larger NoPE part.
 #
-# Used by DeepSeek-V3.
+# Used by DeepSeek-V3 and Kimi K3 (full-attention layers).
 #
 # Reference https://arxiv.org/abs/2405.04434
 

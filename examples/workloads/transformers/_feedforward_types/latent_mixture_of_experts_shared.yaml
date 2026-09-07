@@ -1,0 +1,66 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Used by: Kimi K3.
+#
+# Latent mixture-of-experts feedforward ("LatentMoE") with dense shared expert(s) over
+# all tokens plus routed gated-linear-unit experts that run in a lower-dimensional
+# latent space. The hidden state is down-projected into the expert latent space, the
+# routed experts run there, and their combined output is up-projected back to the model
+# hidden dim. The shared expert(s) stay at the model hidden dim. We omit the router
+# top-k weighting (tokens split evenly across routed experts; only active experts exist
+# in memory), sum of outputs across experts, activation, residuals, normalization. Reads
+# the attention output Z.
+
+workload:
+  rank_sizes:
+    B: {{BATCH_SIZE}}         # Batch index
+    M: {{N_NEW_TOKENS}}       # Token index
+    G: {{N_HIDDEN_DIMS}}      # Model hidden dim (feedforward input)
+    L: {{N_MOE_LATENT_DIMS}}  # Routed expert latent dim (expert input)
+    LO: {{N_MOE_LATENT_DIMS}} # Routed expert latent dim (expert output)
+    C: {{N_FF_DIMS}}          # Feedforward hidden dim of each routed expert
+    CS: {{N_SHARED_FF_DIMS}}  # Feedforward hidden dim of the shared expert(s)
+    J: {{N_HIDDEN_DIMS}}      # Model hidden dim (feedforward output)
+
+    # Assume tokens split evenly across experts: min(N_NEW_TOKENS * N_EXPERTS_PER_TOKEN,
+    # N_EXPERTS) experts are active.
+    X:  {{ [N_EXPERTS, N_NEW_TOKENS * N_EXPERTS_PER_TOKEN] | min }}
+    XT: ceil({{N_NEW_TOKENS}}*{{N_EXPERTS_PER_TOKEN}}/X)  # Tokens per expert
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Shared expert(s) are a GLU over all tokens at the model hidden dim. Activation is
+  # omitted.
+  - "SFG[b, m, cs] = Z[b, m, g] * WSFG[g, cs]"              # gate projection
+  - "SFU[b, m, cs] = Z[b, m, g] * WSFU[g, cs]"              # up projection
+  - einsum: "SFH[b, m, cs] = SFG[b, m, cs] * SFU[b, m, cs]" # act(gate) * up
+    renames: {input: SFG}
+  - "SFB[b, m, j] = SFH[b, m, cs] * WSFD[cs, j]"            # down projection
+
+  # Project the hidden state into the routed expert latent space.
+  - "ZL[b, m, l] = Z[b, m, g] * WZL[g, l]"
+
+  # Scatter tokens to their experts
+  - einsum: "ZL_per_expert[b, x, xt, l] = ZL[b, m, l]"
+    is_copy_operation: True
+
+  # Routed experts are a GLU over a subset of tokens, in the latent space. Router and
+  # top-k weighting are omitted. Activation is omitted.
+  - "FFG[b, x, xt, c] = ZL_per_expert[b, x, xt, l] * WFFG[x, l, c]"  # gate projection
+  - "FFU[b, x, xt, c] = ZL_per_expert[b, x, xt, l] * WFFU[x, l, c]"  # up projection
+  - einsum: "FFH[b, x, xt, c] = FFG[b, x, xt, c] * FFU[b, x, xt, c]" # act(gate) * up
+    renames: {input: FFG}
+  - "FFD[b, x, xt, lo] = FFH[b, x, xt, c] * WFFD[x, c, lo]"          # down projection
+
+  # Collect tokens from their experts. Omits sum over expert rank.
+  - einsum: "RFFL[b, m, lo] = FFD[b, x, xt, lo]"
+    is_copy_operation: True
+
+  # Project the combined routed expert output out of the latent space.
+  - "RFFB[b, m, j] = RFFL[b, m, lo] * WRFFB[lo, j]"
+
+  # Combine shared and routed outputs.
+  - einsum: "FFB[b, m, j] = SFB[b, m, j] + RFFB[b, m, j]"
+    renames: {input: SFB}
