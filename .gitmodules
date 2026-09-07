@@ -1,0 +1,4 @@
+[submodule "notebooks/astrasim2_correlation/correlation"]
+	path = notebooks/astrasim2_correlation/correlation
+	url = git@github.com:rengzhengcodes/aws-gpu-profiler.git
+	branch = profiling-data-20260904
