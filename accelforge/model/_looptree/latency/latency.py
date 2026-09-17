@@ -4,7 +4,7 @@ from sympy import Piecewise
 # from accelforge.model._looptree._isl.singular import get_value_from_singular_qpolynomial
 from accelforge.frontend.arch import Compute
 from accelforge.model._looptree.latency.processors import LATENCY_PROCESSORS
-from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from accelforge.model._looptree.reuse.isl.des import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 
 from accelforge.util._sympy.broadcast_max import max_nonzero

@@ -5,7 +5,7 @@ from typing import Optional, overload
 
 import islpy as isl
 
-from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from accelforge.model._looptree.reuse.isl.des import IslReuseAnalysisOutput
 from accelforge.util._frozenset import oset
 from accelforge.model._looptree.reuse.symbolic import (
     BuffetStats,

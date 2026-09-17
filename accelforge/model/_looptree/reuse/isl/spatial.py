@@ -9,6 +9,9 @@ from typing import Optional
 import islpy as isl
 
 from accelforge.frontend.mapping import MappingNode
+from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import (
+    EdgePressure,
+)
 from accelforge.model._looptree.reuse.isl.isl_functions import (
     insert_equal_dims_map,
     reorder_projector,
@@ -37,9 +40,17 @@ class TransferInfo:
 
     # Crucial information to transfer info.
     fulfilled_fill: Transfers
-    """Fills done by peer-to-peer transfers."""
+    """Fills done by peer-to-peer transfers.
+
+    Restricted to fills covered by a matched multicast source (see
+    `identify_mesh_casts`); see `unfulfilled_fill`.
+    """
     unfulfilled_fill: Fill
-    """Fills not performed."""
+    """Fills not performed.
+
+    `fills - covered`, the complement of `fulfilled_fill` within the original
+    fill set (the two partition `fills` exactly).
+    """
     parent_reads: Reads
     """Fills done by parent-to-child transfers."""
     hops: isl.PwQPolynomial
@@ -47,6 +58,18 @@ class TransferInfo:
 
     # Metadata on what is occurring.
     link_transfer: bool
+
+    # Optional, model-specific per-link decomposition -- last field / defaulted
+    # so this addition does not disturb any existing positional or keyword
+    # construction site (`grep`-verified: every `TransferInfo(...)` call in the
+    # tree already uses keyword arguments).
+    edge_pressure: Optional[EdgePressure] = None
+    """Per-directed-edge load backing `hops`, for models that define one.
+
+    Populated by `XYRoutingMulticastModel` (mesh links) and
+    `StarMulticastModel` (spokes); `None` where a model has no per-link
+    decomposition (`HypercubeMulticastModel`, `FullyConnectedMulticastModel`).
+    """
 
 
 class TransferModel(ABC):
