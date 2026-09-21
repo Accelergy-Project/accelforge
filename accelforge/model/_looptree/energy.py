@@ -56,12 +56,38 @@ def gather_actions(
         actions[key].total += ops.total_ops
         actions[key].max_per_unit += ops.max_per_unit_ops
 
-    for network, stats in looptree_results.network_stats.items():
-        key = network_keyer(network, "hop")
+    # A network's dimensions may have hop actions of their own -- `hop_X`,
+    # `hop_Y` -- when its links are not alike in every direction, so the hops
+    # along each dimension are charged to whichever action that dimension
+    # resolves to. A network declaring only `hop` sends every dimension there.
+    def charge(network, action_name, total, max_per_unit):
+        key = network_keyer(network, action_name)
         if key not in actions:
             actions[key] = ActionCount.default()
-        actions[key].total += stats.total_hops
-        actions[key].max_per_unit += stats.max_hops
+        actions[key].total += total
+        actions[key].max_per_unit += max_per_unit
+
+    network_components: dict[str, arch.Network] = {}
+    for network, stats in looptree_results.network_stats.items():
+        level = network.component if use_name else bindings[network.component]
+        if level not in network_components:
+            network_components[level] = spec.arch.find(level)
+        component_obj = network_components[level]
+
+        dims = oset(stats.total_hops) | oset(stats.max_hops)
+        for dim in dims:
+            charge(
+                network,
+                component_obj._hop_action_name(dim),
+                stats.total_hops[dim],
+                stats.max_hops[dim],
+            )
+        if not dims:
+            # Nothing ever crossed this network. Its hop actions are still
+            # counted, at zero, so that what a run reports does not depend on
+            # whether a network happened to carry anything.
+            for action_name in component_obj._hop_action_names():
+                charge(network, action_name, 0, 0)
 
     _apply_actions_scale(actions, spec)
 

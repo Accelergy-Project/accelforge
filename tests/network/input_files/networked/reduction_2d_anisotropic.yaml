@@ -1,0 +1,70 @@
+# `reduction_2d.yaml` with a NoC whose links are not alike in every direction.
+#
+# The one difference: instead of a single `hop` action shared by both array
+# dimensions, the network names an action per dimension -- `hop_X`, `hop_Y` --
+# each with its own energy, latency and throughput. The model charges a hop
+# along X to whichever action X resolves to, so setting `X_HOP_ACTION` to plain
+# `hop` puts X back on the shared action and exercises the fallback a dimension
+# with no action of its own takes.
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf, latency: 0}
+    - {name: write, energy: 0, throughput: inf, latency: 0}
+
+  - !Array
+    name: Array
+    spatial:
+    - {name: X, fanout: {{ FANOUT_X }}}
+    - {name: Y, fanout: {{ FANOUT_Y }}}
+    nodes:
+    - !Memory
+      name: DistributedBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: All, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: {{ MEM_THROUGHPUT }}, latency: 0}
+      - {name: write, energy: 0, throughput: {{ MEM_THROUGHPUT }}, latency: 0}
+      spatial:
+      - {name: X, fanout: {{ FANOUT_X }}}
+      - {name: Y, fanout: {{ FANOUT_Y }}}
+
+    - !Network
+      name: NoC
+      topology: {{ TOPOLOGY }}
+      area: 0
+      leak_power: 0
+      actions:
+      - name: {{ X_HOP_ACTION | default('hop_X') }}
+        energy: {{ X_HOP_ENERGY | default(1) }}
+        latency: {{ X_HOP_LATENCY | default(0) }}
+        throughput: {{ X_HOP_THROUGHPUT | default('inf') }}
+      - name: hop_Y
+        energy: {{ Y_HOP_ENERGY | default(1) }}
+        latency: {{ Y_HOP_LATENCY | default(0) }}
+        throughput: {{ Y_HOP_THROUGHPUT | default('inf') }}
+
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All, may_keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf, latency: 0}
+    - {name: write, energy: 0, throughput: inf, latency: 0}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, throughput: inf, latency: 0}

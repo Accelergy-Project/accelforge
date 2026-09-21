@@ -154,6 +154,11 @@ def _as_number(value, what: str) -> float:
         ) from None
 
 
+def _as_numbers(values: dict, what: str) -> dict:
+    """A per-spatial-dimension quantity with every entry as a plain number."""
+    return {dim: _as_number(value, what) for dim, value in values.items()}
+
+
 @dataclass(frozen=True)
 class AdapterTarget:
     """
@@ -290,15 +295,25 @@ class BindingAdaptation:
                 f"{self.tensor} occupies cannot be turned back into bits"
             )
         network = self.target.network
-        if "hop" not in {action.name for action in network.actions}:
+        declared = {action.name for action in network.actions}
+        # A dimension the network gives no `hop_<dim>` action of its own falls
+        # back to the plain `hop`, so that one has to be there unless every
+        # dimension this binding moves over names its own.
+        needed = oset(
+            network._hop_action_name(right.spatial_dim) for _, right in self.loops
+        )
+        missing = sorted(name for name in needed if name not in declared)
+        if missing:
             raise AdapterUnavailable(
-                f"network {network.name} has no 'hop' action, so moving data over it "
-                f"cannot be charged"
+                f"network {network.name} has no "
+                f"{' or '.join(repr(name) for name in missing)} action, so moving "
+                f"data over it cannot be charged"
             )
-        if network.actions["hop"].energy is None:
-            raise AdapterUnavailable(
-                f"the 'hop' action of network {network.name} has no energy"
-            )
+        for name in needed:
+            if network.actions[name].energy is None:
+                raise AdapterUnavailable(
+                    f"the {name!r} action of network {network.name} has no energy"
+                )
 
     def required_columns(self) -> list[str]:
         """The columns of the left side's pmappings that costing this adaptation
@@ -319,10 +334,12 @@ class BindingAdaptation:
                 f"much of {self.tensor} has to move, and how far, is unknown"
             )
 
-    def _hops(self, iterations: tuple[int | float, ...]) -> tuple[Any, Any, Any]:
+    def _hops(self, iterations: tuple[int | float, ...]) -> tuple[dict, dict, dict]:
         """
-        ``(hops_per_unit_volume, max_hops, max_link_traffic_per_unit_volume)`` of one
-        adaptation, given how many times each binding loop iterates.
+        ``(hops_per_unit_volume, max_hops, link_traffic_per_unit_volume)`` of one
+        adaptation, given how many times each binding loop iterates. All three are
+        per spatial dimension, since a network's links need not be alike in every
+        direction and each dimension may charge its own ``hop_<dim>`` action.
 
         The binding loops are walked innermost-first, exactly as
         :class:`~accelforge.model._looptree.reuse.symbolic._network.NetworkAnalyzer`
@@ -345,11 +362,11 @@ class BindingAdaptation:
         # the level being walked are.
         fanout_below: dict[str, int | float] = {}
         traffic: dict[str, Any] = {}
-        total = 0
+        total: dict[str, Any] = {}
         # How much one destination of the level being walked holds, in multiples of
         # what one instance ends up holding.
         volume = 1
-        max_hops = 0
+        max_hops: dict[str, Any] = {}
 
         for (left, right), n in zip(reversed(self.loops), reversed(iterations)):
             dim = right.spatial_dim
@@ -368,19 +385,23 @@ class BindingAdaptation:
                 src_component=memory,
                 dim_name=dim,
             )
-            total = cost.total_cost + total * n
-            max_hops = model.accumulate_max_hops(self.target.network.name, cost.max_hops)
+            # The levels already walked sit below this one, so their hops are
+            # crossed once per iteration of it, whichever dimension they were on.
+            total = {d: v * n for d, v in total.items()}
+            total[dim] = cost.total_cost + total.get(dim, 0)
+            max_hops[dim] = model.accumulate_max_hops(
+                self.target.network.name, dim, cost.max_hops
+            )
             traffic[dim] = cost.max_traffic + traffic.get(dim, 0)
 
             fanout_below[dim] = fanout_below.get(dim, 1) * n
             if right.rank_name != RANK_DUPLICATE:
                 volume = volume * n
 
-        link_traffic = MaxGeqZero(*traffic.values()) if traffic else 0
         return (
-            _as_number(total, "the hop count of the adaptation"),
-            _as_number(max_hops, "the longest route of the adaptation"),
-            _as_number(link_traffic, "the busiest link of the adaptation"),
+            _as_numbers(total, "the hop count of the adaptation"),
+            _as_numbers(max_hops, "the longest route of the adaptation"),
+            _as_numbers(traffic, "the busiest link of the adaptation"),
         )
 
     def _replication(
@@ -428,22 +449,23 @@ class BindingAdaptation:
     # =========================================================================
     # Turning hops into energy and latency
     # =========================================================================
-    def _energy_per_unit_volume(self, hops) -> Any:
+    def _energy_per_unit_volume(self, hops: dict) -> Any:
         """
         What one unit of volume's worth of hops costs, the way
         :func:`~accelforge.model._looptree.energy.gather_actions` and
         :func:`~accelforge.model._looptree.energy.compute_energy_from_actions` cost
-        every other hop: the hop count, scaled by the component's ``actions_scale``,
-        times the energy of its ``hop`` action.
+        every other hop: each dimension's hop count, scaled by the component's
+        ``actions_scale``, times the energy of the hop action that dimension
+        resolves to.
         """
         network = self.target.network
-        return (
-            hops
-            * getattr(network, "actions_scale", 1)
-            * network.actions["hop"].energy
+        scale = getattr(network, "actions_scale", 1)
+        return sum(
+            count * scale * network.actions[network._hop_action_name(dim)].energy
+            for dim, count in hops.items()
         )
 
-    def _latency_expression(self, max_hops, traffic) -> Any:
+    def _latency_expression(self, max_hops: dict, traffic: dict) -> Any:
         """
         What the adaptation's traffic takes to move, in terms of :data:`_VOLUME`,
         costed the way the model costs every other transfer over the network. A
@@ -455,14 +477,34 @@ class BindingAdaptation:
         -- what :func:`~accelforge.model._looptree.latency.memory.component_latency`
         charges its ``hop`` actions. Whichever of the two binds is what the shuffle
         takes.
+
+        Both terms are worked out per dimension and combined the way those two
+        functions combine them. A route crosses this dimension's links and then
+        the next one's, so the wind-up latencies add. The links themselves are
+        separate wires carrying their traffic side by side, so the bandwidth term
+        is whichever dimension takes longest -- with a single ``hop`` action
+        every dimension divides by the same throughput and this is the busiest
+        link, as it was before there were any others.
         """
         network = self.target.network
-        hop = network.actions["hop"]
         scale = getattr(network, "actions_scale", 1)
-        return Max(
-            max_hops * hop.latency,
-            traffic * _VOLUME * scale / hop.throughput,
+
+        latency_bound = sum(
+            hops * network.actions[network._hop_action_name(dim)].latency
+            for dim, hops in max_hops.items()
         )
+
+        bandwidth_bound = MaxGeqZero(
+            *(
+                dim_traffic
+                * _VOLUME
+                * scale
+                / network.actions[network._hop_action_name(dim)].throughput
+                for dim, dim_traffic in traffic.items()
+            )
+        )
+
+        return Max(latency_bound, bandwidth_bound)
 
     def _per_unit_volume(self, iterations: tuple[int | float, ...]):
         """

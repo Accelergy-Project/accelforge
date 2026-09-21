@@ -1313,9 +1313,24 @@ class TopologySpec(enum.StrEnum):
     ALL_TO_ALL = "all_to_all"
 
 
+HOP_ACTION = "hop"
+"""The action a network charges for moving one action's worth of data one link
+along a spatial dimension."""
+
+
+def hop_action_name(dim) -> str:
+    """The name of the ``hop`` action specific to the spatial dimension ``dim``.
+
+    A network that declares this action charges dimension ``dim`` its own
+    energy, latency and throughput; one that does not falls back to the plain
+    ``hop`` action, which charges every dimension alike.
+    """
+    return f"{HOP_ACTION}_{dim}"
+
+
 NETWORK_ACTIONS = EvalableList(
     [
-        Action(name="hop"),
+        Action(name=HOP_ACTION),
     ]
 )
 
@@ -1333,6 +1348,14 @@ class Network(Component, Leaf):
     buffer, say -- is wiring private to that unit, and puts nothing on the array's
     network even though the network sits above it. A network declared outside any
     array has no array to scope it to, so it carries every fanout below it.
+
+    A network's links need not be alike in every direction. Declaring an action
+    named ``hop_<dim>`` -- ``hop_X``, ``hop_Y`` -- for a spatial dimension gives
+    that dimension its own per-hop energy, latency and throughput, and the model
+    keeps the hops along it apart from the hops along the others so each is
+    charged its own action. Dimensions with no action of their own fall back to
+    the plain ``hop`` action, so a network that declares only ``hop`` behaves
+    exactly as it always has.
     """
 
     actions: EvalableList[Action] = NETWORK_ACTIONS
@@ -1343,7 +1366,13 @@ class Network(Component, Leaf):
 
     NEW BEHAVIOR: A network's latency is bandwidth-bound: the traffic over the most
     congested link divided by the hop action's ``throughput``. Wind-up/down uses
-    max_hops * the hop action's ``latency``. 
+    max_hops * the hop action's ``latency``. Both are worked out per spatial
+    dimension, against whichever ``hop_<dim>`` action that dimension resolves to:
+    a route crosses one dimension's links and then the next one's, so its
+    wind-up/down latencies add, while the links themselves carry their traffic
+    side by side, so the bandwidth term is whichever dimension takes longest.
+    With a single ``hop`` action every dimension divides by the same throughput
+    and that is the busiest link, as before.
 
     PREVIOUSLY: Models latency as either:
     - *Latency-bound*, which means that the latency of the route with the most number of
@@ -1377,6 +1406,31 @@ class Network(Component, Leaf):
     """
     The topology of the network.
     """
+
+    def _hop_action_name(self, dim) -> str:
+        """The action charged for one hop along spatial dimension ``dim``:
+        ``hop_<dim>`` where this network declares one, and the plain ``hop``
+        otherwise."""
+        per_dim = hop_action_name(dim)
+        for action in self.actions:
+            if action.name == per_dim:
+                return per_dim
+        return HOP_ACTION
+
+    def _hop_action_names(self) -> list[str]:
+        """Every action this network charges hops to, in declaration order.
+
+        Falls back to ``[HOP_ACTION]`` for a network that declares none, so that
+        callers with no dimension in hand -- a network that never carried
+        anything, say -- still have a name to charge zero hops to.
+        """
+        names = [
+            action.name
+            for action in self.actions
+            if action.name == HOP_ACTION
+            or action.name.startswith(f"{HOP_ACTION}_")
+        ]
+        return names or [HOP_ACTION]
 
     def _render_node_shape(self) -> str:
         return "Msquare"

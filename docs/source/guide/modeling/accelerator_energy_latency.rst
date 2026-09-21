@@ -48,6 +48,15 @@ component's :py:attr:`~accelforge.frontend.arch.Component.actions_scale`) divide
 action's :py:attr:`~accelforge.frontend.arch.Action.throughput`. Network components have
 their latency limited by their most-congested link.
 
+A :py:class:`~accelforge.frontend.arch.Network` need not have alike links in every
+direction. Naming an action ``hop_<dim>`` -- ``hop_X``, ``hop_Y`` -- gives the array's
+spatial dimension ``dim`` its own per-hop energy, latency and throughput, and the model
+counts the hops along each dimension separately so each is charged its own action. The
+network's dimensions carry their traffic side by side, so whichever of them takes
+longest is what its latency is limited by. A dimension the network names no action for
+falls back to the plain ``hop``, which is what a network naming only that one uses for
+every dimension.
+
 A :py:class:`~accelforge.frontend.arch.Memory` with
 :py:attr:`~accelforge.frontend.arch.Memory.separate_read_write_ports` set is treated as
 two components for latency, "{name} (read)" and "{name} (write)", which may overlap in

@@ -170,8 +170,17 @@ class TestAllToAllTopologyModel(TestCase):
         # overall_max_hops accumulates across calls for a given network.
         model = AllToAllTopologyModel()
         h = AllToAllTopologyModel.HOPS_PER_TRANSFER
-        self.assertEqual(model.accumulate_max_hops("net", h), h)
-        self.assertEqual(model.accumulate_max_hops("net", h), 2 * h)
+        self.assertEqual(model.accumulate_max_hops("net", "X", h), h)
+        self.assertEqual(model.accumulate_max_hops("net", "X", h), 2 * h)
+
+    def test_the_dimensions_accumulate_apart(self):
+        # A network whose links differ by direction charges each dimension its
+        # own action, so hops along Y must not swell X's running total.
+        model = AllToAllTopologyModel()
+        h = AllToAllTopologyModel.HOPS_PER_TRANSFER
+        model.accumulate_max_hops("net", "X", h)
+        self.assertEqual(model.accumulate_max_hops("net", "Y", h), h)
+        self.assertEqual(model.accumulate_max_hops("net", "X", h), 2 * h)
 
 
 class TestBindingIsLocal(TestCase):

@@ -12,6 +12,10 @@ Three quantities travel together and they do not compose alike:
 Repetition in time multiplies the first and the last and leaves the middle alone;
 repetition in space leaves the last alone, because parallel instances have links
 of their own.
+
+All three are kept per spatial dimension, because a network's links need not be
+alike in every direction: a dimension with a `hop_<dim>` action of its own is
+charged its own energy, latency and throughput.
 """
 
 from types import SimpleNamespace
@@ -32,28 +36,33 @@ class TestNetworkStatsRepeat(TestCase):
     """`repeat` is the temporal case: the same node run n times over."""
 
     def _stats(self):
-        return NetworkStats(total_hops=5, max_hops=3, max_traffic={"X": 7})
+        return NetworkStats(
+            total_hops={"X": 5, "Y": 2},
+            max_hops={"X": 3, "Y": 1},
+            max_traffic={"X": 7},
+        )
 
     def test_hops_and_traffic_accumulate(self):
         repeated = self._stats().repeat(4)
-        self.assertEqual(repeated.total_hops, 20)
+        self.assertEqual(repeated.total_hops, {"X": 20, "Y": 8})
         self.assertEqual(repeated.max_traffic, {"X": 28})
 
     def test_the_longest_route_does_not_grow(self):
         # Running a transfer again does not make it travel further.
-        self.assertEqual(self._stats().repeat(4).max_hops, 3)
+        self.assertEqual(self._stats().repeat(4).max_hops, {"X": 3, "Y": 1})
 
     def test_repeating_once_changes_nothing(self):
         once = self._stats().repeat(1)
-        self.assertEqual(once.total_hops, 5)
+        self.assertEqual(once.total_hops, {"X": 5, "Y": 2})
         self.assertEqual(once.max_traffic, {"X": 7})
 
     def test_the_original_is_left_alone(self):
-        # `repeat` shallow-copies, so scaling max_traffic in place would corrupt
-        # the child stats the caller is still holding.
+        # `repeat` shallow-copies, so scaling the per-dimension dicts in place
+        # would corrupt the child stats the caller is still holding.
         original = self._stats()
         original.repeat(4)
-        self.assertEqual(original.total_hops, 5)
+        self.assertEqual(original.total_hops, {"X": 5, "Y": 2})
+        self.assertEqual(original.max_hops, {"X": 3, "Y": 1})
         self.assertEqual(original.max_traffic, {"X": 7})
 
 
@@ -62,31 +71,47 @@ class TestNetworkStatsAccumulateInSeries(TestCase):
     same links -- another tile shape of the same loop, say."""
 
     def test_hops_and_traffic_add_up(self):
-        first = NetworkStats(total_hops=5, max_hops=2, max_traffic={"X": 7})
-        first.accumulate_in_series(
-            NetworkStats(total_hops=3, max_hops=1, max_traffic={"X": 4})
+        first = NetworkStats(
+            total_hops={"X": 5}, max_hops={"X": 2}, max_traffic={"X": 7}
         )
-        self.assertEqual(first.total_hops, 8)
+        first.accumulate_in_series(
+            NetworkStats(total_hops={"X": 3}, max_hops={"X": 1}, max_traffic={"X": 4})
+        )
+        self.assertEqual(first.total_hops, {"X": 8})
         self.assertEqual(first.max_traffic, {"X": 11})
 
     def test_the_longest_route_is_the_longer_of_the_two(self):
-        first = NetworkStats(total_hops=0, max_hops=2, max_traffic={})
-        first.accumulate_in_series(NetworkStats(total_hops=0, max_hops=5))
-        self.assertEqual(first.max_hops, 5)
+        first = NetworkStats(max_hops={"X": 2}, max_traffic={})
+        first.accumulate_in_series(NetworkStats(max_hops={"X": 5}))
+        self.assertEqual(first.max_hops, {"X": 5})
+
+    def test_the_dimensions_are_maxed_apart_from_one_another(self):
+        # Y's longer route does not make X's look longer: the two are charged
+        # different actions, at different latencies.
+        first = NetworkStats(max_hops={"X": 2, "Y": 1})
+        first.accumulate_in_series(NetworkStats(max_hops={"X": 1, "Y": 5}))
+        self.assertEqual(first.max_hops, {"X": 2, "Y": 5})
 
     def test_a_dimension_only_the_other_side_touches_is_kept(self):
-        first = NetworkStats(max_traffic={"X": 7})
-        first.accumulate_in_series(NetworkStats(max_traffic={"Y": 4}))
+        first = NetworkStats(max_traffic={"X": 7}, total_hops={"X": 5})
+        first.accumulate_in_series(
+            NetworkStats(max_traffic={"Y": 4}, total_hops={"Y": 3})
+        )
         self.assertEqual(first.max_traffic, {"X": 7, "Y": 4})
+        self.assertEqual(first.total_hops, {"X": 5, "Y": 3})
 
     def test_accumulating_onto_a_blank_gives_back_the_other(self):
         blank = NetworkStats()
         blank.accumulate_in_series(
-            NetworkStats(total_hops=5, max_hops=2, max_traffic={"X": 7})
+            NetworkStats(total_hops={"X": 5}, max_hops={"X": 2}, max_traffic={"X": 7})
         )
-        self.assertEqual(blank.total_hops, 5)
-        self.assertEqual(blank.max_hops, 2)
+        self.assertEqual(blank.total_hops, {"X": 5})
+        self.assertEqual(blank.max_hops, {"X": 2})
         self.assertEqual(blank.max_traffic, {"X": 7})
+
+    def test_a_dimension_nothing_has_crossed_reads_as_zero(self):
+        self.assertEqual(NetworkStats().total_hops["X"], 0)
+        self.assertEqual(NetworkStats().max_hops["X"], 0)
 
 
 class _Component:
@@ -126,6 +151,10 @@ class _Analyzer(NetworkAnalyzer):
         return self.OCCUPANCY
 
 
+CHILD_DIM = "P"
+"""The inner array dimension the levels below the loop under test fanned out
+over. Kept distinct from that loop's own ``X`` so the two do not blur together."""
+
 NETWORK = Network(
     "A",
     "MatmulA",
@@ -156,7 +185,12 @@ class _Accumulates:
         )
         child = SymbolicAnalysisOutput()
         child.network_stats[NETWORK] = NetworkStats(
-            total_hops=5, max_hops=1, max_traffic=dict(child_traffic)
+            # The levels below this loop fanned out over some inner dimension, so
+            # what they contributed sits on that dimension's links, not this
+            # loop's.
+            total_hops={CHILD_DIM: 5},
+            max_hops={CHILD_DIM: 1},
+            max_traffic=dict(child_traffic),
         )
 
         accumulated = {}
@@ -193,8 +227,21 @@ class TestSpatialAccumulationKeepsEveryDimension(_Accumulates, TestCase):
 
     def test_hops_still_accumulate(self):
         stats = self._accumulate({"P": 7})
-        self.assertEqual(stats.total_hops, 30 + 5 * 4)
-        self.assertEqual(stats.max_hops, 2)
+        self.assertEqual(stats.total_hops, {"X": 30, CHILD_DIM: 5 * 4})
+        self.assertEqual(stats.max_hops, {"X": 1, CHILD_DIM: 1})
+
+    def test_the_longest_route_is_split_between_the_dimensions(self):
+        # One hop of X and one of P: two links in all, but each charged to the
+        # action of the dimension it belongs to, so a network whose X and Y links
+        # run at different rates is costed at the right one for each.
+        stats = self._accumulate({"P": 7})
+        self.assertEqual(sum(stats.max_hops.values()), 2)
+
+    def test_this_loops_hops_do_not_land_on_the_childs_dimension(self):
+        # The 30 this loop costs is X's traffic to carry; charging it to P would
+        # have it paid at the wrong rate, and twice over once P is charged too.
+        stats = self._accumulate({"P": 7})
+        self.assertEqual(stats.total_hops[CHILD_DIM], 5 * 4)
 
     def test_the_memories_owe_for_the_combining(self):
         # Four partials reduced into the one instance holding the tensor: three
@@ -235,8 +282,10 @@ class TestOnlyTheArraysOwnDimensionsAreCharged(_Accumulates, TestCase):
     def test_the_child_still_carries_up(self):
         stats = self._accumulate_inner({"P": 7})
         self.assertEqual(stats.max_traffic.get("P"), 7)
-        self.assertEqual(stats.total_hops, 5 * 4)
-        self.assertEqual(stats.max_hops, 1)
+        self.assertEqual(stats.total_hops, {CHILD_DIM: 5 * 4})
+        self.assertEqual(stats.max_hops, {CHILD_DIM: 1})
+        # Nothing of this loop's own reaches the array's network.
+        self.assertEqual(stats.total_hops["X"], 0)
 
     def test_a_network_outside_any_array_still_carries_every_fanout(self):
         # Nothing scopes it, so it keeps the older behaviour of costing whatever
@@ -315,7 +364,9 @@ class _AccumulatesAcrossTwoDimensions:
             is_copy_operation=None,
         )
         child = SymbolicAnalysisOutput()
-        child.network_stats[NETWORK] = NetworkStats(total_hops=5, max_hops=1)
+        child.network_stats[NETWORK] = NetworkStats(
+            total_hops={CHILD_DIM: 5}, max_hops={CHILD_DIM: 1}
+        )
         child.fanout[("Array", "MatmulA")] = dict(child_fanout)
 
         accumulated = {}
@@ -377,7 +428,7 @@ class TestTheLinesBesideThisOneCarryTheirOwnShare(
         for child_fanout in ({}, {"Y": 2}):
             with self.subTest(child_fanout=child_fanout):
                 stats = self._accumulate_across(child_fanout)
-                self.assertEqual(stats.total_hops, 30 + 5 * 4)
+                self.assertEqual(stats.total_hops, {"X": 30, CHILD_DIM: 5 * 4})
                 self.assertEqual(
                     stats.total_reduction_values, 3 * _Analyzer.OCCUPANCY
                 )

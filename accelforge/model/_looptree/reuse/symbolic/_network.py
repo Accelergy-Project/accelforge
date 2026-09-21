@@ -21,7 +21,14 @@ from accelforge.util._sympy.broadcast_max import (
 
 from ._binding import binding_is_local, replicated_binding_iterations
 from ._common import AnalysisInfo
-from ._stats import NetworkStats, SymbolicAnalysisOutput
+from ._stats import (
+    DimCounts,
+    NetworkStats,
+    SymbolicAnalysisOutput,
+    add_dim_counts,
+    max_dim_counts,
+    scale_dim_counts,
+)
 
 
 @dataclass
@@ -170,21 +177,23 @@ class TopologyModel(ABC):
     """
 
     def __init__(self):
-        # Running total of max hops per network, accumulated across the
-        # repeated spatial-loop iterations handled by one NetworkAnalyzer.
+        # Running total of max hops per (network, spatial dimension), accumulated
+        # across the repeated spatial-loop iterations handled by one
+        # NetworkAnalyzer. The dimensions are kept apart because a network's
+        # links need not be alike in every direction: each is charged its own
+        # `hop_<dim>` action, with its own per-hop latency and throughput.
         self.overall_max_hops: dict = {}
 
-    def accumulate_max_hops(self, network, max_hops):
-        """Add this loop's ``max_hops`` to ``network``'s running total and
-        return the updated total.
+    def accumulate_max_hops(self, network, dim, max_hops):
+        """Add this loop's ``max_hops`` to the running total of ``network``'s
+        hops along ``dim`` and return the updated total.
 
         Each call to :meth:`NetworkAnalyzer.accumulate_child_result` (i.e., over
         a different iteration of a spatial loop) adds more to the max hops.
         """
-        self.overall_max_hops[network] = (
-            self.overall_max_hops.get(network, 0) + max_hops
-        )
-        return self.overall_max_hops[network]
+        key = (network, dim)
+        self.overall_max_hops[key] = self.overall_max_hops.get(key, 0) + max_hops
+        return self.overall_max_hops[key]
 
     @abstractmethod
     def per_loop_transfer_cost(
@@ -611,10 +620,11 @@ class NetworkAnalyzer:
             if flattened_arch.is_above(
                 self.node.component, network.component
             ) or not self._has_links_along_dim(network):
-                accumulated_network_stats.total_hops += (
-                    child_network_stats.total_hops * shape_repeats
+                accumulated_network_stats.total_hops = add_dim_counts(
+                    accumulated_network_stats.total_hops,
+                    scale_dim_counts(child_network_stats.total_hops, shape_repeats),
                 )
-                accumulated_network_stats.max_hops = max_nonzero(
+                accumulated_network_stats.max_hops = max_dim_counts(
                     accumulated_network_stats.max_hops,
                     child_network_stats.max_hops,
                 )
@@ -660,17 +670,34 @@ class NetworkAnalyzer:
                 is_reduced_output=self._is_reduced_output(network),
             )
 
+            # The topology model costs one spatial loop, which fans out over one
+            # array dimension, so everything it returns is charged to that
+            # dimension. What the levels below contributed stays on whichever
+            # dimensions they fanned out over.
+            own_dim = self.node.name
             overall_max_hops = topology_model.accumulate_max_hops(
-                network, per_loop_transfer_cost.max_hops
+                network, own_dim, per_loop_transfer_cost.max_hops
             )
 
-            accumulated_network_stats.total_hops += (
-                per_loop_transfer_cost.total_cost
-                + child_network_stats.total_hops * shape_repeats
+            accumulated_network_stats.total_hops = add_dim_counts(
+                accumulated_network_stats.total_hops,
+                add_dim_counts(
+                    scale_dim_counts(child_network_stats.total_hops, shape_repeats),
+                    {own_dim: per_loop_transfer_cost.total_cost},
+                ),
             )
-            accumulated_network_stats.max_hops = max_nonzero(
-                accumulated_network_stats.max_hops,
-                overall_max_hops + child_network_stats.max_hops,
+            # A route out of this loop crosses this dimension's links and then
+            # the child's, so the two add -- but only within a dimension. Summing
+            # over the dimensions afterwards gives back the length of the whole
+            # route, which is what a single-`hop`-action network is charged for;
+            # keeping them apart is what lets each dimension charge its own
+            # per-hop latency.
+            longest_route = DimCounts(child_network_stats.max_hops)
+            longest_route[own_dim] = (
+                overall_max_hops + child_network_stats.max_hops[own_dim]
+            )
+            accumulated_network_stats.max_hops = max_dim_counts(
+                accumulated_network_stats.max_hops, longest_route
             )
             # The topology model is handed the tile *one destination of this
             # loop* asks for, which is the right unit for anything summed over
@@ -715,7 +742,6 @@ class NetworkAnalyzer:
             # them once per instance of this loop, and the instances have links of
             # their own, so it carries through unchanged. Only this dimension's
             # own links also carry what this loop itself contributes.
-            own_dim = self.node.name
             for dim, traffic in child_network_stats.max_traffic.items():
                 if dim == own_dim:
                     continue

@@ -75,9 +75,15 @@ def communication_latency(
         connection_latency = 0
         for i, (level, s) in enumerate(stats):
             if isinstance(s, NetworkStats):
-                connection_latency += (
-                    s.max_hops * name2component[level].actions["hop"].latency
-                )
+                # The longest route is charged dimension by dimension: a network
+                # whose links are not alike in every direction gives each
+                # dimension its own `hop_<dim>` action and its own per-hop
+                # latency. With a single `hop` action this is the whole route's
+                # hop count times that action's latency, as it always was.
+                network_obj = name2component[level]
+                for dim, hops in s.max_hops.items():
+                    action = network_obj.actions[network_obj._hop_action_name(dim)]
+                    connection_latency += hops * action.latency
             elif isinstance(s, BuffetStats):
                 actions = name2component[level].actions
                 for action, count in s.net_total_actions().items():
@@ -283,12 +289,25 @@ def component_latency(
     for component, level_dim_traffic in network_to_level_dim_traffic.items():
         component_obj = name2component[component]
         for level, dim_traffic in level_dim_traffic.items():
-            add(
-                component_obj,
-                "hop",
-                MaxGeqZero(*dim_traffic.values()),
-                level if component in per_level_components else None,
-            )
+            # Dimensions sharing a hop action share its links' throughput, so
+            # the busiest of them is the one that binds and they are maxed here.
+            # Dimensions with `hop_<dim>` actions of their own divide by their
+            # own throughput, so `counts2latency` maxes them a step later, once
+            # each is in units of time.
+            action_traffic = defaultdict(list)
+            for dim, traffic in dim_traffic.items():
+                action_traffic[component_obj._hop_action_name(dim)].append(traffic)
+            if not action_traffic:
+                # No traffic at all, but still charge the action so the component
+                # gets a latency entry, exactly as MaxGeqZero() used to give 0.
+                action_traffic[component_obj._hop_action_names()[0]] = []
+            for action, traffics in action_traffic.items():
+                add(
+                    component_obj,
+                    action,
+                    MaxGeqZero(*traffics),
+                    level if component in per_level_components else None,
+                )
 
     # =================================================================================
     # Actions to latency
@@ -299,18 +318,43 @@ def component_latency(
     for component, counts in component_to_actions.items():
         component_obj = latency_name2component[component]
 
+        # A component works through its actions one after another, so their times
+        # add -- except a network's, which are its dimensions': separate wires
+        # carrying their traffic side by side, so the network is bandwidth-bound
+        # by whichever dimension takes longest. With a single `hop` action there
+        # is one term either way.
+        is_network = isinstance(component_obj, arch.Network)
+
         def counts2latency(action_counts):
             total = 0
+            concurrent = []
             for action, count in action_counts.items():
                 if action not in component_obj.actions:
+                    hint = ""
+                    if is_network and action == "hop":
+                        # The fallback a dimension with no `hop_<dim>` action of
+                        # its own takes, which a network naming only some of its
+                        # dimensions has nowhere to land.
+                        hint = (
+                            f" A spatial dimension of {component} has no hop "
+                            f"action of its own, so it falls back to 'hop'; give "
+                            f"it a 'hop_<dim>' action or declare a plain 'hop'."
+                        )
                     raise ValueError(
-                        f"Action {action} not found in component {component}"
+                        f"Action {action} not found in component {component}."
+                        f"{hint}"
                     )
-                total += (
+                time = (
                     count
                     * component_obj.actions_scale
                     / component_obj.actions[action].throughput
                 )
+                if is_network:
+                    concurrent.append(time)
+                else:
+                    total += time
+            if concurrent:
+                total += MaxGeqZero(*concurrent)
             return total
 
         if component in component_to_level_actions:

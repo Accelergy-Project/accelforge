@@ -20,12 +20,49 @@ import sympy
 from accelforge.util.indent import print
 
 
+class DimCounts(dict):
+    """Per-spatial-dimension quantities, keyed by dimension name. Missing
+    dimensions count as 0 so `d[dim] += x` works for a dimension nothing has
+    crossed yet.
+
+    Hops along X are kept apart from hops along Y because a network's links need
+    not be alike in every direction: each dimension is charged its own
+    ``hop_<dim>`` action, with its own energy, latency and throughput. See
+    :meth:`~accelforge.frontend.arch.components.Network._hop_action_name`.
+    """
+
+    def __missing__(self, key):
+        return 0
+
+
+def add_dim_counts(a, b) -> DimCounts:
+    """The two per-dimension quantities added dimension by dimension."""
+    return DimCounts({dim: a.get(dim, 0) + b.get(dim, 0) for dim in oset(a) | oset(b)})
+
+
+def scale_dim_counts(a, factor) -> DimCounts:
+    """Every dimension of a per-dimension quantity multiplied by `factor`."""
+    return DimCounts({dim: value * factor for dim, value in a.items()})
+
+
+def max_dim_counts(a, b) -> DimCounts:
+    """The larger of the two per-dimension quantities, dimension by dimension."""
+    return DimCounts(
+        {dim: max_nonzero(a.get(dim, 0), b.get(dim, 0)) for dim in oset(a) | oset(b)}
+    )
+
+
 @dataclass
 class NetworkStats:
-    total_hops: Any = field(default=0)
-    """Total number of hops overall. Useful to calculate energy."""
-    max_hops: Any = field(default=0)
-    """Longest hops among all routes."""
+    total_hops: dict[int | str, Any] = field(default_factory=DimCounts)
+    """Total number of hops overall, per spatial dimension. Useful to calculate
+    energy: a network whose dimensions have their own ``hop_<dim>`` actions
+    charges each its own per-hop energy."""
+    max_hops: dict[int | str, Any] = field(default_factory=DimCounts)
+    """Longest hops among all routes, per spatial dimension: how many of that
+    dimension's links the longest route crosses. Summing over the dimensions
+    gives the length of that route, and keeping them apart lets each dimension
+    charge its own per-hop latency."""
     max_traffic: dict[int | str, Any] = field(default_factory=dict)
     """Maximum traffic occuring on any single link along a dimension."""
     total_reduction_values: Any = field(default=0)
@@ -41,6 +78,12 @@ class NetworkStats:
     """The most of that work any one instance does, which is what its latency
     turns on. An all-reduce spreads it; a reduction into one owner does not."""
 
+    def __post_init__(self):
+        # Callers may hand in plain dicts; the per-dimension arithmetic below
+        # leans on the missing-is-zero behaviour.
+        self.total_hops = DimCounts(self.total_hops)
+        self.max_hops = DimCounts(self.max_hops)
+
     def repeat(self, n_repeats):
         """These stats for a node run `n_repeats` times over, one run after
         another.
@@ -55,9 +98,10 @@ class NetworkStats:
             return new
         if type(n_repeats) is float and n_repeats == int(n_repeats):
             n_repeats = int(n_repeats)
-        new.total_hops = new.total_hops * n_repeats
-        # copy.copy is shallow, so max_traffic is still the dict this was called
-        # on. Build a new one rather than scaling the caller's values in place.
+        # copy.copy is shallow, so these are still the dicts this was called on.
+        # Build new ones rather than scaling the caller's values in place.
+        new.total_hops = scale_dim_counts(new.total_hops, n_repeats)
+        new.max_hops = DimCounts(new.max_hops)
         new.max_traffic = {k: v * n_repeats for k, v in new.max_traffic.items()}
         # Every run leaves its own partials to combine, and every instance is
         # back the next time round, so both the total and the per-instance share
@@ -78,8 +122,8 @@ class NetworkStats:
         :meth:`NetworkAnalyzer.accumulate_child_result` maxes their traffic
         instead of adding it.
         """
-        self.total_hops = self.total_hops + other.total_hops
-        self.max_hops = max_nonzero(self.max_hops, other.max_hops)
+        self.total_hops = add_dim_counts(self.total_hops, other.total_hops)
+        self.max_hops = max_dim_counts(self.max_hops, other.max_hops)
         for dim, traffic in other.max_traffic.items():
             self.max_traffic[dim] = self.max_traffic.get(dim, 0) + traffic
         self.total_reduction_values = (
