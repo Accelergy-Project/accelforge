@@ -139,7 +139,7 @@ def evaluate_mapping(
         # spec, not cur_spec, becuase cur_spec only has one einsum and the delta choices
         # depend on >1 Einsums
         job.initial_delta_choices = get_initial_delta_choices(
-            job.einsum_name, spec.workload
+            job.einsum_name, spec.workload, stride_and_halo
         )
         pmapping._split_reservations()
         pmapping._split_loop_with_multiple_rank_variables(job.einsum_name)
@@ -181,9 +181,7 @@ def evaluate_mapping(
 
         infer_default_binding(job.mapping, job)
 
-        _, df, _, _, tensor2mapping, _ = run_model(
-            job, add_reservations=True
-        )
+        _, df, _, _, tensor2mapping, _ = run_model(job, add_reservations=True)
 
         # Calculate iteration counts and rank columns
         _clean_energy_columns(df, job.metrics)

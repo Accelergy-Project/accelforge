@@ -15,6 +15,7 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
 )
 from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
+from accelforge.util._mathfuncs import RESERVATION_PRECISION_TOLERANCE
 from accelforge.util._frozenset import fzs, oset
 
 from accelforge._accelerated_imports import pd
@@ -852,7 +853,9 @@ class PmappingDataframe:
                     )
                     for col2 in self.data.columns:
                         print(f"{col2}: {list[Any](self.data[col2])}")
-                self._data = self.data[self.data[col] <= 1 + tolerance]
+                self._data = self.data[
+                    self.data[col] <= 1 + tolerance + RESERVATION_PRECISION_TOLERANCE
+                ]
                 if (
                     l <= 0
                     and next_shared_loop_index == -1
@@ -883,7 +886,9 @@ class PmappingDataframe:
                     )
                     for col2 in self.data.columns:
                         print(f"{col2}: {list[Any](self.data[col2])}")
-                self._data = self.data[self.data[col] <= 1 + tolerance]
+                self._data = self.data[
+                    self.data[col] <= 1 + tolerance + RESERVATION_PRECISION_TOLERANCE
+                ]
                 if (
                     l <= 0
                     # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent

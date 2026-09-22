@@ -4,6 +4,7 @@ from math import ceil, prod
 import copy
 import re
 import resource
+import signal
 from sympy.core.symbol import Symbol
 import time
 from typing import Callable, Counter, Optional
@@ -11,6 +12,7 @@ from sympy import Expr, Symbol, factorint, lambdify
 from accelforge import util
 from accelforge._accelerated_imports import np
 from accelforge._accelerated_imports import pd
+from accelforge.frontend import arch
 from accelforge.frontend._workload_isl._symbolic import get_projection_expr
 from accelforge.frontend.mapping.mapping import MappingNode
 from accelforge.frontend.workload import Einsum
@@ -898,7 +900,7 @@ def get_padded_choices(
             raise ValueError(f"Can't tell if {s} is increasing or decreasing")
         else:
             new_s = 1
-        formula = formula.xreplace({s: new_s})
+        formula = formula.xreplace({s: sympy.sympify(new_s)})
         substitutions[s] = new_s
         for k, v in substitutions.items():
             if v == s:
@@ -2062,9 +2064,8 @@ def makesymbol(name: str):
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = oset()
     for node in pmapping.nodes:
-        if (
-            (isinstance(node, Loop) and node._fused)
-            or (isinstance(node, Spatial) and node._shared_tensor_binding)
+        if (isinstance(node, Loop) and node._fused) or (
+            isinstance(node, Spatial) and node._shared_tensor_binding
         ):
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
@@ -2413,6 +2414,26 @@ def _make_tile_shapes(job: "Job"):
             )
         )
 
+    is_copy = job.spec_one_einsum.workload.einsums[job.einsum_name].is_copy_operation
+    for node in job.flattened_arch:
+        if not isinstance(node, arch.Memory) or not node.min_usage or is_copy:
+            continue
+        usage_key = f"usage<SEP>memory<SEP>{node.name}"
+        formula = {**per_memory_usage_df, **usage_df}.get(usage_key)
+        if formula is None:
+            continue
+        objectives.append(
+            Objective(
+                name=f"min_usage_{node.name}",
+                formula=formula,
+                symbols=symbols,
+                only_care_if_valid=True,
+                min_value=node.min_usage,
+                try_best_if_none_reaches_min=True,
+                terms_do_not_cross_zero=True,
+            )
+        )
+
     # ==================================================================================
     # Other objectives.
     # ==================================================================================
@@ -2459,14 +2480,18 @@ def _make_tile_shapes(job: "Job"):
         )
 
     rank2symbols = {}
-    spatial_symbol_groups = {}  # lists of the tile shape symbols of loops that map to the same arch fanout
+    spatial_symbol_groups = (
+        {}
+    )  # lists of the tile shape symbols of loops that map to the same arch fanout
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
             if node.tile_shape in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
         if isinstance(node, Spatial):
             key = (node.name, node.component)
-            spatial_symbol_groups[key] = spatial_symbol_groups.get(key, []) + [node.tile_shape]
+            spatial_symbol_groups[key] = spatial_symbol_groups.get(key, []) + [
+                node.tile_shape
+            ]
 
     max_loop_check_groups = [
         (job.spec_one_einsum.mapper.max_fused_loops, all_fused_loops),
@@ -2576,6 +2601,10 @@ def _make_tile_shapes(job: "Job"):
     return df, tensor2mapping
 
 
+def _raise_timeout(signum, frame):
+    raise TimeoutError()
+
+
 def make_tile_shapes(job: "Job"):
     memory_limit = job.memory_limit // 8  # Bytes -> bits
     if job.memory_limit != float("inf"):
@@ -2587,9 +2616,10 @@ def make_tile_shapes(job: "Job"):
 
     if job.time_limit != float("inf"):
         try:
-            resource.setrlimit(
-                resource.RLIMIT_CPU, (ceil(job.time_limit), ceil(job.time_limit))
-            )
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            soft = ceil(usage.ru_utime + usage.ru_stime + job.time_limit)
+            signal.signal(signal.SIGXCPU, _raise_timeout)
+            resource.setrlimit(resource.RLIMIT_CPU, (soft, resource.RLIM_INFINITY))
         except (ValueError, OSError):
             # Ignore permission errors when trying to set CPU limits
             pass
@@ -2629,6 +2659,7 @@ def make_tile_shapes(job: "Job"):
             resource.setrlimit(
                 resource.RLIMIT_CPU, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
             )
+            signal.signal(signal.SIGXCPU, signal.SIG_DFL)
         except (ValueError, OSError):
             # Ignore permission errors when trying to reset CPU limits
             pass

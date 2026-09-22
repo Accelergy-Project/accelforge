@@ -191,6 +191,10 @@ Additionally, the following special variables are available:
   ``MemoryObject``.
 - ``<Any Tensor Name>``: Resolves to the tensor with the given name. If the tensor is
   not used in the current Einsum, then it resolves to the empty set.
+- ``<Any Tag>``: Einsums may be given ``tags`` (see :ref:`specifying-workload`). Every
+  tag of every Einsum is available as a boolean: True if the current Einsum has the tag
+  and False otherwise.
+
 .. - ``Einsum``: The name of the currently-processed Einsum. May be used in expressions
 ..   such as ``Inputs if Einsum == "Conv" else All``.
 - ``MemoryObject.Tensors``: The set of all tensors that are stored in the memory object.

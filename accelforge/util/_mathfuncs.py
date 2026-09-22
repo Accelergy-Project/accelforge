@@ -26,6 +26,9 @@ def _is_intlike(x) -> bool:
 
 NUMPY_FLOAT_TYPE = np.float32
 
+RESERVATION_PRECISION_TOLERANCE = 64 * np.finfo(NUMPY_FLOAT_TYPE).eps
+""" Rounding errors may cause reservation sum to be slightly larger than 1 """
+
 
 def _prime_factorization(n):
     f = []

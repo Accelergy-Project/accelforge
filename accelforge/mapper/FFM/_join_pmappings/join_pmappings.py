@@ -125,14 +125,20 @@ class OptimalityThresholder:
 
         edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
 
-        for c in self.compare_to:
-            nondominated = np.zeros(len(edp_mapping), dtype=bool)
-            for k, v in c.items():
-                if k not in edp_mapping.columns:
-                    nondominated |= True
-                else:
-                    nondominated |= edp_mapping[k] <= v
-            nondominated_by_all &= nondominated
+        # A row survives if, for every reference, it is <= the reference in at least
+        # one column. A reference with a column the mapping lacks constrains nothing.
+        refs = [c for c in self.compare_to if all(k in edp_mapping.columns for k in c)]
+        if refs:
+            keys = list(refs[0])
+            values = edp_mapping[keys].to_numpy(dtype=float)
+            thresholds = np.array([[c[k] for k in keys] for c in refs])
+            for start in range(0, len(values), 4096):
+                chunk = values[start : start + 4096]
+                nondominated_by_all[start : start + 4096] = (
+                    (chunk[:, None, :] <= thresholds[None, :, :])
+                    .any(axis=2)
+                    .all(axis=1)
+                )
 
         if self._pmapping_row_filter_function is not None:
             nondominated_by_all &= self._pmapping_row_filter_function(mapping)
@@ -636,7 +642,8 @@ def join_pmappings(
             print_progress=print_progress,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors,
+            einsum_pmappings.pmapping_groups,
+            left_tensors,
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
