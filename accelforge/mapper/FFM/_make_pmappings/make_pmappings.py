@@ -26,6 +26,9 @@ from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates import (
     make_pmapping_templates,
 )
 from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.mapper.FFM._make_pmappings.drop_less_fused_pmappings_that_are_worse import (
+    drop_less_fused_pmappings_that_are_worse,
+)
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import (
     make_pmappings_from_templates,
 )
@@ -164,7 +167,7 @@ def get_jobs(
 
     stride_and_halo = get_stride_and_halo(spec.workload)
     initial_delta_chocies = {
-        e: get_initial_delta_choices(e, spec.workload)
+        e: get_initial_delta_choices(e, spec.workload, stride_and_halo)
         for e in spec.workload.einsum_names
     }
 
@@ -274,7 +277,7 @@ def get_components_to_track(
         tensor_sizes[tensor] = size * scale
 
     # If the memory is big enough to hold all the tensors then we don't need to consider
-    # it
+    # it. Memories with a min_usage must stay tracked so the constraint can be checked.
     for memory in list(memories_track_all):
         usage = 0
         for einsum in einsum2jobs.keys():
@@ -283,6 +286,8 @@ def get_components_to_track(
                 mem: arch.Memory = job.spec_one_einsum.arch.find(memory)
             except ValueError:
                 continue
+            if mem.min_usage:
+                usage = 2
             for tensor in spec.workload.einsums[einsum].tensor_names:
                 if mem.size == 0:
                     usage = 2  # FAIL
@@ -431,12 +436,27 @@ def make_pmappings(
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
         keep_rates.extend(cur_keep_rates)
 
-    for einsum_name in list(pmapping_groups.keys()):
-        pmapping_groups[einsum_name] = PmappingGroup.combine_combineable(
-            pmapping_groups[einsum_name],
-            "All",
-            pbar_postfix=f" for {einsum_name}",
-            print_progress=print_progress,
+    grouped = {
+        einsum_name: PmappingGroup.combine_combineable(
+            groups, "All", print_progress=False, delay=True
+        )
+        for einsum_name, groups in pmapping_groups.items()
+    }
+    concat_jobs = [
+        (einsum_name, job) for einsum_name, (_, jobs) in grouped.items() for job in jobs
+    ]
+    combined = parallel(
+        [job for _, job in concat_jobs],
+        pbar="Combining pmappings" if print_progress else None,
+    )
+    for einsum_name, (singles, _) in grouped.items():
+        pmapping_groups[einsum_name] = singles
+    for (einsum_name, _), group in zip(concat_jobs, combined):
+        pmapping_groups[einsum_name].append(group)
+
+    if spec.mapper.drop_less_fused_pmappings_that_are_worse:
+        drop_less_fused_pmappings_that_are_worse(
+            pmapping_groups, einsum2jobs, print_progress
         )
 
     return_jobs = {

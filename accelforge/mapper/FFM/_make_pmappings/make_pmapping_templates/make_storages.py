@@ -98,10 +98,16 @@ def make_tensor_choices_one_level(
     if is_copy_op:
         may_keep -= tensors.to_my_space(seen_tensors)
 
+    # Clamp so a min_stored larger than the storable tensor count still stores as many
+    # as possible instead of yielding nothing.
+    min_stored = min(node.tensors.min_stored, len(must_keep | may_keep))
+
     for subset in powerset(sorted(may_keep, key=str)):
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(oset(subset))
         keep_choice = tensors.to_my_space(subset | must_keep)
+        if len(keep_choice) < min_stored or len(keep_choice) > node.tensors.max_stored:
+            continue
         # Below line is so users can do MainMemory().tensors() or MainMemory.tensors
         new_symbol_table[node.name] = keep_choice
         new_symbol_table["Above"] = symbol_table["Above"] | keep_choice

@@ -129,7 +129,11 @@ class FFM(EvalableModel):
     """ The maximum time limit for the mapper. """
 
     time_limit_per_pmapping_template: float | int = float("inf")
-    """ The maximum time limit per pmapping template. """
+    """
+    The maximum CPU time, in seconds, to spend on one pmapping template. A template that
+    exceeds it prints an error message and drops the current template, but allows other
+    templates to continue.
+    """
 
     max_pmapping_templates_per_einsum: float | int = float("inf")
     """
@@ -174,6 +178,18 @@ class FFM(EvalableModel):
     
     See tiling_coarseness for how to reduce the number of tile shapes explored when this
     is set.
+    """
+
+    drop_less_fused_pmappings_that_are_worse: bool = False
+    """
+    If set to True, drop pmappings that are worse, in all objective metrics and
+    reservations, than a less-fused pmapping. A pmapping is less-fused than another if
+    the backing storages of all its tensors are same-or-farther from compute, with at
+    least one strictly farther. Two pmappings are only compared if they have the same
+    reservation indices up to the number of compared loops and, for every tensor with
+    the same backing storage in both, the loops and tile shapes above that tensor's
+    backing storage match; if they differ, the pmappings cannot be compared. This
+    pruning is disabled for copy Einsums.
     """
 
     prioritize_reuse_of_unfused_tensors: bool = False

@@ -148,3 +148,37 @@ concise notation.
       - {name: I_in, projection: [b, m, d], bits_per_value: 16}
       - {name: I, projection: [b, m, d], output: True}
       renames: {input: I_in, output: I}
+
+
+Tags
+----
+
+Einsums may be given any number of ``tags``, which are available when parsing
+expressions (see :ref:`set-expressions`) the architecture.
+
+In the parsing of the architecture for *any* Einsum, the tags of *all* Einsums in the
+workload are available. Tags are set to `True` for the Einsums that have the tag and
+`False` for the others.
+
+Some tags are added automatically:
+
+- ``has_reduction`` for Einsums that perform a reduction
+- ``matmul_like`` for Einsums that perform a reduction, have three tensors, and only use
+  simple rank variables (rank variables that never appear inside an expression such as
+  ``M: m + n``).
+
+.. code-block:: yaml
+
+  workload:
+    einsums:
+    - einsum: A[m, n] = X[m, k] * W[k, n]
+      tags: [this_is_a]
+    - einsum: B[m, n] = A[m, n] * S[m, n]
+
+  # Architecture expressions are evaluated once for each Einsum. This buffer keeps all
+  # tensors for A (tagged this_is_a and matmul_like) and only the inputs for B.
+  arch:
+    nodes:
+    - !Memory
+      name: GlobalBuffer
+      tensors: {keep: All if this_is_a else Inputs}

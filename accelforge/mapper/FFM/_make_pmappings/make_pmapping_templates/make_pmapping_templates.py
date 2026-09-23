@@ -277,7 +277,14 @@ def iterate_mappings_no_constraints(
         raise ValueError("No memory found in architecture")
 
     einsum = spec.workload.einsums[einsum_name]
-    symbol_table = {r.name: r.source for r in einsum.renames}
+    tags = spec.workload._tags_as_bools(einsum_name)
+    # Same symbols the arch expressions were evaluated with in the Spec.
+    symbol_table = {
+        **spec.variables.shallow_model_dump(),
+        **{r.name: r.source for r in einsum.renames},
+        **tags,
+        **spec.arch.variables.shallow_model_dump(),
+    }
     fusable_tensors = job.fusable_tensors
 
     ranks_with_tile_pattern = oset(
