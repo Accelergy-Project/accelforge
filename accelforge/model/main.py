@@ -15,7 +15,9 @@ from accelforge.frontend.mapping import (
     Split,
     Nested,
     NodeList,
+    Storage,
     TensorHolder,
+    Toll,
     Loop,
 )
 from accelforge.frontend.workload import Workload
@@ -292,11 +294,26 @@ def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
 def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
     """
     Remove tensors from Storage nodes that are not relevant to the Einsum being
-    mapped.
+    mapped, and tolls that belong to other Einsums.
     """
     einsum_name = pmapping.nodes[-1].einsum
     einsum = workload.einsums[einsum_name]
     relevant_tensors = oset(t.name for t in einsum.tensor_accesses)
+
+    # Drop duplicated tolls
+    nodes = pmapping.nodes
+    kept: set[tuple[str, TensorName]] = oset()
+    for i, node in enumerate(nodes):
+        if not isinstance(node, Toll):
+            continue
+        for tensor in list(node.tensors):
+            parent_above = any(
+                isinstance(n, Storage) and tensor in n.tensors for n in nodes[:i]
+            )
+            if parent_above and (node.component, tensor) not in kept:
+                kept.add((node.component, tensor))
+            else:
+                node.tensors.remove(tensor)
 
     new_nodes = []
     for node in pmapping.nodes:
