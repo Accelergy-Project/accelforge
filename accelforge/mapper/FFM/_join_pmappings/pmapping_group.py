@@ -334,7 +334,9 @@ class PmappingGroup:
         _combine_reservations: bool = True,
         print_progress: bool = True,
         pbar_postfix: str = "",
-    ) -> list["PmappingGroup"]:
+        delay: bool = False,
+    ) -> list["PmappingGroup"] | tuple[list["PmappingGroup"], list]:
+        """ Combine pmapping groups that have equivalent compatibilities. """
         pmapping_groups = [s for s in pmapping_groups if len(s.mappings.data) > 0]
         no_combine = []
         if not _combine_reservations:
@@ -352,15 +354,18 @@ class PmappingGroup:
             ).values()
         )
         groups_with_one = [g[0] for g in groups if len(g) == 1]
-        if len(groups_with_one) == len(groups):
+        to_concat = [
+            delayed(PmappingGroup.concat)(g, allow_different_compatibilies)
+            for g in groups
+            if len(g) > 1
+        ]
+        if delay:
+            return groups_with_one + no_combine, to_concat
+        if not to_concat:
             return groups_with_one + no_combine
 
         others = parallel(
-            [
-                delayed(PmappingGroup.concat)(g, allow_different_compatibilies)
-                for g in groups
-                if len(g) > 1
-            ],
+            to_concat,
             pbar=f"Grouping pmappings{pbar_postfix}" if print_progress else None,
         )
         return groups_with_one + others + no_combine
@@ -386,8 +391,11 @@ class PmappingGroup:
 
     @staticmethod
     def group(
-        pmapping_groups: list["PmappingGroup"], live_tensors: set[str],
-    ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", "CompatibilityDiff"]]]:
+        pmapping_groups: list["PmappingGroup"],
+        live_tensors: set[str],
+    ) -> dict[
+        tuple[Compatibility, ...], list[tuple["PmappingGroup", "CompatibilityDiff"]]
+    ]:
         x = PmappingGroup._group(
             pmapping_groups,
             live_tensors,

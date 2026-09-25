@@ -1,0 +1,40 @@
+{{add_to_path(".")}}
+
+# Kimi K3 one decoder layer. The full model is an embedding + 93 of these
+# (num_hidden_layers) + final normalization and unembedding, plus a vision tower.
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS, ATTENTION_TYPE, FEEDFORWARD_TYPE. If DECODE,
+# also set N_CACHED_TOKENS. ATTENTION_TYPE selects the attention: 'mla' (24 of the 93
+# layers, full_attn_layers   config.json#L67-L92, default) or 'kda' (the other 69,
+# kda_layers   config.json#L95-L165). FEEDFORWARD_TYPE selects the feedforward: 'moe'
+# (layers 2-93, default) or 'dense' (layer 1, first_k_dense_replace   config.json#L46).
+#
+# config.json:
+# https://huggingface.co/moonshotai/Kimi-K3/blob/f831ab66814297da540d832a5235f8e904f29d06/config.json
+# tech report: https://github.com/MoonshotAI/Kimi-K3/blob/main/k3_tech_report.pdf
+
+{% set ATTENTION_TYPE = ATTENTION_TYPE | default("mla") %}
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% set N_HIDDEN_DIMS = 7168 %}     # hidden_size   config.json#L50
+{% if ATTENTION_TYPE == "mla" %}
+{% set N_HEADS = 96 %}             # num_attention_heads   config.json#L181
+{% set N_EMB_PER_HEAD = 128 %}     # qk_nope_head_dim (RoPE dim ignored here)   config.json#L200
+{% set N_V_DIMS = 128 %}           # v_head_dim   config.json#L266
+{% set N_Q_LATENT = 1536 %}        # q_lora_rank   config.json#L199
+{% set N_KV_LATENT = 512 %}        # kv_lora_rank   config.json#L59
+{% else %}
+# KDA reads its own head counts from linear_attn_config   config.json#L66-L169
+{% set N_HEADS = 96 %}             # linear_attn_config.num_heads   config.json#L166
+{% set N_EMB_PER_HEAD = 128 %}     # linear_attn_config.head_dim   config.json#L94
+{% set N_GATE_LATENT_DIMS = 128 %} # f_a_proj is hidden_size -> head_dim   modeling_kimi_linear.py#L523
+{% set CHUNK_SIZE = CHUNK_SIZE | default(64) %} # chunk length of the chunk_kda kernel
+{% endif %}
+{% set N_FF_DIMS = 33792 if FEEDFORWARD_TYPE == "dense" else 3072 %} # intermediate_size L56 (dense) / moe_intermediate_size L176 (moe)
+{% set N_MOE_LATENT_DIMS = 3584 %} # routed_expert_hidden_size   config.json#L246
+{% set N_SHARED_FF_DIMS = 6144 %}  # moe_intermediate_size * num_shared_experts = 3072*2   config.json#L176,L191
+{% set N_EXPERTS = 896 %}          # num_experts   config.json#L185
+{% set N_EXPERTS_PER_TOKEN = 16 %} # num_experts_per_token   config.json#L186
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(1048576) %}  # max_position_embeddings   config.json#L171
+{% set MODEL = include("_kimi_k3.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames

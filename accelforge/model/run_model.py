@@ -26,6 +26,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     energy2col,
 )
 from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.util._mathfuncs import RESERVATION_PRECISION_TOLERANCE
 from accelforge.util._sympy.broadcast_max import max_nonzero
 from accelforge.util.indent import print
 
@@ -199,11 +200,14 @@ def run_model(
             continue
         size = memory_to_size[memory]
         running_total = 0
-        for n_loop, occupancy in sorted(occupancies.items()):
-            running_total += occupancy
-            col = reservation2col(memory, int(min(n_loop, private_level)))
-            df[col] = running_total / size
-        if isinstance(running_total, Number) and running_total > size:
+        for n_loop in sorted(n_loop_options):
+            if n_loop in occupancies:
+                running_total += occupancies[n_loop]
+                col = reservation2col(memory, int(min(n_loop, private_level)))
+                df[col] = running_total / size
+        if isinstance(running_total, Number) and running_total > size * (
+            1 + RESERVATION_PRECISION_TOLERANCE
+        ):
             raise InvalidMappingError(
                 f"The mapping uses {running_total} bits of {memory} but its size is "
                 f"only {size} bits. Use a smaller tile shape for loops below the "

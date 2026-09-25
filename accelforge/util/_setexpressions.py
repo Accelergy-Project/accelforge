@@ -26,7 +26,7 @@ class InvertibleSet(BaseModel, Generic[T]):
     space_type: type[T]
     # child_access_name: Optional[str] = None
     element_to_child_space: Optional[dict[str, Any]] = None
-    element_to_bits_per_value: Optional[dict[str, int]] = None
+    full_space_element_to_bits_per_value: Optional[dict[str, int]] = None
     _bits_per_value: Optional[int] = None
 
     def __init__(self, *args, **kwargs):
@@ -41,6 +41,20 @@ class InvertibleSet(BaseModel, Generic[T]):
             "space_type": self.space_type.__name__,
             "element_to_child_space": self.element_to_child_space,
             "_bits_per_value": self._bits_per_value,
+        }
+
+    @property
+    def element_to_bits_per_value(self) -> Optional[dict[str, int]]:
+        """If this set holds tensors, the bits per value of each tensor in this set."""
+        if self.full_space_element_to_bits_per_value is None:
+            raise ValueError(
+                f"Can not access element_to_bits_per_value for a set that does not hold "
+                f"tensors: {self.instance}."
+            )
+        return {
+            t: bits
+            for t, bits in self.full_space_element_to_bits_per_value.items()
+            if t in self.instance
         }
 
     @property
@@ -119,7 +133,7 @@ class InvertibleSet(BaseModel, Generic[T]):
             space_type=self.space_type,
             # child_access_name=self.child_access_name,
             element_to_child_space=self.element_to_child_space,
-            element_to_bits_per_value=self.element_to_bits_per_value,
+            full_space_element_to_bits_per_value=self.full_space_element_to_bits_per_value,
         )
 
     @staticmethod
@@ -192,7 +206,7 @@ class InvertibleSet(BaseModel, Generic[T]):
                 space_type=self.space_type,
                 # child_access_name=self.child_access_name,
                 element_to_child_space=self.element_to_child_space,
-                element_to_bits_per_value=self.element_to_bits_per_value,
+                full_space_element_to_bits_per_value=self.full_space_element_to_bits_per_value,
             )
 
     @property

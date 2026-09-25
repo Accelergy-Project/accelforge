@@ -273,7 +273,14 @@ def iterate_mappings_no_constraints(
         raise ValueError("No memory found in architecture")
 
     einsum = spec.workload.einsums[einsum_name]
-    symbol_table = {r.name: r.source for r in einsum.renames}
+    tags = spec.workload._tags_as_bools(einsum_name)
+    # Same symbols the arch expressions were evaluated with in the Spec.
+    symbol_table = {
+        **spec.variables.shallow_model_dump(),
+        **{r.name: r.source for r in einsum.renames},
+        **tags,
+        **spec.arch.variables.shallow_model_dump(),
+    }
     fusable_tensors = job.fusable_tensors
 
     ranks_with_tile_pattern = oset(
@@ -454,7 +461,11 @@ def infer_default_binding(mapping: Mapping, job: Job):
             binding_spatial = node.model_copy()
             rv = binding_spatial.rank_variable
             if rv in irrelevant_rvs:
-                raise NotImplementedError()
+                raise NotImplementedError(
+                    f"Can not infer a binding for distributed memory "
+                    f"{last_distributed_storage.component}: spatial loop over {rv}, "
+                    f"which is irrelevant to tensor {tensor}"
+                )
             else:
                 ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
                 assert len(ranks) == 1

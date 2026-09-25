@@ -473,6 +473,18 @@ class Einsum(EvalableModel):
     value, but non-persistent reservations are not, as they are assumed to be freed
     between each instance.
     """
+    tags: list[str] = []
+    """
+    Tags of the Einsum. Any number of tags may be given. When evaluating the
+    architecture, every tag is included in the symbol table, evaluating to True if it is
+    in the current Einsum's tags and False if it is in the tags of any other Einsum. 
+    
+    By default, tags also include: 
+    
+    - "has_reduction" if the Einsum performs a reduction 
+    - "matmul_like" if it also has three tensors and only simple rank variables (rank
+      variables that never appear inside an expression).
+    """
 
     def model_post_init(self, __context__=None) -> None:
         if self.name == "Total":
@@ -709,7 +721,7 @@ class Einsum(EvalableModel):
             space_type=TensorName,
             child_access_name="rank_variables",
             element_to_child_space=element_to_child_space,
-            element_to_bits_per_value=element_bits,
+            full_space_element_to_bits_per_value=element_bits,
         )
         kwargs_rank_variables = dict(
             full_space=all_rank_variables,
@@ -825,7 +837,7 @@ class Einsum(EvalableModel):
             if isinstance(r.source, InvertibleSet) and all(
                 t in element_bits for t in r.source.instance
             ):
-                r.source.element_to_bits_per_value = element_bits
+                r.source.full_space_element_to_bits_per_value = element_bits
 
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
@@ -893,9 +905,12 @@ class Workload(EvalableModel):
     matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
     """
 
+    _all_tags_from_all_einsums: set[str] | None = None
+
     def _for_einsum(self, einsum_name: EinsumName) -> "Workload":
         """Return a copy of the workload with only the Einsum with the given name."""
         new = self.model_copy(deep=False)
+        new._all_tags_from_all_einsums = self._all_tags()
         new.einsums = EvalableList([e for e in new.einsums if e.name == einsum_name])
         return new
 
@@ -1415,6 +1430,45 @@ class Workload(EvalableModel):
         elif isinstance(einsum_name, str):
             einsum_name = [einsum_name]
         return sum(get_operation_space_size(self, e) for e in einsum_name)
+
+    def einsum_has_reduction(self, einsum_name: str) -> bool:
+        """
+        Returns whether the given Einsum performs a reduction; that is, whether its
+        number of computes exceeds the number of values in its smallest output tensor.
+        """
+        einsum = self.einsums[einsum_name]
+        n_outputs = min(self.get_tensor_size(t) for t in einsum.output_tensor_names)
+        return self.n_computes(einsum_name) > n_outputs
+
+    def _einsum_tags(self, einsum_name: str) -> set[str]:
+        """
+        Returns the tags of the given Einsum: the tags given by the user plus the
+        default tags "has_reduction" and "matmul_like" where they apply.
+        """
+        einsum = self.einsums[einsum_name]
+        tags = oset(einsum.tags)
+        if self.einsum_has_reduction(einsum_name):
+            tags.add("has_reduction")
+            all_simple = einsum._simple_rank_variables == einsum.rank_variables
+            if len(einsum.tensor_names) == 3 and all_simple:
+                tags.add("matmul_like")
+        return tags
+
+    def _all_tags(self) -> set[str]:
+        """Returns the default tags plus every tag given to any Einsum."""
+        if self._all_tags_from_all_einsums is not None:
+            return self._all_tags_from_all_einsums
+        default_tags = oset(("has_reduction", "matmul_like"))
+        return default_tags.union(*(e.tags for e in self.einsums))
+
+    def _tags_as_bools(self, einsum_name: str | None) -> dict[str, bool]:
+        """
+        Returns every tag of every Einsum, True if the given Einsum has it and False
+        otherwise. All True if no Einsum is given.
+        """
+        every_tag = self._all_tags()
+        tags = every_tag if einsum_name is None else self._einsum_tags(einsum_name)
+        return {t: t in tags for t in every_tag}
 
     def get_compute_intensity(
         self, einsum_name: str | Iterable[str] | None = None

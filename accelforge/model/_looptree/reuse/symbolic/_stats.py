@@ -239,7 +239,7 @@ class BuffetStats:
         for k, v in self.__dict__.items():
             other_v = other.__dict__[k]
             if k.startswith(("total_", "max_", "min_")):
-                new.__dict__[k] = min_take_zero(v, other_v)
+                new.__dict__[k] = _combine(v, other_v, min_take_zero)
             elif v is None:
                 new.__dict__[k] = other_v
         return new
