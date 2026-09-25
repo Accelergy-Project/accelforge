@@ -225,10 +225,9 @@ class TestRenames(unittest.TestCase):
         self.assertEqual(result.name, "SomeEinsum")
         self.assertEqual(len(result.tensor_accesses), 0)
 
-    def test_non_default_einsum_renames_applied_at_eval_time(self):
-        """Non-default einsum renames are only resolved during full spec
-        evaluation (name-based lookup requires EvalableList). Pre-evaluation,
-        get_renames_for_einsum only applies defaults."""
+    def test_non_default_einsum_renames_found_before_eval(self):
+        """Renames.einsums is a NameIndexableList, so non-default einsum
+        renames are found by name without evaluating the spec."""
         r = Renames(
             einsums=[
                 EinsumRename(
@@ -239,10 +238,10 @@ class TestRenames(unittest.TestCase):
                 ),
             ]
         )
-        # Without evaluation, 'Matmul' is not found in the plain list,
-        # so a fresh EinsumRename is created with no tensor_accesses.
         result = r.get_renames_for_einsum("Matmul")
         self.assertEqual(result.name, "Matmul")
+        self.assertEqual(len(result.tensor_accesses), 1)
+        self.assertEqual(result.tensor_accesses["weight"].source, "W")
 
     def test_default_applied_when_no_specific_match(self):
         """When a specific einsum is not found, defaults are still applied."""

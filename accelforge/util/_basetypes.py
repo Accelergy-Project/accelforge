@@ -900,10 +900,91 @@ class NonEvalableModel(_OurBaseModel):
         return Any
 
 
-class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
+class NameIndexableList(list[T], Generic[T]):
+    """
+    A list that can be indexed by element name, in addition to the usual integer and
+    slice indexing. An element's name is its ``name`` attribute, or its ``"name"`` key
+    if it is a dict. It is not evaluated, so expressions in it are left as-is.
+    """
+
+    def __getitem__(self, key: str | int | slice, _pretty_error: bool = True):
+        if isinstance(key, int):
+            return super().__getitem__(key)  # type: ignore
+
+        elif isinstance(key, slice):
+            return type(self)(super().__getitem__(key))
+
+        elif isinstance(key, str):
+            found = None
+            for elem in self:
+                name = None
+                if isinstance(elem, dict):
+                    name = elem.get("name", None)
+                elif hasattr(elem, "name"):
+                    name = elem.name
+                if name is not None and name == key:
+                    if found is not None:
+                        raise ValueError(f'Multiple elements with name "{key}" found.')
+                    found = elem
+            if found is not None:
+                return found
+
+        fields = list(range(len(self)))
+        fields += [
+            (
+                x.name
+                if hasattr(x, "name")
+                else x.get("name", None) if isinstance(x, dict) else None
+            )
+            for x in self
+        ]
+        if not _pretty_error:
+            raise KeyError("BUG. You shouldn't be seeing this.")
+        fields = sorted(str(x) for x in fields if x is not None)
+        raise KeyError(
+            f'No element with name "{key}" found. Available names: {", ".join(fields)}'
+        )
+
+    def __contains__(self, item: Any) -> bool:
+        try:
+            self.__getitem__(item, _pretty_error=False)
+            return True
+        except KeyError:
+            return super().__contains__(item)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
+        # Get the type parameter T from cls[T]
+        type_args = get_args(source_type)
+        if not type_args:
+            raise TypeError(
+                f"{cls.__name__} must be used with a type parameter, e.g. "
+                f"{cls.__name__}[int]"
+            )
+        item_type = type_args[0]
+
+        # Get the schema for the item type
+        item_schema = handler(item_type)
+
+        # Create a schema that validates lists of the item type
+        return chain_schema(
+            [
+                list_schema(item_schema),
+                no_info_plain_validator_function(lambda x: cls(x)),
+            ]
+        )
+
+    def __copy__(self) -> Self:
+        return type(self)(x for x in self)
+
+
+class EvalableList(NameIndexableList[T], Evalable["EvalableList[T]"], Generic[T]):
     """
     A list that can be evaluated from a string. EvalableList[T] means that a given string
-    can be evaluated, yielding a list of objects of type T.
+    can be evaluated, yielding a list of objects of type T. It can also be indexed by
+    element name.
     """
 
     def get_validator(self, field: str) -> Type:
@@ -931,77 +1012,6 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
 
     def get_fields(self) -> list[str]:
         return sorted(range(len(self)))
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: Callable
-    ) -> CoreSchema:
-        # Get the type parameter T from EvalableList[T]
-        type_args = get_args(source_type)
-        if not type_args:
-            raise TypeError(
-                f"EvalableList must be used with a type parameter, e.g. EvalableList[int]"
-            )
-        item_type = type_args[0]
-
-        # Get the schema for the item type
-        item_schema = handler(item_type)
-
-        # Create a schema that validates lists of the item type
-        return chain_schema(
-            [
-                list_schema(item_schema),
-                no_info_plain_validator_function(lambda x: cls(x)),
-            ]
-        )
-
-    def __getitem__(self, key: str | int | slice, _pretty_error: bool = True) -> T:
-        if isinstance(key, int):
-            return super().__getitem__(key)  # type: ignore
-
-        elif isinstance(key, slice):
-            return EvalableList[T](super().__getitem__(key))
-
-        elif isinstance(key, str):
-            found = None
-            for elem in self:
-                name = None
-                if isinstance(elem, dict):
-                    name = elem.get("name", None)
-                elif hasattr(elem, "name"):
-                    name = elem.name
-                if name is not None and name == key:
-                    if found is not None:
-                        raise ValueError(f'Multiple elements with name "{key}" found.')
-                    found = elem
-            if found is not None:
-                return found
-
-        fields = self.get_fields()
-        fields += [
-            (
-                x.name
-                if hasattr(x, "name")
-                else x.get("name", None) if isinstance(x, dict) else None
-            )
-            for x in self
-        ]
-        if not _pretty_error:
-            raise KeyError("BUG. You shouldn't be seeing this.")
-        fields = sorted(str(x) for x in fields if x is not None)
-        raise KeyError(
-            f'No element with name "{key}" found. Available names: {", ".join(fields)}'
-        )
-
-    def __contains__(self, item: Any) -> bool:
-        try:
-            self.__getitem__(item, _pretty_error=False)
-            return True
-        except KeyError:
-            return super().__contains__(item)
-
-    def __copy__(self) -> Self:
-        return type(self)(x for x in self)
 
 
 class EvalableDict(
