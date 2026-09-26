@@ -25,7 +25,7 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: hop, energy: 1, latency: 0, throughput: 1}
+    - {name: hop, energy: 1, latency: {{ HOP_LATENCY | default(1) }}, throughput: inf}
 
   - !Memory
     name: Scratchpad
@@ -39,12 +39,14 @@ arch:
     spatial:
     - {name: X, fanout: 4}
 
+  # All-to-all switch (NVLink-like): every node is one hop from every other
   - !Network
     name: MacArray
+    topology: all_to_all
     area: 0
     leak_power: 0
     actions:
-    - {name: hop, energy: 1, latency: 1, throughput: inf}
+    - {name: hop, energy: 1, latency: {{ HOP_LATENCY | default(1) }}, throughput: inf}
 
   - !Compute
     name: MAC
@@ -53,4 +55,4 @@ arch:
     actions:
     - {name: compute, energy: 0, throughput: inf, latency: 0}
     spatial:
-    - {name: X, fanout: 2}
+    - {name: X, fanout: 4}

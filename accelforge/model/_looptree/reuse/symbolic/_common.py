@@ -56,16 +56,6 @@ class AnalysisInfo:
 
     tensor_rank_variables: set = field(default_factory=set)
 
-    # We track first latency for these nodes (should be Temporal)
-    last_temporal_node_idx: int = None
-    """
-    node idx of the last (above) temporal node
-    """
-    idxs_to_track_first_latency: set[int] = field(default_factory=set)
-    """
-    node idxs for which we track first latency
-    """
-
 
 def reduce_dicts(dict1: dict, dict2: dict, reduce_op):
     for key in dict1:

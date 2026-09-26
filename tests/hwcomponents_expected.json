@@ -6,10 +6,12 @@
       "actions": {
         "read": {
           "energy": 8e-12,
+          "latency": 1.9073486328125e-08,
           "throughput": 3355443200.0
         },
         "write": {
           "energy": 8e-12,
+          "latency": 1.9073486328125e-08,
           "throughput": 3355443200.0
         }
       }
@@ -20,11 +22,13 @@
       "actions": {
         "read": {
           "energy": 9.056430298994264e-11,
-          "throughput": 9846153846.153845
+          "latency": 6.4376400000000005e-09,
+          "throughput": 6400000000.0
         },
         "write": {
           "energy": 9.122346940403464e-11,
-          "throughput": 9846153846.153845
+          "latency": 8.06264e-09,
+          "throughput": 6400000000.0
         }
       }
     },
@@ -34,10 +38,12 @@
       "actions": {
         "read": {
           "energy": 2.2733893884485344e-14,
+          "latency": 2.6455e-09,
           "throughput": 9846153846.153845
         },
         "write": {
           "energy": 3.1554801000964905e-14,
+          "latency": 4.2705e-09,
           "throughput": 9846153846.153845
         }
       }
@@ -48,10 +54,12 @@
       "actions": {
         "read": {
           "energy": 4.0152965248454046e-14,
+          "latency": 2.69905e-09,
           "throughput": 34461538461.53846
         },
         "write": {
           "energy": 6.235570339922515e-14,
+          "latency": 4.324050000000001e-09,
           "throughput": 34461538461.53846
         }
       }
@@ -62,10 +70,12 @@
       "actions": {
         "read": {
           "energy": 2.6247402328781873e-14,
+          "latency": 2.6455e-09,
           "throughput": 9846153846.153845
         },
         "write": {
           "energy": 3.728731056542402e-14,
+          "latency": 4.2705e-09,
           "throughput": 9846153846.153845
         }
       }
@@ -76,7 +86,8 @@
       "actions": {
         "compute": {
           "energy": 1.2813796807700769e-12,
-          "throughput": 615384615.3846153
+          "latency": 3.25e-09,
+          "throughput": 200000000.0
         }
       }
     }

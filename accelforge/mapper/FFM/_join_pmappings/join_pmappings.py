@@ -125,13 +125,11 @@ class OptimalityThresholder:
 
         edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
 
-        # A row survives if, for every reference, it is <= the reference in at least
-        # one column. A reference with a column the mapping lacks constrains nothing.
         refs = [c for c in self.compare_to if all(k in edp_mapping.columns for k in c)]
         if refs:
             keys = list(refs[0])
             values = edp_mapping[keys].to_numpy(dtype=float)
-            thresholds = np.array([[c[k] for k in keys] for c in refs])
+            thresholds = np.array([[c[k] for k in keys] for c in refs]) * (1 + 1e-5)
             for start in range(0, len(values), 4096):
                 chunk = values[start : start + 4096]
                 nondominated_by_all[start : start + 4096] = (
@@ -425,7 +423,6 @@ def get_memories_to_track(
                     always_below.add(reservation_key.name)
 
     total_sizes = {}
-    ignored_resources = oset()
 
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
@@ -446,10 +443,6 @@ def get_memories_to_track(
                         always_below.remove(tensor.resource_name)
                 size = s.mappings.data[col].max()
                 max_sizes[name] = max(max_sizes.get(name, 0), size)
-
-                # nloops < 0 means that the reservation will live through all Einsums
-                if nloops < 0:
-                    ignored_resources.add(name)
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
@@ -1004,6 +997,14 @@ def join_pmappings(
     mappings = s_final[0].mappings
     mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
     mappings.free_to_loop_index(-2)
+    assert not mappings._make_latencies(), (
+        f"Component latency columns were not folded into the total latency: "
+        f"{mappings._make_latencies()}"
+    )
+    assert not any(mappings._make_commlatencies().values()), (
+        f"Descent/ascent latency columns were not folded into the total latency: "
+        f"{mappings._make_commlatencies()}"
+    )
     mappings.make_pareto()
 
     timer.log_total_time()

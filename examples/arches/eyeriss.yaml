@@ -15,14 +15,12 @@ arch:
     component_class: SmartBufferSRAM
     size: 1024 * 1024 # 1Mb
     # 32 reads and writes per cycle, 200MHz. Note that the bits per read/write is the
-    # bits per action set below. This is optional, and if it is omitted, then the total
-    # latency sum(a.n_calls / a.throughput for a in actions) will be used instead, with
-    # the throughput gotten from component models.
-    total_latency: sum(a.n_calls for a in actions) / 32 / 200e6
+    # bits per action set below. Setting per-action throughput is optional, and if
+    # it is omitted, the throughput is gotten from component models.
     extra_attributes_for_component_model: {n_banks: 32}
     actions:
-    - {name: read, bits_per_action: 64}
-    - {name: write, bits_per_action: 64}
+    - {name: read, bits_per_action: 64, throughput: 32 * 200e6}
+    - {name: write, bits_per_action: 64, throughput: 32 * 200e6}
     tensors: {keep: ~MainMemory, may_keep: All}
 
   - !Container
@@ -52,5 +50,6 @@ arch:
   - !Compute # MAC unit
     name: MAC
     component_class: IntMAC
-    total_latency: sum(a.n_calls for a in actions) / 200e6
+    actions:
+    - {name: compute, throughput: 200e6}
     extra_attributes_for_component_model: {multiplier_width: 8, adder_width: 16}

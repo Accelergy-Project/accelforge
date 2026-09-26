@@ -511,8 +511,7 @@ def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorNam
 
 
 def label_shared_tensor_binding_loops(
-    mapping: List[MappingNode],
-    fusable_tensors: set[TensorName]
+    mapping: List[MappingNode], fusable_tensors: set[TensorName]
 ):
     found_distributed = False
     for node in mapping:
@@ -520,10 +519,8 @@ def label_shared_tensor_binding_loops(
             component = node.component_object
             found_distributed = (
                 len(node._backing & fusable_tensors) > 0
-                and
-                isinstance(component, arch.Memory)
-                and
-                component._is_distributed()
+                and isinstance(component, arch.Memory)
+                and component._is_distributed()
             )
             continue
         if isinstance(node, Spatial) and found_distributed:
@@ -556,10 +553,7 @@ def analyze_temporal(
 
     result_accumulator = SymbolicAnalysisOutput()
 
-    first_latency = None
-
     def handle_repeated_value(repeated_shape):
-        nonlocal first_latency
         shape_value = repeated_shape.value
         shape_repeats = repeated_shape.repeats
 
@@ -591,9 +585,6 @@ def analyze_temporal(
         result_accumulator.max(fanout=child_result.fanout)
 
         for key in child_result.compute_stats:
-            if first_latency is None:
-                first_latency = child_result.compute_stats[key].max_latency
-
             compute_stats = result_accumulator.compute_stats.setdefault(
                 key, ComputeStats()
             )
@@ -602,21 +593,18 @@ def analyze_temporal(
             )
             result_accumulator.compute_stats[key] = compute_stats
 
-    info.last_temporal_node_idx = node_idx
-
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
         for repeated_shape in shape.sequence:
             assert isinstance(repeated_shape, RepeatedValue)
             handle_repeated_value(repeated_shape)
+        total_iterations = sum(r.repeats for r in shape.sequence)
     elif isinstance(shape, RepeatedValue):
         handle_repeated_value(shape)
+        total_iterations = shape.repeats
 
-    if node_idx in info.idxs_to_track_first_latency:
-        for compute_stat in result_accumulator.compute_stats.values():
-            # Should be the first time we store this value
-            assert node_idx not in compute_stat.max_first_latency
-            compute_stat.max_first_latency[node_idx] = first_latency
+    for stats in result_accumulator.buffet_stats.values():
+        stats.iterations_above *= total_iterations
 
     return result_accumulator
 
@@ -871,14 +859,16 @@ def analyze_storage(
         # ==========================
         # Data exchanges with parent
         if count_downward_movement[tensor]:  # Parent -> Me
-            stats.total_write_actions += stats.total_reads_to_parent * write_scale
-            stats.max_per_unit_write_actions += (
+            stats.total_actions_to_parent["write"] += (
+                stats.total_reads_to_parent * write_scale
+            )
+            stats.max_per_unit_actions_to_parent["write"] += (
                 stats.total_reads_to_parent * write_scale / n_active_physical_units
             )
-            stats.total_skipped_first_write_actions += (
+            stats.total_skipped_first_actions_to_parent["write"] += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
-            stats.min_per_unit_skipped_first_write_actions += (
+            stats.min_per_unit_skipped_first_actions_to_parent["write"] += (
                 stats.min_per_parent_skipped_first_reads_to_parent
                 * write_scale
                 / n_active_physical_units
@@ -887,40 +877,46 @@ def analyze_storage(
         if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
-            stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += (
+            stats.total_actions_to_parent["read"] += (
+                stats.total_writes_to_parent * read_scale
+            )
+            stats.max_per_unit_actions_to_parent["read"] += (
                 stats.total_writes_to_parent * read_scale / n_active_physical_units
             )
 
         # ========================
         # Data exchanges with peer
-        stats.total_read_actions += stats.total_reads_to_peer * read_scale
-        stats.total_write_actions += stats.total_reads_to_peer * write_scale
+        stats.total_actions_to_child["read"] += stats.total_reads_to_peer * read_scale
+        stats.total_actions_to_child["write"] += stats.total_reads_to_peer * write_scale
 
         # =========================
         # Data exchanges with child
         if child is not None:
             if count_downward_movement[tensor]:  # Me -> Child
-                stats.total_read_actions += child.total_reads_to_parent * read_scale
-                stats.max_per_unit_read_actions += (
+                stats.total_actions_to_child["read"] += (
+                    child.total_reads_to_parent * read_scale
+                )
+                stats.max_per_unit_actions_to_child["read"] += (
                     child.max_per_parent_reads_to_parent
                     * read_scale
                     / n_active_physical_units
                 )
                 # Skip first read
                 if skip_initial:
-                    stats.total_skipped_first_read_actions += (
+                    stats.total_skipped_first_actions_to_child["read"] += (
                         child.total_skipped_first_reads_to_parent * read_scale
                     )
-                    stats.min_per_unit_skipped_first_read_actions += (
+                    stats.min_per_unit_skipped_first_actions_to_child["read"] += (
                         child.min_per_parent_skipped_first_reads_to_parent
                         * read_scale
                         / n_active_physical_units
                     )
 
             if count_upward_movement[tensor]:  # Child -> Me
-                stats.total_write_actions += child.total_writes_to_parent * write_scale
-                stats.max_per_unit_write_actions += (
+                stats.total_actions_to_child["write"] += (
+                    child.total_writes_to_parent * write_scale
+                )
+                stats.max_per_unit_actions_to_child["write"] += (
                     child.max_per_parent_writes_to_parent
                     * write_scale
                     / n_active_physical_units
@@ -950,7 +946,7 @@ def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
         buffet = Buffet(tensor, einsum_name, node.component)
         stats = storage_result.buffet_stats[buffet]
         stats.max_occupancy = 0
-        assert stats.total_write_actions == 0
+        assert stats.total_actions["write"] == 0
     return storage_result
 
 
@@ -959,11 +955,6 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
     tensor = TensorName(node.purpose)
-
-    if info.last_temporal_node_idx is not None and id(
-        node
-    ) == info.tensor_to_reservation_backer_id.get(node.purpose, None):
-        info.idxs_to_track_first_latency.add(info.last_temporal_node_idx)
 
     child_result = analyze_node(node_idx + 1, current_shape, info)
 
@@ -1041,6 +1032,10 @@ def analyze_compute(
         if is_output:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
+            # The to-parent/to-child thing really doesn't matter here since compute is
+            # the lowest leaf in the tree & any the level at which any latency is paid
+            # is set by the lower level of the exchange
+            stats.total_actions_to_parent["compute"] = computes
             if skip_initial:
                 stats.total_skipped_first_reads_to_parent = 1
                 stats.min_per_parent_skipped_first_reads_to_parent = 1

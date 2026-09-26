@@ -16,7 +16,7 @@ arch:
     area: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 100, latency: 0}
+    - {name: read, energy: 100, throughput: inf, latency: 0}
 
   - !Memory
     name: LocalBuffer

@@ -493,6 +493,7 @@ class TestGPTConciseParsed(unittest.TestCase):
     def test_persistent_tensors_field(self):
         self.assertEqual(self.wl.persistent_tensors, "weight - Intermediates")
 
+
 # ============================================================================
 # simple.yaml arch -- golden values
 # ============================================================================
@@ -1083,8 +1084,13 @@ class TestProgrammaticWorkloadValues(unittest.TestCase):
             name="TestMem",
             size=1000,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
             leak_power=0,
             area=0,
@@ -1097,7 +1103,7 @@ class TestProgrammaticWorkloadValues(unittest.TestCase):
     def test_compute_defaults(self):
         comp = Compute(
             name="MAC",
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             leak_power=0,
             area=0,
         )
