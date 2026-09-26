@@ -26,12 +26,14 @@ WEIGHTS_INSIDE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_weights_inside.mapping
 
 
 def make_spec(arch, mapping, n_einsums, **jinja):
-    return Spec.from_yaml(
+    spec = Spec.from_yaml(
         af.examples.workloads.basic.matmuls,
         arch,
         mapping,
         jinja_parse_data={"N_EINSUMS": n_einsums, "M": 4, "KN": 4, **jinja},
     )
+    spec.model._use_new_latency_model = True
+    return spec
 
 
 def total_latency(arch, mapping, n_einsums, **jinja):
@@ -294,6 +296,7 @@ class TestLatencyTimeline(unittest.TestCase):
             af.examples.workloads.basic.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 16, "KN": 16},
         )
+        spec.model._use_new_latency_model = True
         spec.mapper.metrics = af.mapper.Metrics.LATENCY
         result = spec.map_workload_to_arch(print_progress=False)
         two = copy.copy(result)

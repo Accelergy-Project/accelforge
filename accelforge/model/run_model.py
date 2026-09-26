@@ -68,7 +68,11 @@ def run_model(
         reuse,
         job.flattened_arch,
         pmapping,
-        per_level_components=oset(job.components_track_latency),
+        per_level_components=(
+            oset(job.components_track_latency)
+            if spec.model._use_new_latency_model
+            else oset()
+        ),
         n_shared_loops=n_shared_loops,
     )
     overall_latency = max_nonzero(*latency.values())
@@ -243,37 +247,42 @@ def run_model(
         for component, cur_latency in latency.items():
             df[f"component_latency<SEP>{component}"] = cur_latency * n_instances
 
-        # Components shared across Einsums get per-level latency columns so joining can
-        # sum their busy time across Einsums and let it overlap with the other Einsums'
-        # latency. Their latency is folded into Total<SEP>latency at joining time
-        # instead of here.
-        for component, level_latency in latency_per_level.items():
-            for level, cur_latency in level_latency.items():
-                df[complatency2col(component, level)] = cur_latency * n_instances
+        if spec.model._use_new_latency_model:
+            # Components shared across Einsums get per-level latency columns so
+            # joining can sum their busy time across Einsums and let it overlap with
+            # the other Einsums' latency. Their latency is folded into
+            # Total<SEP>latency at joining time instead of here.
+            for component, level_latency in latency_per_level.items():
+                for level, cur_latency in level_latency.items():
+                    df[complatency2col(component, level)] = cur_latency * n_instances
 
-        # The total latency is the sum of the Einsum's wind-up/down delay and the
-        # slowest component's busy time. Fused-loop-crossing descent and ascent
-        # latencies get their own columns because they may be overlapped with other
-        # Einsums.
-        einsum_delay, ascent_descent_latency = communication_latency(
-            reuse,
-            job.flattened_arch,
-            tensor_to_backing,
-            workload.einsums[job.einsum_name].output_tensor_names,
-            n_fused=n_shared_loops,
-        )
-        for direction, per_level in ascent_descent_latency.items():
-            for level, cur_latency in per_level.items():
-                df[commlatency2col(direction, level)] = cur_latency * n_instances
+            # The total latency is the sum of the Einsum's wind-up/down delay and the
+            # slowest component's busy time. Fused-loop-crossing descent and ascent
+            # latencies get their own columns because they may be overlapped with
+            # other Einsums.
+            einsum_delay, ascent_descent_latency = communication_latency(
+                reuse,
+                job.flattened_arch,
+                tensor_to_backing,
+                workload.einsums[job.einsum_name].output_tensor_names,
+                n_fused=n_shared_loops,
+            )
+            for direction, per_level in ascent_descent_latency.items():
+                for level, cur_latency in per_level.items():
+                    df[commlatency2col(direction, level)] = cur_latency * n_instances
 
-        per_component_total = []
-        for component, l in latency.items():
-            if component not in latency_per_level:
-                if not isinstance(l, Number) or l != 0:
-                    per_component_total.append(l)
+            per_component_total = []
+            for component, l in latency.items():
+                if component not in latency_per_level:
+                    if not isinstance(l, Number) or l != 0:
+                        per_component_total.append(l)
 
-        slowest = max_nonzero(*per_component_total)
-        df["Total<SEP>latency"] = (slowest + einsum_delay) * n_instances
+            slowest = max_nonzero(*per_component_total)
+            df["Total<SEP>latency"] = (slowest + einsum_delay) * n_instances
+        else:
+            # Each Einsum's latency is the max of its per-component latencies. Einsums
+            # do not share latency.
+            df["Total<SEP>latency"] = overall_latency * n_instances
 
     # =================================================================================
     # Energy

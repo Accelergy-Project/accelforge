@@ -335,6 +335,7 @@ class TestModelAllToAll(TestCase):
                 "M_TILE": M_TILE,
             },
         )
+        spec.model._use_new_latency_model = True
         result = spec.evaluate_mapping()
 
         # --- MacArray: all-to-all switch ---------------------------------
