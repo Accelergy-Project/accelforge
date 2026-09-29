@@ -129,13 +129,11 @@ class OptimalityThresholder:
 
         edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
 
-        # A row survives if, for every reference, it is <= the reference in at least
-        # one column. A reference with a column the mapping lacks constrains nothing.
         refs = [c for c in self.compare_to if all(k in edp_mapping.columns for k in c)]
         if refs:
             keys = list(refs[0])
             values = edp_mapping[keys].to_numpy(dtype=float)
-            thresholds = np.array([[c[k] for k in keys] for c in refs])
+            thresholds = np.array([[c[k] for k in keys] for c in refs]) * (1 + 1e-5)
             for start in range(0, len(values), 4096):
                 chunk = values[start : start + 4096]
                 nondominated_by_all[start : start + 4096] = (
