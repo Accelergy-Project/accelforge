@@ -46,6 +46,9 @@ from accelforge.util import (
     parallel,
 )
 
+# Small number for stability
+EPS = 1e-5
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,7 +114,7 @@ class OptimalityThresholder:
             print(f"Filtering out pmappings worse than the following:")
 
         for i in chosen_indices.astype(int):
-            self.compare_to.append({c: compare_to[c].iloc[i] for c in compare_cols})
+            self.compare_to.append({c: compare_to[c].iloc[i]*(1+EPS) for c in compare_cols})
             if print_progress:
                 print(
                     "\t"
