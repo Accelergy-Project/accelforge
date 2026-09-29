@@ -752,14 +752,16 @@ class Einsum(EvalableModel):
         self: Einsum = self.model_copy()
         self.renames = RenameList(self.renames)
 
-        # Grab the default renames and update the renames with more values
-        default_renames = renames.get_renames_for_einsum("default")
-        for tensor_rename in default_renames.tensor_accesses:
-            if tensor_rename.name not in self.renames:
-                self.renames.append(tensor_rename)
-        for rank_variable_rename in default_renames.rank_variables:
-            if rank_variable_rename.name not in self.renames:
-                self.renames.append(rank_variable_rename)
+        # Grab top-level Einsum-specific renames first, then load defaults that
+        # without overwriting
+        for rename_to_consider in [self.name, "default"]:
+            rename_to_consider = renames.get_renames_for_einsum(rename_to_consider)
+            for tensor_rename in rename_to_consider.tensor_accesses:
+                if tensor_rename.name not in self.renames:
+                    self.renames.append(tensor_rename)
+            for rank_variable_rename in rename_to_consider.rank_variables:
+                if rank_variable_rename.name not in self.renames:
+                    self.renames.append(rank_variable_rename)
 
         # Parse me!
         kwargs["musteval_tryeval_to"] = True
