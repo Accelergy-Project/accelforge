@@ -4,6 +4,7 @@ from accelforge.util._basetypes import (
     EvalableList,
     EvalableModel,
     EvalsTo,
+    NameIndexableList,
     TryEvalTo,
     _PostCall,
 )
@@ -123,7 +124,7 @@ class EinsumRename(EvalableModel):
 
 
 class Renames(EvalableModel):
-    einsums: list[EinsumRename] = list()
+    einsums: NameIndexableList[EinsumRename] = NameIndexableList()
     """
     Renames for a workload. The Einsum list is a list of EinsumRename objects, and
     renames will be applied to Einsums whose names match the EinsumRename.name. If an
@@ -151,7 +152,7 @@ class Renames(EvalableModel):
     def _for_einsum(self, einsum_name: EinsumName) -> "Renames":
         """Return a copy of the renames with only the Einsum with the given name."""
         new = self.model_copy(deep=False)
-        new.einsums = [
+        new.einsums = NameIndexableList(
             e for e in new.einsums if e.name == einsum_name or e.name == "default"
-        ]
+        )
         return new

@@ -75,6 +75,8 @@ def set_n_parallel_jobs(n_jobs: int, print_message: bool = False) -> None:
     print_message : bool, optional
         Whether to print a message when the number of parallel jobs is set.
     """
+    if not isinstance(n_jobs, int):
+        raise TypeError(f"n_jobs must be an integer, got {n_jobs} with type {type(n_jobs)}")
     global N_PARALLEL_PROCESSES
     N_PARALLEL_PROCESSES = n_jobs
     global PARALLELIZE
