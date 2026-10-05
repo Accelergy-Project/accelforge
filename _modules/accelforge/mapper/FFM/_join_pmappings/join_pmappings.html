@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.mapper.FFM._join_pmappings.join_pmappings &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../../_static/styles/theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
+<link href="../../../../../_static/styles/pydata-sphinx-theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../../../_static/scripts/fontawesome.js?digest=64cc4de3f052d77215f0"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
+<link rel="preload" as="script" href="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
+
+    <script src="../../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/mapper/FFM/_join_pmappings/join_pmappings';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script data-domain="accelergy-project.github.io/accelforge" defer="defer" src="https://plausible.emer.org/js/script.file-downloads.outbound-links.js"></script>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../../../_static/searchtools.js"></script>
+    <script src="../../../../../_static/language_data.js"></script>
+    <script src="../../../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.mapper.FFM._join_pmappings.join_pmappings</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.mapper.FFM._join_pmappings.join_pmappings</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.compatibility</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Compatibility</span><span class="p">,</span>
+    <span class="n">CompatibilityDiff</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">NamedTuple</span>
+
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">pd</span><span class="p">,</span> <span class="n">np</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.spec</span> <span class="kn">import</span> <span class="n">Spec</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapping</span> <span class="kn">import</span> <span class="n">Mapping</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapper.metrics</span> <span class="kn">import</span> <span class="n">Metrics</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.workload</span> <span class="kn">import</span> <span class="n">EinsumName</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.mappings</span> <span class="kn">import</span> <span class="n">Mappings</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.pmappings</span> <span class="kn">import</span> <span class="n">MultiEinsumPmappings</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.compress_pmappings</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">compress_einsum2pmappings</span><span class="p">,</span>
+    <span class="n">decompress_pmappings</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._make_pmappings.make_pmappings</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_rank_variable_bounds_for_all_einsums</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.pmapping_dataframe</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PmappingDataframe</span><span class="p">,</span>
+    <span class="n">row2pmappings</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._pareto_df.df_convention</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MAPPING_COLUMN</span><span class="p">,</span>
+    <span class="n">col_used_in_pareto</span><span class="p">,</span>
+    <span class="n">is_objective_col</span><span class="p">,</span>
+    <span class="n">is_reservation_col</span><span class="p">,</span>
+    <span class="n">is_tensor_col</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.pmapping_group</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PmappingGroup</span><span class="p">,</span>
+    <span class="n">Compatibility</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._pareto_df.df_convention</span> <span class="kn">import</span> <span class="n">col2reservation</span>
+<span class="kn">from</span> <span class="nn">accelforge.util</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_fillna_and__numeric_cast</span><span class="p">,</span>
+    <span class="n">delayed</span><span class="p">,</span>
+    <span class="n">get_n_parallel_jobs</span><span class="p">,</span>
+    <span class="n">oset</span><span class="p">,</span>
+    <span class="n">parallel</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Small number for stability</span>
+<span class="n">EPS</span> <span class="o">=</span> <span class="mf">1e-5</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="JoinStepStatistics">
+<a class="viewcode-back" href="../../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.JoinStepStatistics">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">JoinStepStatistics</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Statistics for joining one Einsum onto the partial mappings to its left.&quot;&quot;&quot;</span>
+
+    <span class="n">left_einsum</span><span class="p">:</span> <span class="n">EinsumName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The last Einsum in the partial mappings being joined from the left.&quot;&quot;&quot;</span>
+    <span class="n">right_einsum</span><span class="p">:</span> <span class="n">EinsumName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The Einsum being joined from the right.&quot;&quot;&quot;</span>
+    <span class="n">n_left_mappings</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of mappings on the left after grouping and pruning, before joining.&quot;&quot;&quot;</span>
+    <span class="n">n_right_mappings</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of mappings on the right after grouping and pruning, before joining.&quot;&quot;&quot;</span>
+    <span class="n">n_mappings_before_pruning</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of joined mappings before Pareto pruning (product of the sizes of</span>
+<span class="sd">    each pair of joined groups).&quot;&quot;&quot;</span>
+    <span class="n">n_mappings</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of joined mappings after Pareto pruning.&quot;&quot;&quot;</span>
+    <span class="n">group_compatibilities</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Compatibility</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The compatibility of each group of joined mappings.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">n_groups</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">group_compatibilities</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">mappings_per_group</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_mappings</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_groups</span></div>
+
+
+
+<div class="viewcode-block" id="JoinStatistics">
+<a class="viewcode-back" href="../../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.JoinStatistics">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">JoinStatistics</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Statistics for one call of join_pmappings.&quot;&quot;&quot;</span>
+
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">JoinStepStatistics</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Statistics for each Einsum joined, in joining order.&quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="JoinRunParameters">
+<a class="viewcode-back" href="../../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.JoinRunParameters">[docs]</a>
+<span class="k">class</span> <span class="nc">JoinRunParameters</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pruning tolerances used for one call of join_pmappings.&quot;&quot;&quot;</span>
+
+    <span class="n">objective_tolerance</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">resource_usage_tolerance</span><span class="p">:</span> <span class="nb">float</span></div>
+
+
+
+<span class="k">class</span> <span class="nc">JoiningTimer</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">print_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_time</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">t</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="p">[</span><span class="n">what</span><span class="p">]</span> <span class="o">+=</span> <span class="n">t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">log_total_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">======== Total time ========&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">60</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Total: </span><span class="si">{</span><span class="n">total</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds (</span><span class="si">{</span><span class="n">total</span><span class="o">/</span><span class="mi">60</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> minutes)&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Total: </span><span class="si">{</span><span class="n">total</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;============================</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_apply_edp_columns</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">metrics</span> <span class="o">&amp;</span> <span class="n">Metrics</span><span class="o">.</span><span class="n">ENERGY_DELAY_PRODUCT</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+    <span class="n">energy</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Total&lt;SEP&gt;energy&quot;</span><span class="p">]</span>
+    <span class="n">latency</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Total&lt;SEP&gt;latency&quot;</span><span class="p">]</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Total&lt;SEP&gt;energy_delay_product&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">energy</span> <span class="o">*</span> <span class="n">latency</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">metrics</span> <span class="o">&amp;</span> <span class="n">Metrics</span><span class="o">.</span><span class="n">ENERGY</span><span class="p">):</span>
+        <span class="k">del</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Total&lt;SEP&gt;energy&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">metrics</span> <span class="o">&amp;</span> <span class="n">Metrics</span><span class="o">.</span><span class="n">LATENCY</span><span class="p">):</span>
+        <span class="k">del</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Total&lt;SEP&gt;latency&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">df</span>
+
+
+<span class="k">class</span> <span class="nc">OptimalityThresholder</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">prev_solutions</span><span class="p">:</span> <span class="n">Mappings</span><span class="p">,</span>
+        <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+        <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span> <span class="o">=</span> <span class="n">metrics</span>
+        <span class="n">compare_to</span> <span class="o">=</span> <span class="n">_apply_edp_columns</span><span class="p">(</span><span class="n">prev_solutions</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">metrics</span><span class="p">)</span>
+        <span class="n">compare_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">compare_to</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">col_used_in_pareto</span><span class="p">(</span><span class="n">c</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pmapping_row_filter_function</span> <span class="o">=</span> <span class="n">_pmapping_row_filter_function</span>
+
+        <span class="n">compare_to</span> <span class="o">=</span> <span class="n">compare_to</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="n">compare_cols</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">compare_to</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">:</span>
+            <span class="n">chosen_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">compare_to</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">chosen_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">compare_to</span><span class="p">)))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">compare_to</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Filtering out pmappings worse than the following:&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">chosen_indices</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compare_to</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">c</span><span class="p">:</span> <span class="n">compare_to</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">EPS</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">compare_cols</span><span class="p">})</span>
+            <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span>
+                    <span class="o">+</span> <span class="s2">&quot;    &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">:</span><span class="s2">.2e</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compare_to</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapping</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">nondominated_by_all</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mapping</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+
+        <span class="n">edp_mapping</span> <span class="o">=</span> <span class="n">_apply_edp_columns</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">)</span>
+
+        <span class="n">refs</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compare_to</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">k</span> <span class="ow">in</span> <span class="n">edp_mapping</span><span class="o">.</span><span class="n">columns</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">c</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="n">refs</span><span class="p">:</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">refs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">edp_mapping</span><span class="p">[</span><span class="n">keys</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">thresholds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">c</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">refs</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mf">1e-5</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">),</span> <span class="mi">4096</span><span class="p">):</span>
+                <span class="n">chunk</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">4096</span><span class="p">]</span>
+                <span class="n">nondominated_by_all</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">4096</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="p">(</span><span class="n">chunk</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">&lt;=</span> <span class="n">thresholds</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:])</span>
+                    <span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+                    <span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pmapping_row_filter_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">nondominated_by_all</span> <span class="o">&amp;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pmapping_row_filter_function</span><span class="p">(</span><span class="n">mapping</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">nondominated_by_all</span>
+
+
+<span class="k">def</span> <span class="nf">prune_with_tolerance</span><span class="p">(</span>
+    <span class="n">pmappings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">objective_tolerance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">resource_usage_tolerance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">is_last</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">if</span> <span class="n">objective_tolerance</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">resource_usage_tolerance</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pmappings</span>
+
+    <span class="n">prev_n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">p</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">prune</span><span class="p">(</span><span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="n">pg</span><span class="p">:</span> <span class="n">PmappingGroup</span><span class="p">):</span>
+        <span class="n">pg</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="p">(</span>
+            <span class="n">pg</span><span class="o">.</span><span class="n">compatibility</span><span class="p">,</span>
+            <span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">make_pareto</span><span class="p">(</span>
+                <span class="n">objective_tolerance</span><span class="o">=</span><span class="n">objective_tolerance</span><span class="p">,</span>
+                <span class="n">resource_usage_tolerance</span><span class="o">=</span><span class="n">resource_usage_tolerance</span><span class="p">,</span>
+                <span class="n">inplace</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">pg</span>
+
+    <span class="n">jobs</span> <span class="o">=</span> <span class="p">[</span><span class="n">delayed</span><span class="p">(</span><span class="n">prune</span><span class="p">)(</span><span class="n">e</span><span class="p">,</span> <span class="n">pg</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">for</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">p</span><span class="p">]</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">einsum_name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">einsum_name</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">parallel</span><span class="p">(</span>
+        <span class="n">jobs</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="s2">&quot;Dirty pruning pmappings&quot;</span> <span class="k">if</span> <span class="n">print_progress</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pg</span><span class="p">)</span>
+
+    <span class="n">new_n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">p</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">new_n</span> <span class="o">==</span> <span class="n">prev_n</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_last</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dirty joining uses </span><span class="si">{</span><span class="n">new_n</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">prev_n</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">% of the pmappings&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">join_strategy_2</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">compressed</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">,</span>
+    <span class="n">for_model</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">resource_usage_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">statistics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">JoinRunParameters</span><span class="p">,</span> <span class="n">JoinStatistics</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">thresholds</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">thresholds</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">thresholds</span> <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;</span> <span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">objective_tolerance</span><span class="p">]</span>
+    <span class="n">thresholds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">objective_tolerance</span><span class="p">)</span>
+
+    <span class="n">filter_func</span> <span class="o">=</span> <span class="n">_pmapping_row_filter_function</span>
+    <span class="n">_runtime_log_file</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">_runtime_log_file</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">threshold</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">thresholds</span><span class="p">):</span>
+        <span class="n">is_dirty</span> <span class="o">=</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">thresholds</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">for_model</span> <span class="ow">and</span> <span class="n">print_progress</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_dirty</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dirty joining with objectives &lt;= </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">threshold</span><span class="si">}</span><span class="s2">× optimal&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Final clean join.&quot;</span><span class="p">)</span>
+        <span class="c1"># Write round marker so the notebook can distinguish dirty vs clean</span>
+        <span class="k">if</span> <span class="n">_runtime_log_file</span> <span class="ow">and</span> <span class="n">is_dirty</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">json</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">_runtime_log_file</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;round&quot;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;threshold&quot;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">})</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur_compressed</span> <span class="o">=</span> <span class="n">prune_with_tolerance</span><span class="p">(</span>
+                <span class="n">compressed</span><span class="p">,</span>
+                <span class="n">objective_tolerance</span><span class="o">=</span><span class="n">threshold</span><span class="p">,</span>
+                <span class="n">resource_usage_tolerance</span><span class="o">=</span><span class="n">resource_usage_tolerance</span><span class="p">,</span>
+                <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+                <span class="n">is_last</span><span class="o">=</span><span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">thresholds</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">cur_compressed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">joined</span> <span class="o">=</span> <span class="n">join_pmappings</span><span class="p">(</span>
+                <span class="n">cur_compressed</span><span class="p">,</span>
+                <span class="n">spec</span><span class="p">,</span>
+                <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">filter_func</span><span class="p">,</span>
+                <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+                <span class="n">metrics</span><span class="o">=</span><span class="n">metrics</span><span class="p">,</span>
+                <span class="n">report_statistics</span><span class="o">=</span><span class="n">statistics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">statistics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">joined</span><span class="p">,</span> <span class="n">run_statistics</span> <span class="o">=</span> <span class="n">joined</span>
+                <span class="n">run</span> <span class="o">=</span> <span class="n">JoinRunParameters</span><span class="p">(</span><span class="n">threshold</span><span class="p">,</span> <span class="n">resource_usage_tolerance</span><span class="p">)</span>
+                <span class="n">statistics</span><span class="p">[</span><span class="n">run</span><span class="p">]</span> <span class="o">=</span> <span class="n">run_statistics</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">thresholds</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">filter_func</span> <span class="o">=</span> <span class="n">OptimalityThresholder</span><span class="p">(</span>
+                    <span class="n">joined</span><span class="p">,</span>
+                    <span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+                    <span class="n">print_progress</span><span class="p">,</span>
+                    <span class="n">metrics</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">thresholds</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error with optimality threshold </span><span class="si">{</span><span class="n">threshold</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">joined</span>
+
+
+<span class="k">def</span> <span class="nf">multi_strategy_join</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">compressed</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">,</span>
+    <span class="n">for_model</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">statistics</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">JoinRunParameters</span><span class="p">,</span> <span class="n">JoinStatistics</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">compressed</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">p</span><span class="p">:</span>
+            <span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">drop_valid_reservations</span> <span class="o">=</span> <span class="ow">not</span> <span class="p">(</span><span class="n">Metrics</span><span class="o">.</span><span class="n">RESOURCE_USAGE</span> <span class="o">&amp;</span> <span class="n">metrics</span><span class="p">)</span>
+
+    <span class="c1"># If it&#39;s for the model, just join things directly</span>
+    <span class="k">if</span> <span class="n">for_model</span><span class="p">:</span>
+        <span class="n">joined</span> <span class="o">=</span> <span class="n">join_pmappings</span><span class="p">(</span>
+            <span class="n">deepcopy</span><span class="p">(</span><span class="n">compressed</span><span class="p">),</span>
+            <span class="n">spec</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+            <span class="n">metrics</span><span class="o">=</span><span class="n">metrics</span><span class="p">,</span>
+            <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+            <span class="n">report_statistics</span><span class="o">=</span><span class="n">statistics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">statistics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">joined</span><span class="p">,</span> <span class="n">statistics</span><span class="p">[</span><span class="n">JoinRunParameters</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span> <span class="o">=</span> <span class="n">joined</span>
+        <span class="k">return</span> <span class="n">joined</span>
+
+    <span class="k">if</span> <span class="n">metrics</span> <span class="o">&amp;</span> <span class="n">Metrics</span><span class="o">.</span><span class="n">RESOURCE_USAGE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">join_strategy_2</span><span class="p">(</span>
+            <span class="n">spec</span><span class="p">,</span>
+            <span class="n">compressed</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="p">,</span>
+            <span class="n">metrics</span><span class="p">,</span>
+            <span class="n">for_model</span><span class="p">,</span>
+            <span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+            <span class="n">statistics</span><span class="o">=</span><span class="n">statistics</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">resource_usage_thresholds</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="mf">0.2</span><span class="p">,</span>
+        <span class="mf">0.1</span><span class="p">,</span>
+        <span class="mf">0.05</span><span class="p">,</span>
+        <span class="mf">0.02</span><span class="p">,</span>
+        <span class="mf">0.01</span><span class="p">,</span>
+        <span class="mf">0.005</span><span class="p">,</span>
+        <span class="mf">0.002</span><span class="p">,</span>
+        <span class="mf">0.001</span><span class="p">,</span>
+        <span class="mf">0.0001</span><span class="p">,</span>
+        <span class="mf">0.00001</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>  <span class="c1"># Give up, do full precision join</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">threshold</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">resource_usage_thresholds</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">compressed</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">pg</span> <span class="ow">in</span> <span class="n">p</span><span class="p">:</span>
+                <span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">excess_resource_tolerance</span> <span class="o">=</span> <span class="n">threshold</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">resource_usage_thresholds</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">print_progress</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dirty joining with resource usage &lt;= </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">threshold</span><span class="si">}</span><span class="s2">× optimal&quot;</span><span class="p">)</span>
+        <span class="n">joined</span> <span class="o">=</span> <span class="n">join_strategy_2</span><span class="p">(</span>
+            <span class="n">spec</span><span class="p">,</span>
+            <span class="n">compressed</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="p">,</span>
+            <span class="n">metrics</span><span class="p">,</span>
+            <span class="n">for_model</span><span class="p">,</span>
+            <span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+            <span class="n">resource_usage_tolerance</span><span class="o">=</span><span class="n">threshold</span><span class="p">,</span>
+            <span class="n">statistics</span><span class="o">=</span><span class="n">statistics</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_reservation_col</span><span class="p">(</span><span class="n">c</span><span class="p">):</span>
+                <span class="n">maxvalue</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">maxvalue</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+                        <span class="n">oversubscribed</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">col2reservation</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">maxvalue</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%)&quot;</span>
+                        <span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Oversubscribed </span><span class="si">{</span><span class="n">oversubscribed</span><span class="si">}</span><span class="s2">. Reducing threshold...&quot;</span><span class="p">)</span>
+                    <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Dirty joining mapping(s) valid &amp; optimal! Returning...&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">joined</span>
+    <span class="k">return</span> <span class="n">joined</span>
+
+
+<span class="k">def</span> <span class="nf">clean_compress_and_join_pmappings</span><span class="p">(</span>
+    <span class="n">pmappings</span><span class="p">:</span> <span class="n">MultiEinsumPmappings</span><span class="p">,</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">,</span>
+    <span class="n">for_model</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">require_all_einsums</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">report_statistics</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mappings</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Mappings</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">JoinRunParameters</span><span class="p">,</span> <span class="n">JoinStatistics</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If report_statistics is True, returns a tuple of (mappings, statistics), where</span>
+<span class="sd">    statistics maps the parameters of each call of join_pmappings to its</span>
+<span class="sd">    JoinStatistics.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">einsum2pmappings</span> <span class="o">=</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">einsum2pmappings</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">require_all_einsums</span><span class="p">:</span>
+        <span class="n">einsum2pmappings</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="n">v</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">einsum2pmappings</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">einsums_with_pmappings_generated</span>
+        <span class="p">}</span>
+    <span class="n">_check_einsum2pmappings_not_empty</span><span class="p">(</span><span class="n">einsum2pmappings</span><span class="p">,</span> <span class="n">pmappings</span><span class="p">)</span>
+
+    <span class="n">compressed</span><span class="p">,</span> <span class="n">decompress_data</span> <span class="o">=</span> <span class="n">compress_einsum2pmappings</span><span class="p">(</span>
+        <span class="n">einsum2pmappings</span><span class="p">,</span> <span class="n">print_progress</span>
+    <span class="p">)</span>
+
+    <span class="n">statistics</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">if</span> <span class="n">report_statistics</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">joined</span> <span class="o">=</span> <span class="n">multi_strategy_join</span><span class="p">(</span>
+        <span class="n">pmappings</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span>
+        <span class="n">compressed</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="p">,</span>
+        <span class="n">for_model</span><span class="p">,</span>
+        <span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+        <span class="n">statistics</span><span class="o">=</span><span class="n">statistics</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">joined</span> <span class="o">=</span> <span class="n">decompress_pmappings</span><span class="p">(</span><span class="n">joined</span><span class="p">,</span> <span class="n">decompress_data</span><span class="p">)</span>
+
+    <span class="c1"># These are normally dropped during each join, but that never happens if there&#39;s</span>
+    <span class="c1"># just one Einsum, so we do it once more here.</span>
+    <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span>
+        <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">is_tensor_col</span><span class="p">(</span><span class="n">c</span><span class="p">)],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+
+    <span class="n">_apply_edp_columns</span><span class="p">(</span><span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">metrics</span><span class="p">)</span>
+    <span class="c1"># Pareto prune again in case the EDP column application reduced number of</span>
+    <span class="c1"># objectives.</span>
+    <span class="n">joined</span><span class="o">.</span><span class="n">make_pareto</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">einsum_name</span> <span class="ow">in</span> <span class="n">einsum2pmappings</span><span class="p">:</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2">&lt;SEP&gt;</span><span class="si">{</span><span class="n">MAPPING_COLUMN</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">pmapping_objects</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="n">joined</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">_fillna_and__numeric_cast</span><span class="p">(</span><span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">joined</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c1"># Defrag</span>
+
+    <span class="n">rank_variable_bounds</span> <span class="o">=</span> <span class="n">get_rank_variable_bounds_for_all_einsums</span><span class="p">(</span><span class="n">pmappings</span><span class="o">.</span><span class="n">spec</span><span class="p">)</span>
+    <span class="n">einsum_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">einsum2pmappings</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;Total&lt;SEP&gt;</span><span class="si">{</span><span class="n">MAPPING_COLUMN</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">MappingFromRow</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">rank_variable_bounds</span><span class="p">,</span> <span class="n">einsum_names</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iterrows</span><span class="p">()</span>
+    <span class="p">]</span>
+    <span class="c1"># Fill nans with 0. We might get missing columns for some mapping entries if there</span>
+    <span class="c1"># are energy entries for some pmappings but not others (e.g., one pmapping accesses</span>
+    <span class="c1"># DRAM while another doesn&#39;t.)</span>
+    <span class="n">mappings</span> <span class="o">=</span> <span class="n">Mappings</span><span class="p">(</span>
+        <span class="n">pmappings</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span>
+        <span class="nb">list</span><span class="p">(</span>
+            <span class="n">x</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">einsum2pmappings</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">einsums_with_pmappings_generated</span>
+        <span class="p">),</span>
+        <span class="n">joined</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+        <span class="n">total_mappings</span><span class="o">=</span><span class="n">joined</span><span class="o">.</span><span class="n">n_total_pmappings</span><span class="p">,</span>
+        <span class="n">valid_mappings</span><span class="o">=</span><span class="n">joined</span><span class="o">.</span><span class="n">n_valid_pmappings</span><span class="p">,</span>
+        <span class="n">flattened_arches</span><span class="o">=</span><span class="n">pmappings</span><span class="o">.</span><span class="n">flattened_arches</span><span class="p">,</span>
+        <span class="n">evaluated_specs</span><span class="o">=</span><span class="n">pmappings</span><span class="o">.</span><span class="n">evaluated_specs</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">report_statistics</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">mappings</span><span class="p">,</span> <span class="n">statistics</span>
+    <span class="k">return</span> <span class="n">mappings</span>
+
+
+<span class="k">class</span> <span class="nc">PmappingsOneEinsum</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">pm_group_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">einsum_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">einsum_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]</span> <span class="o">=</span> <span class="n">pm_group_list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">oset</span><span class="p">(</span><span class="n">pm_group_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">get_memories_to_track</span><span class="p">(</span>
+    <span class="n">pmapping_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+
+    <span class="n">always_below</span> <span class="o">=</span> <span class="n">oset</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">einsum_pmapping_groups</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmapping_groups</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">reservation_key</span> <span class="o">=</span> <span class="n">col2reservation</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">reservation_key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">always_below</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">reservation_key</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="n">total_sizes</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">einsum_pmapping_groups</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">max_sizes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmapping_groups</span><span class="p">:</span>
+            <span class="n">n_fused_loops</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="o">.</span><span class="n">n_loops</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">reservation_key</span> <span class="o">=</span> <span class="n">col2reservation</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">reservation_key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">name</span> <span class="o">=</span> <span class="n">reservation_key</span><span class="o">.</span><span class="n">name</span>
+                <span class="n">nloops</span> <span class="o">=</span> <span class="n">reservation_key</span><span class="o">.</span><span class="n">nloops</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">always_below</span> <span class="ow">and</span> <span class="n">nloops</span> <span class="o">&lt;</span> <span class="n">n_fused_loops</span><span class="p">:</span>
+                    <span class="n">always_below</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                <span class="c1"># Check each of the compatibility&#39;s tensors</span>
+                <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="o">.</span><span class="n">tensors</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">tensor</span><span class="o">.</span><span class="n">resource_name</span> <span class="ow">in</span> <span class="n">always_below</span><span class="p">:</span>
+                        <span class="n">always_below</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tensor</span><span class="o">.</span><span class="n">resource_name</span><span class="p">)</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+                <span class="n">max_sizes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_sizes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">size</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">max_sizes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">total_sizes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">total_sizes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">size</span>
+
+    <span class="n">ignore</span> <span class="o">=</span> <span class="n">oset</span><span class="p">(</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">total_sizes</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span> <span class="n">always_below</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ignore</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">ignore</span>
+
+    <span class="k">def</span> <span class="nf">remove_unneeded_columns</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="n">PmappingGroup</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">keep_cols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">name_nloops</span> <span class="o">=</span> <span class="n">col2reservation</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name_nloops</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name_nloops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ignore</span><span class="p">:</span>
+                <span class="n">keep_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="n">run_pareto</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">keep_cols</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">keep_cols</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keep_cols</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="k">else</span> <span class="n">data</span>
+        <span class="k">return</span> <span class="n">PmappingGroup</span><span class="p">(</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="p">,</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">skip_pareto</span><span class="o">=</span><span class="ow">not</span> <span class="n">run_pareto</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">always_below</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Not tracking </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2"> because it is never reserved for multiple pmappings.&quot;</span>
+            <span class="p">)</span>
+    <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">total_sizes</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Not tracking </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> because its size is enough for the sum of all &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;reservations (</span><span class="si">{</span><span class="n">s</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">% of the total)&quot;</span>
+                <span class="p">)</span>
+            <span class="k">break</span>
+
+    <span class="n">new_pmapping_groups</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">einsum_pmapping_groups</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">new_pmapping_groups</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parallel</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">delayed</span><span class="p">(</span><span class="n">remove_unneeded_columns</span><span class="p">)(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmapping_groups</span><span class="p">],</span>
+            <span class="n">pbar</span><span class="o">=</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Removing unneeded reservations for </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">if</span> <span class="n">print_progress</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_pmapping_groups</span><span class="p">,</span> <span class="n">ignore</span>
+
+
+<span class="k">def</span> <span class="nf">join_pmappings</span><span class="p">(</span>
+    <span class="n">pmapping_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">lookahead_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">report_statistics</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PmappingDataframe</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PmappingDataframe</span><span class="p">,</span> <span class="n">JoinStatistics</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If report_statistics is True, returns a tuple of (mappings, JoinStatistics).</span>
+
+<span class="sd">    CONTRACT FOR MAPPINGS GETTING TO THIS POINT:</span>
+
+<span class="sd">    - Reservations at a level include reservations at all levels above it.</span>
+<span class="sd">    - If one Einsum uses an aliased tensor more than once, then only one</span>
+<span class="sd">      reservation is made for it. If overlapping lifetimes cause the aliases to</span>
+<span class="sd">      be alive at the same time, then it is handled here.</span>
+<span class="sd">    - Memory names should be sorted with higher memory names representing</span>
+<span class="sd">      memories lower in the hierarchy. e.g., memory 0 is the largest,</span>
+<span class="sd">      memory 1 the next largest, and memory N is the smallest.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">skip_invalid</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">_skip_invalid</span>
+    <span class="n">combine_reservations</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">_combine_reservations</span>
+    <span class="n">_runtime_log_file</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">_runtime_log_file</span>
+
+    <span class="k">assert</span> <span class="p">(</span>
+        <span class="n">skip_invalid</span>
+    <span class="p">),</span> <span class="s2">&quot;Joining only joins valid compatibilities in the for loops in this function.&quot;</span>
+
+    <span class="n">drop_valid_reservations</span> <span class="o">=</span> <span class="ow">not</span> <span class="p">(</span><span class="n">Metrics</span><span class="o">.</span><span class="n">RESOURCE_USAGE</span> <span class="o">&amp;</span> <span class="n">metrics</span><span class="p">)</span>
+    <span class="n">ignored_resources</span> <span class="o">=</span> <span class="n">oset</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">_pmapping_row_filter_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">sg</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sg</span><span class="p">)</span>
+        <span class="n">pmapping_groups</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">e</span><span class="p">:</span> <span class="p">[</span>
+                <span class="n">PmappingGroup</span><span class="p">(</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="p">,</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">filter_rows</span><span class="p">(</span><span class="n">_pmapping_row_filter_function</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="p">[</span><span class="n">e</span><span class="p">]</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">pmapping_groups</span>
+        <span class="p">}</span>
+        <span class="n">new_n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">sg</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">print_progress</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Filtered </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">new_n</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">new_n</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">n</span><span class="si">:</span><span class="s2">.2%</span><span class="si">}</span><span class="s2"> kept) pmappings&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">drop_valid_reservations</span><span class="p">:</span>
+        <span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">ignored_resources</span> <span class="o">=</span> <span class="n">get_memories_to_track</span><span class="p">(</span>
+            <span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">print_progress</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">einsum_pmapping_groups</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmapping_groups</span><span class="p">:</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">drop_valid_reservations</span> <span class="o">=</span> <span class="n">drop_valid_reservations</span>
+
+    <span class="n">aliased_tensors</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">get_tensor_copies</span><span class="p">()</span>
+
+    <span class="n">runtime</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">statistics</span> <span class="o">=</span> <span class="n">JoinStatistics</span><span class="p">()</span>
+
+    <span class="n">pmapping_groups</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pmapping_groups</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">skip_invalid</span><span class="p">:</span>
+        <span class="n">lookahead_filter</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No pmappings for </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">timer</span> <span class="o">=</span> <span class="n">JoiningTimer</span><span class="p">()</span>
+
+    <span class="n">pmgroups</span> <span class="o">=</span> <span class="p">[</span><span class="n">PmappingsOneEinsum</span><span class="p">(</span><span class="o">*</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmapping_groups</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">pmgroups</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No pmappings to join&quot;</span><span class="p">)</span>
+
+    <span class="c1"># ======================================================================</span>
+    <span class="c1"># Initial consolidate and group all PmappingGroups</span>
+    <span class="c1"># ======================================================================</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">einsum_pmappings</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">pmgroups</span><span class="p">):</span>
+        <span class="n">cur_tensors</span> <span class="o">=</span> <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">tensor_names</span>
+        <span class="n">right_tensors</span> <span class="o">=</span> <span class="n">oset</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">oset</span><span class="p">(),</span> <span class="o">*</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">tensor_names</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmgroups</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="p">:]])</span>
+        <span class="c1"># First Einsum: Remove dead tensors and left consolidate. This is because the</span>
+        <span class="c1"># first Einsum will have the first pmappigns that are joined from the left</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cur_tensors</span> <span class="o">-</span> <span class="n">right_tensors</span><span class="p">:</span>
+                <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">remove_dead_tensors</span><span class="p">(</span>
+                    <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">right_tensors</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">:</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="o">.</span><span class="n">clear_dead_tensors</span><span class="p">(</span><span class="n">right_tensors</span><span class="p">)</span>
+            <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">left_consolidate</span><span class="p">(</span>
+                <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span>
+                <span class="n">right_tensors</span><span class="p">,</span>
+                <span class="n">parallelize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># We&#39;re not pareto pruning, so parallelization doesn&#39;t help.</span>
+                <span class="n">pbar</span><span class="o">=</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Inital consolidate </span><span class="si">{</span><span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">pmgroups</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="k">if</span> <span class="n">print_progress</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># All other Einsums: Will be joined from the right. Remove dead tensors, right</span>
+        <span class="c1"># consolidate, combine, group.</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">left_tensors</span> <span class="o">=</span> <span class="n">oset</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">oset</span><span class="p">(),</span> <span class="o">*</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">tensor_names</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmgroups</span><span class="p">[:</span><span class="n">i</span><span class="p">]])</span>
+        <span class="n">live_tensors</span> <span class="o">=</span> <span class="n">right_tensors</span>
+        <span class="n">shared_tensors</span> <span class="o">=</span> <span class="n">left_tensors</span> <span class="o">&amp;</span> <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">tensor_names</span>
+
+        <span class="k">if</span> <span class="n">cur_tensors</span> <span class="o">-</span> <span class="p">(</span><span class="n">right_tensors</span> <span class="o">|</span> <span class="n">left_tensors</span><span class="p">):</span>
+            <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">remove_dead_tensors</span><span class="p">(</span>
+                <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">right_tensors</span> <span class="o">|</span> <span class="n">left_tensors</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">:</span>
+                <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="o">.</span><span class="n">clear_dead_tensors</span><span class="p">(</span>
+                    <span class="n">right_tensors</span> <span class="o">|</span> <span class="n">left_tensors</span>
+                <span class="p">)</span>
+
+        <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">right_consolidate</span><span class="p">(</span>
+            <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span>
+            <span class="n">live_tensors</span><span class="p">,</span>
+            <span class="n">shared_tensors</span><span class="p">,</span>
+            <span class="n">parallelize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># We&#39;re not pareto pruning, so parallelization doesn&#39;t help.</span>
+            <span class="n">pbar</span><span class="o">=</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Inital consolidate </span><span class="si">{</span><span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">pmgroups</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="k">if</span> <span class="n">print_progress</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">combine_combineable</span><span class="p">(</span>
+            <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span>
+            <span class="n">left_tensors</span> <span class="o">|</span> <span class="n">right_tensors</span><span class="p">,</span>
+            <span class="n">_combine_reservations</span><span class="o">=</span><span class="n">combine_reservations</span><span class="p">,</span>
+            <span class="n">pbar_postfix</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot; for </span><span class="si">{</span><span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">pmgroups</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">group</span><span class="p">(</span>
+            <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span>
+            <span class="n">left_tensors</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">einsum</span><span class="p">,</span> <span class="n">prev_einsum</span> <span class="o">=</span> <span class="n">einsum_pmappings</span><span class="o">.</span><span class="n">einsum_name</span><span class="p">,</span> <span class="n">pmgroups</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">einsum_name</span>
+        <span class="n">step_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
+        <span class="n">runtime</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prev_einsum</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">step_time</span>
+        <span class="k">if</span> <span class="n">_runtime_log_file</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">json</span> <span class="k">as</span> <span class="nn">_json</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">_runtime_log_file</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">_f</span><span class="p">:</span>
+                <span class="n">_f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+                    <span class="n">_json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+                        <span class="p">{</span>
+                            <span class="s2">&quot;step&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prev_einsum</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;phase&quot;</span><span class="p">:</span> <span class="s2">&quot;consolidate&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">step_time</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="p">)</span>
+                    <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">timer</span><span class="o">.</span><span class="n">print_time</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initial consolidate and group&quot;</span><span class="p">)</span>
+
+    <span class="n">n_iterations</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">total_iterations</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pmgroups</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">grab_einsum_pmappings</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="p">(</span>
+        <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="n">Compatibility</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span>
+    <span class="p">):</span>
+        <span class="k">nonlocal</span> <span class="n">n_iterations</span>
+        <span class="n">n_iterations</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">holder</span> <span class="o">=</span> <span class="n">pmgroups</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">holder</span><span class="o">.</span><span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">holder</span><span class="o">.</span><span class="n">einsum_name</span><span class="p">,</span> <span class="n">holder</span><span class="o">.</span><span class="n">tensor_names</span>
+
+    <span class="k">if</span> <span class="n">pmgroups</span><span class="p">:</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">left_einsum</span><span class="p">,</span> <span class="n">left_tensors</span> <span class="o">=</span> <span class="n">grab_einsum_pmappings</span><span class="p">()</span>
+
+    <span class="n">partial_mapping_size</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">pmgroups</span><span class="p">:</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Check that data dependencies are satisfied.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmgroups</span><span class="p">:</span>
+            <span class="n">output_tensors</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">einsum_name</span><span class="p">]</span><span class="o">.</span><span class="n">output_tensor_names</span>
+            <span class="n">shared_fail</span> <span class="o">=</span> <span class="n">left_tensors</span> <span class="o">&amp;</span> <span class="n">output_tensors</span>
+            <span class="k">if</span> <span class="n">shared_fail</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Einsum </span><span class="si">{</span><span class="n">left_einsum</span><span class="si">}</span><span class="s2"> uses tensors </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">shared_fail</span><span class="p">)</span><span class="si">}</span><span class="s2"> that &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;are outputs of Einsum </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2">, which is later in the &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;joining order.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Grab new Einsum from the right. Record logging data and find still</span>
+        <span class="c1"># tensors that will be live after this Einsum.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="n">right</span><span class="p">,</span> <span class="n">right_einsum</span><span class="p">,</span> <span class="n">right_tensors</span> <span class="o">=</span> <span class="n">grab_einsum_pmappings</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Einsum </span><span class="si">{</span><span class="n">right_einsum</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">n_iterations</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">total_iterations</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+        <span class="n">partial_mapping_size</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">live_tensors</span> <span class="o">=</span> <span class="n">oset</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">oset</span><span class="p">(),</span> <span class="o">*</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">tensor_names</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">pmgroups</span><span class="p">])</span>
+        <span class="n">shared_tensors</span> <span class="o">=</span> <span class="n">oset</span><span class="p">(</span><span class="n">left_tensors</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">oset</span><span class="p">(</span><span class="n">right_tensors</span><span class="p">)</span>
+        <span class="n">live_tensors_with_right</span> <span class="o">=</span> <span class="n">live_tensors</span> <span class="o">|</span> <span class="n">right_tensors</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Clean up the previously-combined PmappingGroups. Consolidate, combine, group</span>
+        <span class="c1"># them into buckets.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># print_time(f&quot;Consolidating&quot;)</span>
+
+        <span class="n">left</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">combine_combineable</span><span class="p">(</span>
+            <span class="n">left</span><span class="p">,</span>
+            <span class="n">live_tensors</span> <span class="o">|</span> <span class="n">right_tensors</span><span class="p">,</span>
+            <span class="n">_combine_reservations</span><span class="o">=</span><span class="n">combine_reservations</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># print_time(f&quot;Combining&quot;)</span>
+        <span class="c1"># Group left and right into buckets</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right_tensors</span><span class="p">)</span>
+        <span class="c1"># print_time(&quot;Grouping&quot;)</span>
+
+        <span class="c1"># =============================================================================</span>
+        <span class="c1"># If we&#39;re multiprocessing and the left side has fewer groups than the number of</span>
+        <span class="c1"># processes, repeatedly split the largest group in half so that the merge work</span>
+        <span class="c1"># below can fan out across all workers.</span>
+        <span class="c1"># =============================================================================</span>
+        <span class="n">n_procs</span> <span class="o">=</span> <span class="n">get_n_parallel_jobs</span><span class="p">()</span>
+        <span class="n">n_groups</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">left</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_procs</span> <span class="o">-</span> <span class="n">n_groups</span><span class="p">):</span>
+            <span class="n">best_k</span><span class="p">,</span> <span class="n">best_i</span><span class="p">,</span> <span class="n">best_len</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">vs</span> <span class="ow">in</span> <span class="n">left</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">pg</span><span class="p">,</span> <span class="n">_perm</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">vs</span><span class="p">):</span>
+                    <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pg</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">if</span> <span class="n">pg</span><span class="o">.</span><span class="n">mappings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+                    <span class="k">if</span> <span class="n">length</span> <span class="o">&gt;</span> <span class="n">best_len</span><span class="p">:</span>
+                        <span class="n">best_len</span> <span class="o">=</span> <span class="n">length</span>
+                        <span class="n">best_k</span><span class="p">,</span> <span class="n">best_i</span> <span class="o">=</span> <span class="n">k</span><span class="p">,</span> <span class="n">i</span>
+            <span class="k">if</span> <span class="n">best_k</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">best_len</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">break</span>  <span class="c1"># nothing left worth splitting</span>
+            <span class="n">pg</span><span class="p">,</span> <span class="n">perm</span> <span class="o">=</span> <span class="n">left</span><span class="p">[</span><span class="n">best_k</span><span class="p">][</span><span class="n">best_i</span><span class="p">]</span>
+            <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">pg</span><span class="o">.</span><span class="n">split_in_half</span><span class="p">()</span>
+            <span class="n">left</span><span class="p">[</span><span class="n">best_k</span><span class="p">][</span><span class="n">best_i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">perm</span><span class="p">)</span>
+            <span class="n">left</span><span class="p">[</span><span class="n">best_k</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">second</span><span class="p">,</span> <span class="n">perm</span><span class="p">))</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Remove dead tensors from left and right. This happens after grouping because</span>
+        <span class="c1"># we only reserve space for shared tensors after they&#39;re dead (alive is handled</span>
+        <span class="c1"># by the normal reservation system). This is in case the tensor lifetime extends</span>
+        <span class="c1"># beyond the Einsums for which it is used.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">remove_dead_tensors</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">lr</span> <span class="ow">in</span> <span class="p">[</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">lr</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">v</span><span class="p">],</span> <span class="n">live_tensors</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">report_statistics</span><span class="p">:</span>
+            <span class="c1"># Groups may appear in multiple buckets (one per permutation), so dedupe</span>
+            <span class="n">n_left_mappings</span><span class="p">,</span> <span class="n">n_right_mappings</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="nb">sum</span><span class="p">(</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">{</span><span class="nb">id</span><span class="p">(</span><span class="n">s</span><span class="p">):</span> <span class="n">s</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">lr</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">v</span><span class="p">}</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">lr</span> <span class="ow">in</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">DO_PRINT</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">DELAY</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Merge the left and right buckets.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="n">combined</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">combined_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="o">...</span><span class="p">]]]</span> <span class="o">=</span> <span class="n">oset</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">left</span><span class="p">:</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">DO_PRINT</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Left key </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">perm_a</span><span class="p">),</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">perm_b</span><span class="p">)</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+                <span class="n">left</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">right</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="p">):</span>
+                <span class="n">a</span><span class="p">:</span> <span class="n">PmappingGroup</span>
+                <span class="n">b</span><span class="p">:</span> <span class="n">PmappingGroup</span>
+                <span class="n">perm_a</span><span class="p">:</span> <span class="n">CompatibilityDiff</span>
+                <span class="n">perm_b</span><span class="p">:</span> <span class="n">CompatibilityDiff</span>
+                <span class="n">key_check</span> <span class="o">=</span> <span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="nb">id</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">key_check</span> <span class="ow">in</span> <span class="n">combined_ids</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">combined_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key_check</span><span class="p">)</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+
+                <span class="n">compatibility_a</span> <span class="o">=</span> <span class="n">perm_a</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">compatibility</span><span class="p">)</span>
+                <span class="n">compatibility_b</span> <span class="o">=</span> <span class="n">perm_b</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">compatibility</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">compatibility_joined</span> <span class="o">=</span> <span class="n">compatibility_a</span><span class="o">.</span><span class="n">merge_next</span><span class="p">(</span>
+                        <span class="n">compatibility_b</span><span class="p">,</span>
+                        <span class="n">live_tensors</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">DO_PRINT</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">compatibility</span><span class="si">}</span><span class="s2">        &lt;--&gt;        </span><span class="si">{</span><span class="n">b</span><span class="o">.</span><span class="n">compatibility</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># Incompatible!</span>
+                    <span class="c1"># if DO_PRINT:</span>
+                    <span class="c1">#     print(f&quot;\tIncompatible: {e}&quot;)</span>
+                    <span class="k">continue</span>
+
+                <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+                <span class="n">combined</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">a</span><span class="o">.</span><span class="n">merge_next</span><span class="p">(</span>
+                        <span class="n">b</span><span class="p">,</span>
+                        <span class="n">live_tensors</span><span class="p">,</span>
+                        <span class="n">live_tensors_with_right</span><span class="p">,</span>
+                        <span class="n">aliased_tensors</span><span class="p">,</span>
+                        <span class="n">compatibility_joined</span><span class="o">=</span><span class="n">compatibility_joined</span><span class="p">,</span>
+                        <span class="n">permuted_compatibility_left</span><span class="o">=</span><span class="n">compatibility_a</span><span class="p">,</span>
+                        <span class="n">permuted_compatibility_right</span><span class="o">=</span><span class="n">compatibility_b</span><span class="p">,</span>
+                        <span class="n">delay</span><span class="o">=</span><span class="n">DELAY</span><span class="p">,</span>
+                        <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+                        <span class="n">ignored_resources</span><span class="o">=</span><span class="n">ignored_resources</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">DO_PRINT</span><span class="p">:</span>
+                    <span class="c1"># s = f&quot;\t--&gt;\n\t{combined[-1].compatibility}&quot;</span>
+                    <span class="c1"># s += f&quot;({len(a.mappings.data)})x({len(b.mappings.data)})&quot;</span>
+                    <span class="c1"># print(s)</span>
+                    <span class="k">pass</span>
+            <span class="k">if</span> <span class="n">DO_PRINT</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">left</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">No match for </span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">compatibility</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">DO_PRINT</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">right</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">left</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">right</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">REVERSE: No match for </span><span class="si">{</span><span class="n">b</span><span class="o">.</span><span class="n">compatibility</span><span class="si">}</span><span class="s2"> using </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">left</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+                <span class="n">s</span><span class="o">.</span><span class="n">mappings</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">right</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">s</span><span class="o">.</span><span class="n">mappings</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># print_time(&quot;Bucket merging&quot;)</span>
+        <span class="k">def</span> <span class="nf">raise_no_match_error</span><span class="p">():</span>
+            <span class="n">estr</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No match found for any group.</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Left compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">left</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Right compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">right</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">estr</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">no_match_lookahead_error</span><span class="p">(</span>
+            <span class="n">combined</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">],</span>
+            <span class="n">next_keys</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="o">...</span><span class="p">]]],</span>
+        <span class="p">):</span>
+            <span class="n">estr</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No match found for any group. Left and right joined successfully, &quot;</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;but will not be compatible with following Einsums.</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Left compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">left</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">g</span>
+            <span class="p">)</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Right compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">right</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">g</span>
+            <span class="p">)</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Combined compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">compatibility</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">combined</span>
+            <span class="p">)</span>
+            <span class="n">estr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Following Einsum compatibility:</span><span class="se">\n\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">next_keys</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">estr</span><span class="p">)</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Look ahead to the next Einsum and see if any of our groups will not</span>
+        <span class="c1"># be able to merge with it. If so, we can drop them immediately.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="n">lookahead_filter</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">lookahead_filter</span><span class="p">:</span>
+            <span class="n">cur_tensors</span> <span class="o">=</span> <span class="n">left_tensors</span> <span class="o">|</span> <span class="n">right_tensors</span>
+            <span class="k">for</span> <span class="n">next_pmapping_groups</span> <span class="ow">in</span> <span class="n">pmgroups</span><span class="p">:</span>
+                <span class="n">next_right_tensors</span> <span class="o">=</span> <span class="n">next_pmapping_groups</span><span class="o">.</span><span class="n">tensor_names</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">next_right_tensors</span> <span class="o">&amp;</span> <span class="n">cur_tensors</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">prev_combined</span> <span class="o">=</span> <span class="n">combined</span>
+                <span class="n">combined</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">combined</span><span class="p">,</span> <span class="n">next_right_tensors</span><span class="p">)</span>
+                <span class="n">next_keys</span> <span class="o">=</span> <span class="n">oset</span><span class="p">(</span>
+                    <span class="n">c</span><span class="o">.</span><span class="n">clear_dead_tensors</span><span class="p">(</span>
+                        <span class="n">cur_tensors</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">clear_tile_patterns_and_reservation_indices</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">next_pmapping_groups</span><span class="o">.</span><span class="n">pmapping_groups</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">[</span><span class="n">Compatibility</span><span class="p">](</span><span class="n">combined</span><span class="p">):</span>
+                    <span class="n">perms</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">make_equivalent_compatibilities</span><span class="p">()</span>
+                    <span class="n">perms</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="o">.</span><span class="n">clear_dead_tensors</span><span class="p">(</span><span class="n">next_right_tensors</span><span class="p">)</span>
+                        <span class="o">.</span><span class="n">clear_tile_patterns_and_reservation_indices</span><span class="p">()</span>
+                        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span>
+                    <span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">p</span> <span class="ow">in</span> <span class="n">next_keys</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">DO_PRINT</span><span class="p">:</span>
+                            <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                                <span class="nb">print</span><span class="p">(</span>
+                                    <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">LOOKAHEAD to </span><span class="si">{</span><span class="n">next_pmapping_groups</span><span class="o">.</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2">: No match for </span><span class="si">{</span><span class="n">b</span><span class="o">.</span><span class="n">compatibility</span><span class="si">}</span><span class="s2">&quot;</span>
+                                <span class="p">)</span>
+                        <span class="k">del</span> <span class="n">combined</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">combined</span><span class="p">:</span>
+                    <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">prev_combined</span><span class="p">,</span> <span class="n">next_right_tensors</span><span class="p">)</span>
+                    <span class="n">no_match_lookahead_error</span><span class="p">(</span><span class="n">prev_combined</span><span class="p">,</span> <span class="n">next_keys</span><span class="p">)</span>
+
+                <span class="n">combined</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">chain</span><span class="o">.</span><span class="n">from_iterable</span><span class="p">(</span><span class="n">combined</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+                <span class="n">combined</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">]</span>
+                <span class="c1"># Remove duplicates</span>
+                <span class="n">id2combined</span> <span class="o">=</span> <span class="p">{</span><span class="nb">id</span><span class="p">(</span><span class="n">c</span><span class="p">):</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">}</span>
+                <span class="n">combined</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">id2combined</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                <span class="c1"># print(</span>
+                <span class="c1">#     f&quot;Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)&quot;</span>
+                <span class="c1"># )</span>
+                <span class="c1"># print_time(&quot;Removing mappings that can&#39;t be combined later&quot;)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">combined</span><span class="p">:</span>
+            <span class="n">raise_no_match_error</span><span class="p">()</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># If we delayed the mapping merging, do it now.</span>
+        <span class="c1"># ======================================================================</span>
+        <span class="kn">import</span> <span class="nn">copy</span>
+
+        <span class="k">if</span> <span class="n">DELAY</span><span class="p">:</span>
+            <span class="n">mappings</span> <span class="o">=</span> <span class="n">parallel</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">mappings</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">],</span>
+                <span class="n">pbar</span><span class="o">=</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Joining pmappings for </span><span class="si">{</span><span class="n">left_einsum</span><span class="si">}</span><span class="s2"> &lt;--&gt; </span><span class="si">{</span><span class="n">right_einsum</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">n_iterations</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">total_iterations</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="k">if</span> <span class="n">print_progress</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">mapping</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">combined</span><span class="p">,</span> <span class="n">mappings</span><span class="p">):</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">mappings</span> <span class="o">=</span> <span class="n">mapping</span>
+        <span class="n">timer</span><span class="o">.</span><span class="n">print_time</span><span class="p">(</span><span class="s2">&quot;Pmapping merging&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">):</span>
+            <span class="c1"># for c in prev_combined:  # For debugging the joining</span>
+            <span class="c1">#     x = c.mappings</span>
+            <span class="c1">#     x[0](*x[1], **x[2])</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No mappings found for </span><span class="si">{</span><span class="n">left_einsum</span><span class="si">}</span><span class="s2"> &lt;--&gt; </span><span class="si">{</span><span class="n">right_einsum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">step_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
+        <span class="n">runtime</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">left_einsum</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">right_einsum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">step_time</span>
+        <span class="k">if</span> <span class="n">_runtime_log_file</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">json</span> <span class="k">as</span> <span class="nn">_json</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">_runtime_log_file</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">_f</span><span class="p">:</span>
+                <span class="n">_f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+                    <span class="n">_json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+                        <span class="p">{</span>
+                            <span class="s2">&quot;step&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">left_einsum</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">right_einsum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;phase&quot;</span><span class="p">:</span> <span class="s2">&quot;join&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">step_time</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="p">)</span>
+                    <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+        <span class="c1"># # ======================================================================</span>
+        <span class="c1"># # Print statements</span>
+        <span class="c1"># # ======================================================================</span>
+        <span class="c1"># logger.info(</span>
+        <span class="c1">#     f&quot;\tCombining {sum(len(s) for s in left.values())}({len(left)}) x {sum(len(s) for s in right.values())}({len(right)}) -&gt; {len(combined)}&quot;</span>
+        <span class="c1"># )</span>
+
+        <span class="k">if</span> <span class="n">report_statistics</span><span class="p">:</span>
+            <span class="n">statistics</span><span class="o">.</span><span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">JoinStepStatistics</span><span class="p">(</span>
+                    <span class="n">left_einsum</span><span class="o">=</span><span class="n">left_einsum</span><span class="p">,</span>
+                    <span class="n">right_einsum</span><span class="o">=</span><span class="n">right_einsum</span><span class="p">,</span>
+                    <span class="n">n_left_mappings</span><span class="o">=</span><span class="n">n_left_mappings</span><span class="p">,</span>
+                    <span class="n">n_right_mappings</span><span class="o">=</span><span class="n">n_right_mappings</span><span class="p">,</span>
+                    <span class="n">n_mappings_before_pruning</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span>
+                        <span class="n">s</span><span class="o">.</span><span class="n">n_pre_prune_mappings</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">combined</span>
+                    <span class="p">),</span>
+                    <span class="n">n_mappings</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">),</span>
+                    <span class="n">group_compatibilities</span><span class="o">=</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">compatibility</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">combined</span><span class="p">],</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="c1"># ======================================================================</span>
+        <span class="c1"># Update left for the next iteration.</span>
+        <span class="c1"># =================================================================</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="n">combined</span>
+        <span class="n">left_einsum</span> <span class="o">=</span> <span class="n">right_einsum</span>
+        <span class="n">left_tensors</span> <span class="o">|=</span> <span class="n">right_tensors</span>
+
+    <span class="c1"># ======================================================================</span>
+    <span class="c1"># Final consolidate and group</span>
+    <span class="c1"># ======================================================================</span>
+    <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">left_consolidate</span><span class="p">(</span>
+        <span class="n">left</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">pbar</span><span class="o">=</span><span class="s2">&quot;Final consolidate&quot;</span> <span class="k">if</span> <span class="n">print_progress</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="p">)</span>
+    <span class="n">s_final</span> <span class="o">=</span> <span class="n">PmappingGroup</span><span class="o">.</span><span class="n">combine_combineable</span><span class="p">(</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">oset</span><span class="p">(),</span> <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">s_final</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">mappings</span> <span class="o">=</span> <span class="n">s_final</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mappings</span>
+    <span class="n">mappings</span><span class="o">.</span><span class="n">limit_capacity</span><span class="p">(</span><span class="n">next_shared_loop_index</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">finished</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mappings</span><span class="o">.</span><span class="n">free_to_loop_index</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">mappings</span><span class="o">.</span><span class="n">_make_latencies</span><span class="p">(),</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Component latency columns were not folded into the total latency: &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mappings</span><span class="o">.</span><span class="n">_make_latencies</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">mappings</span><span class="o">.</span><span class="n">_make_commlatencies</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Descent/ascent latency columns were not folded into the total latency: &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mappings</span><span class="o">.</span><span class="n">_make_commlatencies</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="n">mappings</span><span class="o">.</span><span class="n">make_pareto</span><span class="p">()</span>
+
+    <span class="n">timer</span><span class="o">.</span><span class="n">log_total_time</span><span class="p">()</span>
+    <span class="c1"># if evaluations_tracker is not None and &quot;Total_latency&quot; in data.columns and &quot;Total_energy&quot; in data.columns:</span>
+    <span class="c1">#     edp = data[&quot;Total_latency&quot;] * data[&quot;Total_energy&quot;]</span>
+    <span class="c1">#     edp_min = edp.min()</span>
+    <span class="c1">#     evaluations_tracker.add_evaluation(n_evaluations, edp_min)</span>
+    <span class="c1">#     evaluations_tracker.n_mappings.update(n_mappings)</span>
+    <span class="c1">#     evaluations_tracker.runtime.update(runtime)</span>
+
+    <span class="k">if</span> <span class="n">report_statistics</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">mappings</span><span class="p">,</span> <span class="n">statistics</span>
+    <span class="k">return</span> <span class="n">mappings</span>
+
+
+<span class="k">def</span> <span class="nf">_check_einsum2pmappings_not_empty</span><span class="p">(</span>
+    <span class="n">einsum2pmappings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PmappingGroup</span><span class="p">]],</span>
+    <span class="n">pmappings</span><span class="p">:</span> <span class="n">MultiEinsumPmappings</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">einsum_pmappings</span> <span class="ow">in</span> <span class="n">einsum2pmappings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">einsum_pmappings</span><span class="p">)</span>
+        <span class="n">n_compatibilities</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">einsum_pmappings</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Einsum </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2"> pmappings with </span><span class="si">{</span><span class="n">n_compatibilities</span><span class="si">}</span><span class="s2"> compatibilities&quot;</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">in</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">einsums_with_pmappings_generated</span><span class="p">:</span>
+                <span class="n">keep_rates</span> <span class="o">=</span> <span class="n">pmappings</span><span class="o">.</span><span class="n">pmapping_keep_rates</span><span class="p">(</span><span class="n">per_einsum</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="n">einsum_name</span><span class="p">]</span>
+                <span class="n">keep_rates_text</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.2e</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">keep_rates</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Einsum </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> has no pmappings. This likely means that &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;no pmappings satisfied constraints for the Einsum. Please check &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;the stats outputs from the MultiEinsumPmappings object returned &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;by `af.mapper.FFM.make_pmappings(spec)`. The following are the &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;keep rates (porportion of pmappings that are NOT pruned) for &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;various causes of pmapping removal:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">keep_rates_text</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Einsum </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> has no pmappings generated. It looks like you &quot;</span>
+                <span class="s2">&quot;may have used `make_pmappings` with `einsum_names` set. You may set &quot;</span>
+                <span class="s2">&quot;`require_all_einsums=False` to ignore this error and map only the &quot;</span>
+                <span class="s2">&quot;Einsums that have pmappings.&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">MappingFromRow</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">row</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span>
+        <span class="n">rank_variable_bounds</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span>
+        <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">=</span> <span class="n">row</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rank_variable_bounds</span> <span class="o">=</span> <span class="n">rank_variable_bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span> <span class="o">=</span> <span class="n">einsum_names</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_for_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Mapping</span><span class="o">.</span><span class="n">_from_pmappings</span><span class="p">(</span>
+            <span class="n">row2pmappings</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_variable_bounds</span><span class="p">),</span>
+            <span class="n">rank_variable_bounds</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rank_variable_bounds</span><span class="p">,</span>
+            <span class="n">_for_model</span><span class="o">=</span><span class="n">_for_model</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_repr_svg_</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">()</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0"></script>
+<script defer src="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.22.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
