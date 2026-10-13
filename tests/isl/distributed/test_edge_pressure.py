@@ -42,10 +42,11 @@ from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import _eval
 from .helpers import construct_spacetime, load_solutions
 
 
-# 1-D Manhattan distance over a line of GPUs, for the star/all-to-all cases.
-_MANHATTAN_1D: str = (
-    "{ [noc[gd] -> noc[gs]] -> hops[gd - gs] : gd >= gs;"
-    "  [noc[gd] -> noc[gs]] -> hops[gs - gd] : gd <  gs }"
+# Fully-connected (NVSwitch-style) distance for the star/all-to-all cases: every
+# distinct node pair is exactly 1 hop apart, a node is 0 hops from itself.
+_FULLY_CONNECTED: str = (
+    "{ [noc[gd] -> noc[gs]] -> hops[1] : gd != gs;"
+    "  [noc[gd] -> noc[gs]] -> hops[0] : gd =  gs }"
 )
 
 
@@ -143,7 +144,7 @@ class TestStarSpokePressure(unittest.TestCase):
 
     @staticmethod
     def _all_to_all(n: int):
-        """Build (fill, occ, dist_fn) for an N-GPU all-to-all on a line."""
+        """Build (fill, occ, dist_fn) for an N-GPU all-to-all on a fully-connected fabric."""
         tags = [SpatialTag(0, 0)]
         occ = Occupancy(tags, isl.Map.read_from_str(
             isl.DEFAULT_CONTEXT,
@@ -151,7 +152,7 @@ class TestStarSpokePressure(unittest.TestCase):
         fill = Fill(tags, isl.Map.read_from_str(
             isl.DEFAULT_CONTEXT,
             f"{{ noc[g] -> data[d] : 0 <= g < {n} and 0 <= d < {n} and d != g }}"))
-        dist_fn = isl.Map.read_from_str(isl.DEFAULT_CONTEXT, _MANHATTAN_1D)
+        dist_fn = isl.Map.read_from_str(isl.DEFAULT_CONTEXT, _FULLY_CONNECTED)
         return fill, occ, dist_fn
 
     def test_all_to_all_spoke_loads(self):
