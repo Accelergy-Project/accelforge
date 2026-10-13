@@ -134,6 +134,7 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
 ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
 ComponentLatencyKey = namedtuple("ComponentLatencyKey", ["name", "nloops"])
 CommLatencyKey = namedtuple("CommLatencyKey", ["direction", "nloops"])
+_COMM_LATENCY_COLS = ("descent_to_above_loop_index", "ascent_from_above_loop_index")
 
 
 @dict_cached
@@ -155,23 +156,40 @@ def complatency2col(name: str, nloops: int) -> str:
     return f"level_latency<SEP>{name}<SEP>{nloops}"
 
 
+TotalLatencyKey = namedtuple("TotalLatencyKey", ["nloops", "left"])
+
+
+@dict_cached
+def col2total_latency(x: str) -> TotalLatencyKey | None:
+    """Format: total_latency nloops left. """
+    parts = x.split(SEP)
+    if len(parts) != 3 or parts[0] != "total_latency":
+        return None
+    return TotalLatencyKey(int(parts[1]), parts[2] == "left")
+
+
+@dict_cached
+def total_latency2col(nloops: int, left: bool = False) -> str:
+    """Format: total_latency nloops left"""
+    return f"total_latency<SEP>{nloops}<SEP>" + ("left" if left else "right")
+
+
 @dict_cached
 def col2commlatency(x: str) -> CommLatencyKey | None:
-    """Format: (descent_latency | ascent_latency) nloops. The time it takes for
-    computation to move down (or up) the LoopTree across fused loops."""
+    """Format: (descent_to_above_loop_index | ascent_from_above_loop_index) nloops. """
     parts = x.split(SEP)
-    if len(parts) != 2 or parts[0] not in ("descent_latency", "ascent_latency"):
+    if len(parts) != 2 or parts[0] not in _COMM_LATENCY_COLS:
         return None
-    if not parts[1].isdigit():  # e.g. merge-suffixed copies of the column
+    if not parts[1].lstrip("-").isdigit():  # e.g. merge-suffixed copies
         return None
-    return CommLatencyKey(parts[0][: -len("_latency")], int(parts[1]))
+    return CommLatencyKey(parts[0].split("_")[0], int(parts[1]))
 
 
 @dict_cached
 def commlatency2col(direction: str, nloops: int) -> str:
-    """Format: (descent_latency | ascent_latency) nloops"""
-    assert direction in ("descent", "ascent")
-    return f"{direction}_latency{SEP}{nloops}"
+    """Format: (descent_to_above_loop_index | ascent_from_above_loop_index) nloops"""
+    col = next(c for c in _COMM_LATENCY_COLS if c.startswith(direction))
+    return f"{col}{SEP}{nloops}"
 
 
 @dict_cached
@@ -365,6 +383,7 @@ def col_used_in_pareto(c):
         col2reservation(c) is not None
         or col2complatency(c) is not None
         or col2commlatency(c) is not None
+        or col2total_latency(c) is not None
         or is_objective_col(c)
     )
 

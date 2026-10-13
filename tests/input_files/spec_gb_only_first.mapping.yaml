@@ -1,0 +1,46 @@
+# Two unfused matmuls. Matmul0 stages its tensors in GlobalBuffer; Matmul1 reads and
+# writes MainMemory directly, so GlobalBuffer is used by only one Einsum.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T1, T2]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T0, W0, T1]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n0
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul0
+        component: MAC
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul1
+        component: MAC

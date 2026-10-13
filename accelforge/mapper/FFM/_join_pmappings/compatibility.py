@@ -365,6 +365,7 @@ class Compatibility(Updatable):
     splits: fzs[Split] = fzs()
     reservation_indices: fzs[int] = fzs()
     check_reservation_indices: bool = True
+    levels_with_sequential_splits: fzs[int] = fzs()
 
     @property
     def n_loops(self) -> int:
@@ -379,10 +380,24 @@ class Compatibility(Updatable):
 
     @property
     def loops(self) -> tuple[Loop, ...]:
-        return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
+        try:
+            return object.__getattribute__(self, "_loops_cached")
+        except AttributeError:
+            val = max([t.loops for t in self.tensors], key=len) if self.tensors else ()
+            object.__setattr__(self, "_loops_cached", val)
+            return val
+
+    @property
+    def per_loop_calculated_n_iterations(self) -> tuple:
+        return tuple(l.tile_pattern.calculated_n_iterations for l in self.loops)
 
     def _get_hash_tuple(self):
-        return self.n_loops, self.tensors, self.reservation_indices
+        return (
+            self.n_loops,
+            self.tensors,
+            self.reservation_indices,
+            self.levels_with_sequential_splits,
+        )
 
     def __hash__(self):
         return hash(self._get_hash_tuple())
@@ -451,11 +466,7 @@ class Compatibility(Updatable):
             _update_rename_dict(renames, new_renames)
 
         return (
-            Compatibility(
-                tensors=fzs(tensors),
-                splits=self.splits,
-                reservation_indices=self.reservation_indices,
-            ),
+            self.update(tensors=fzs(tensors)),
             renames,
         )
 
@@ -478,8 +489,14 @@ class Compatibility(Updatable):
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
         new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
         splits, reservation_indices = self.splits, self.reservation_indices
+        levels_with_sequential_splits = self.levels_with_sequential_splits
         if not keep_reservation_indices_and_splits:
             splits = fzs(s for s in splits if s.above_loop_index < new_n_loops)
+            # A split at the bottom is still below a shared loop: freeing it later
+            # multiplies by that loop.
+            levels_with_sequential_splits = fzs(
+                l for l in levels_with_sequential_splits if l <= new_n_loops
+            )
             reservation_indices = fzs(
                 oset(min(i, new_n_loops) for i in self.reservation_indices)
             )
@@ -493,6 +510,7 @@ class Compatibility(Updatable):
             splits=splits,
             reservation_indices=reservation_indices,
             check_reservation_indices=new_check_reservation_indices,
+            levels_with_sequential_splits=levels_with_sequential_splits,
         )
 
     def __lt__(self, other):
@@ -502,7 +520,7 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}, splits={repr(self.splits)}, reservation_indices={repr(self.reservation_indices)})"
+        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}, splits={repr(self.splits)}, reservation_indices={repr(self.reservation_indices)}, levels_with_sequential_splits={repr(self.levels_with_sequential_splits)})"
 
     def _and_tensors_with_names(self, names: set[str]) -> "Compatibility":
         return fzs(s for s in self.tensors if s.name in names)
@@ -512,6 +530,7 @@ class Compatibility(Updatable):
         right: "Compatibility",
         live_tensors: set[str],
         _force_allow_invalid_only_for_runtime_test: bool = False,
+        sequential: bool = True,
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
@@ -534,11 +553,20 @@ class Compatibility(Updatable):
         tensors_a = self._and_tensors_with_names(live_tensors)
         tensors_b = right._and_tensors_with_names(live_minus_mine)
 
-        # TODO: split handling?
+        assert not right.levels_with_sequential_splits, (
+            "How did this happen? Right shouldn't have any splits if there's just "
+            "one Einsum."
+        )
+
+        levels_with_sequential_splits = self.levels_with_sequential_splits
+        if sequential: # Add a sequential split here
+            levels_with_sequential_splits |= fzs([self.n_loops])
+
         joined = Compatibility(
             tensors=tensors_a | tensors_b,
             reservation_indices=self.reservation_indices | right.reservation_indices,
             check_reservation_indices=False,
+            levels_with_sequential_splits=levels_with_sequential_splits,
         ).clear_dead_tensors(live_tensors)
 
         return joined
@@ -762,10 +790,13 @@ class Compatibility(Updatable):
         splits = fzs(
             s.update(above_loop_index=adjust(s.above_loop_index)) for s in self.splits
         )
-        return Compatibility(
+        return self.update(
             tensors=tensors,
             splits=splits,
             reservation_indices=reservation_indices,
+            levels_with_sequential_splits=fzs(
+                adjust(l) for l in self.levels_with_sequential_splits
+            ),
         )
 
     def _prepend_symbols(self, prepend: str) -> "Compatibility":
@@ -778,6 +809,7 @@ class Compatibility(Updatable):
             tensors=fzs(t.clear_symbolic_tile_patterns() for t in self.tensors),
             reservation_indices=fzs(),
             check_reservation_indices=False,
+            levels_with_sequential_splits=fzs(),
         )
 
     def clear_symbolic_tile_patterns(self) -> "Compatibility":

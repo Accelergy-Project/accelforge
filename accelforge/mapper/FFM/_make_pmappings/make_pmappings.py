@@ -232,6 +232,35 @@ def get_jobs(
     return einsum2jobs
 
 
+def _shared_components(
+    spec: Spec, flattened_arch, nodes, fusable_tensors: set[TensorName]
+) -> oset:
+    """
+    Components shared across Einsums are those above an _allow_multi_einsum_parallelism
+    fanout, backing or persistent tensor holders, or any fused loops (the loops above a
+    fusable tensor's backing).
+    """
+    shared = spec.arch._components_above_multi_einsum_parallelism(flattened_arch)
+    seen, seen_above_last_loop = oset(), oset()
+    for node in nodes:
+        if isinstance(node, Loop):
+            seen_above_last_loop = oset(seen)
+        if not isinstance(node, TensorHolder):
+            continue
+        seen.add(node.component)
+        if node._backing or node.persistent:
+            shared.add(node.component)
+        if node._backing & fusable_tensors:
+            shared |= seen_above_last_loop
+    return shared
+
+
+def _components_track_latency(spec: Spec, flattened_arch) -> oset:
+    if spec.arch._multi_einsum_parallel_spatial(flattened_arch):
+        return spec.arch._components_above_multi_einsum_parallelism(flattened_arch)
+    return oset(m.name for m in flattened_arch)
+
+
 def get_components_to_track(
     spec: Spec,
     einsum2jobs: dict[EinsumName, list[Job]],
@@ -247,8 +276,8 @@ def get_components_to_track(
             memories_track_all.update(
                 m.name for m in job.flattened_arch if isinstance(m, arch.Memory)
             )
-            components_track_latency.update(
-                m.name for m in job.flattened_arch if isinstance(m, arch.TensorHolder)
+            components_track_latency |= _components_track_latency(
+                spec, job.flattened_arch
             )
 
     memories_track_pmappings_only = []
@@ -305,18 +334,12 @@ def get_components_to_track(
                 )
             memories_track_all.remove(memory)
 
-    # A component is shared across Einsums if it's above any fused loops or it's backing
     shared_components = oset()
     for jobs in einsum2jobs.values():
         for job in jobs:
-            seen = oset()
-            for node in job.mapping.nodes:
-                if isinstance(node, TensorHolder):
-                    seen.add(node.component)
-                    if node._backing or node.persistent:
-                        shared_components.add(node.component)
-                if isinstance(node, Loop) and node._fused:
-                    shared_components.update(seen)
+            shared_components |= _shared_components(
+                spec, job.flattened_arch, job.mapping.nodes, job.fusable_tensors
+            )
 
     # If the memory is below every backing tensor holder node, then we need it for the
     # pmapping exploration but can drop it immediately
@@ -332,16 +355,16 @@ def get_components_to_track(
 
     # A component's latency can only be shared with other Einsums if the component's
     # reservations may be shared.
-    # PIPELINE: This would have to change
-    for m in list(components_track_latency):
-        if m not in shared_components:
-            components_track_latency.remove(m)
-            if print_progress:
-                print(
-                    f"Not tracking latency for component {m}. It never holds tensors "
-                    f"at or above a backing storage node, so its latency is private "
-                    f"to each Einsum."
-                )
+    if not spec.arch._multi_einsum_parallel_spatial():
+        for m in list(components_track_latency):
+            if m not in shared_components:
+                components_track_latency.remove(m)
+                if print_progress:
+                    print(
+                        f"Not tracking latency for component {m}. It never holds "
+                        f"tensors at or above a backing storage node, so its latency "
+                        f"is private to each Einsum."
+                    )
 
     return (
         memories_track_all,
@@ -379,6 +402,12 @@ def make_pmappings(
 
     if fail_if_no_pmappings_for_einsum is None:
         fail_if_no_pmappings_for_einsum = not can_combine_multiple_runs
+
+    # Ctrl-F for WINDUP_LATENCY_PERFECT_ASSUMPTION
+    assert not spec.model._include_wind_up_latency or not (
+        spec.mapper.explore_imperfect_temporal_loops
+        or spec.mapper.explore_imperfect_spatial_loops
+    ), "Imperfect loops are not supported with wind-up latency"
 
     spec = spec._spec_eval_expressions(
         eval_arch=False,

@@ -16,10 +16,12 @@ from accelforge.model._looptree.latency.memory import (
     communication_latency,
     component_latency,
 )
+from accelforge.frontend.arch.arch import _spatial2resource
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
     reservation2col,
     complatency2col,
+    total_latency2col,
     commlatency2col,
     tensor2col,
     action2col,
@@ -62,12 +64,13 @@ def run_model(
                         n_shared_loops = n_loops
 
     private_level = n_shared_loops
+    shared = spec.model._share_resource_latency_above_splits
 
     latency, latency_per_level = component_latency(
         reuse,
         job.flattened_arch,
         pmapping,
-        per_level_components=oset(job.components_track_latency),
+        per_level_components=oset(job.components_track_latency) if shared else oset(),
         n_shared_loops=n_shared_loops,
     )
     overall_latency = max_nonzero(*latency.values())
@@ -125,8 +128,13 @@ def run_model(
                     )
                 scaled_usage = usage * s.usage_scale
                 spatial_usage[node.name, s.name] = scaled_usage
-                s = reservation2col(f"{node.name} {s.name}", private_level)
-                spatial_usage_df[s] = scaled_usage
+                parallel = s._allow_multi_einsum_parallelism
+                col = reservation2col(
+                    _spatial2resource(node.name, s.name, parallel), private_level
+                )
+                spatial_usage_df[col] = scaled_usage
+                if parallel:
+                    df[col] = scaled_usage
 
     component_to_non_power_gated_porp, _ = spec.arch._power_gating(
         compute_name=job.flattened_arch[-1].name,
@@ -235,29 +243,24 @@ def run_model(
     # =================================================================================
     # Latency
     # =================================================================================
-    if metrics.includes_latency():
+
+    if metrics.includes_latency() or metrics.includes_leak_energy():
         for component, cur_latency in latency.items():
             df[f"component_latency<SEP>{component}"] = cur_latency * n_instances
 
         # Components shared across Einsums get per-level latency columns so joining can
         # sum their busy time across Einsums and let it overlap with the other Einsums'
-        # latency. Their latency is folded into Total<SEP>latency at joining time
+        # latency. Their latency is maxed into Total<SEP>latency at joining time
         # instead of here.
         for component, level_latency in latency_per_level.items():
             for level, cur_latency in level_latency.items():
                 df[complatency2col(component, level)] = cur_latency * n_instances
 
-        # The total latency is the sum of the Einsum's wind-up/down delay and the
-        # slowest component's busy time. Fused-loop-crossing descent and ascent
-        # latencies get their own columns because they may be overlapped with other
-        # Einsums.
-        einsum_delay, ascent_descent_latency = communication_latency(
-            reuse,
-            job.flattened_arch,
-            tensor_to_backing,
-            workload.einsums[job.einsum_name].output_tensor_names,
-            n_fused=n_shared_loops,
-        )
+        ascent_descent_latency = {}
+        if spec.model._include_wind_up_latency:
+            ascent_descent_latency = communication_latency(
+                reuse, job.flattened_arch, n_fused=n_shared_loops
+            )
         for direction, per_level in ascent_descent_latency.items():
             for level, cur_latency in per_level.items():
                 df[commlatency2col(direction, level)] = cur_latency * n_instances
@@ -268,8 +271,9 @@ def run_model(
                 if not isinstance(l, Number) or l != 0:
                     per_component_total.append(l)
 
+        # The right is the steady state of the private components
         slowest = max_nonzero(*per_component_total)
-        df["Total<SEP>latency"] = (slowest + einsum_delay) * n_instances
+        df[total_latency2col(private_level)] = slowest * n_instances
 
     # =================================================================================
     # Energy
@@ -279,8 +283,13 @@ def run_model(
         df["Total<SEP>dynamic_energy"] = sum(dynamic_energy) * n_instances
 
     if metrics.includes_leak_energy():
-        leak_energy = [e for k, e in energy.items() if k.action == "leak"]
-        df["Total<SEP>leak_energy"] = sum(leak_energy) * n_instances
+        # The chip leaks for the whole runtime, known only at the end of joining, so
+        # track leak power until then to add to energy.
+        df["Total<SEP>leak_power"] = sum(
+            c.total_leak_power * component_to_non_power_gated_porp.get(c.name, 1)
+            for c in spec.arch.get_nodes_of_type(arch.Component)
+        )
+        df["Total<SEP>leak_energy"] = 0.0
 
     # =================================================================================
     # Memory usage

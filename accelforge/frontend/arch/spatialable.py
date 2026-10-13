@@ -25,6 +25,14 @@ class Spatial(EvalableModel):
     fanout: EvalsTo[int]
     """ The size of this fanout. """
 
+    _allow_multi_einsum_parallelism: bool = False
+    """ If True, a mapping may run multiple Einsums in parallel across this fanout. """
+
+    def __init__(self, **kwargs):
+        parallel = kwargs.pop("_allow_multi_einsum_parallelism", False)
+        super().__init__(**kwargs)
+        self._allow_multi_einsum_parallelism = parallel
+
     may_reuse: TryEvalTo[InvertibleSet[TensorName]] = (
         "<Same as reuse if reuse is defined, else All>"
     )

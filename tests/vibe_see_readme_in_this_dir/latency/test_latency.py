@@ -17,21 +17,31 @@ import accelforge as af
 from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
 
-TESTS_DIR = Path(__file__).resolve().parent
+TESTS_DIR = Path(__file__).resolve().parent.parent.parent
 INPUT_FILES_DIR = TESTS_DIR / "input_files"
 LATENCY_ARCH = INPUT_FILES_DIR / "latency.arch.yaml"
 NETWORKED_ARCH = INPUT_FILES_DIR / "networked_latency.arch.yaml"
 NETWORKED_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_networked.mapping.yaml"
 WEIGHTS_INSIDE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_weights_inside.mapping.yaml"
+TWO_FUSED_LOOPS_MAPPING = INPUT_FILES_DIR / "fused_matmuls_two_fused_loops.mapping.yaml"
+SHALLOW_THEN_DEEP_MAPPING = (
+    INPUT_FILES_DIR / "fused_matmuls_shallow_then_deep.mapping.yaml"
+)
+DEEP_THEN_SHALLOW_MAPPING = (
+    INPUT_FILES_DIR / "fused_matmuls_deep_then_shallow.mapping.yaml"
+)
 
 
 def make_spec(arch, mapping, n_einsums, **jinja):
-    return Spec.from_yaml(
+    spec = Spec.from_yaml(
         af.examples.workloads.basic.matmuls,
         arch,
         mapping,
         jinja_parse_data={"N_EINSUMS": n_einsums, "M": 4, "KN": 4, **jinja},
     )
+    spec.model._share_resource_latency_above_splits = True
+    spec.model._include_wind_up_latency = True
+    return spec
 
 
 def total_latency(arch, mapping, n_einsums, **jinja):
@@ -64,15 +74,16 @@ class TestCommunicationLatency(unittest.TestCase):
         # read (100 + 20 + 10 = 130). The output follows: one MAC (3), the
         # GlobalBuffer's write + read (30), and the MainMemory write (200; the
         # first tile has nothing to read-modify, so its read is skipped).
-        # 130 + 3 + 30 + 200 = 363, which dominates the 64-cycle compute steady
-        # state.
-        self.assertEqual(row["Total<SEP>latency"], 363)
+        # 130 + 3 + 30 + 200 = 363 of wind-up, which is additional time before the
+        # 64-cycle compute steady state: 427.
+        self.assertEqual(row["Total<SEP>latency"], 427)
 
     def test_fused_repays_communication_latency_each_switch(self):
         """The exchange of the intermediate through the shared buffer happens below
         the fused loop and is paid on every switch; the weights' fills and the
-        output's drain cross the fused loop, so they are paid once for the whole
-        fused group (descent/ascent latency), bounded by the slowest Einsum."""
+        output's drain cross the fused loop, so each is paid once per Einsum
+        (descent/ascent latency), summing across the group since wind-up latency
+        is serialized."""
         row = total_latency(
             LATENCY_ARCH,
             af.examples.mappings.fused_matmuls_to_simple,
@@ -84,15 +95,21 @@ class TestCommunicationLatency(unittest.TestCase):
             COMPUTE_LATENCY=3,
         )
         # Storages above the fused m loop are reserved once and can pre-send
-        # ahead of it, so their connections are paid once (descent/ascent, maxed
-        # across Einsums); storages below repeat for each of the 4 m iterations
-        # via the Einsum delay. Matmul0: T0's and T1's GlobalBuffer connections
-        # (write + read = 30 each) plus one MAC: (30 + 3 + 30) x 4 = 252.
-        # Matmul1 mirrors it with T1's and T2's GlobalBuffer connections:
-        # (30 + 3 + 30) x 4 = 252. Paid once: the inputs' MainMemory reads
-        # (descent, max = 100) and T2's MainMemory write (ascent, 200; the first
-        # tile skips the read-modify-write read). 252 + 252 + 100 + 200 = 804.
-        self.assertEqual(row["Total<SEP>latency"], 804)
+        # ahead of it, so their connections are paid once per Einsum
+        # (descent/ascent, summed across Einsums since wind-up latency is
+        # serialized); storages below are in each Einsum's delay, a descent at
+        # level 1 that the sequential split repays on each of the 4 m iterations.
+        # Matmul0: T0's GlobalBuffer write + read (30), one MAC (3) and T1's
+        # GlobalBuffer write (20; its read-modify-write read, 10, counts with the
+        # inputs): (30 + 3 + 20) x 4 = 212. Matmul1 finds T1 already in the
+        # GlobalBuffer, so its input pays only the read, and T2 is written and
+        # read to MainMemory: (10 + 3 + 30) x 4 = 172. Paid once per Einsum: its
+        # slowest tensor above the loop, the weight, read from MainMemory and
+        # written into and read from the GlobalBuffer (descent, 130 + 130), and
+        # T2's MainMemory write (ascent, 200; the first tile skips the
+        # read-modify-write read). 212 + 172 + 260 + 200 = 844, plus each Einsum's
+        # 64-cycle compute steady state, which its wind-up precedes: 972.
+        self.assertEqual(row["Total<SEP>latency"], 972)
 
     def test_fused_through_slow_interconnect(self):
         """Two Einsums fused through networks pay the hop latency of the intermediate
@@ -100,9 +117,9 @@ class TestCommunicationLatency(unittest.TestCase):
         mesh_hops = 4  # All 4 Scratchpad positions are used: 4 hops on the PeArray
         switch_hops = 1  # The all-to-all MacArray is one hop for any route
         down = mesh_hops + switch_hops  # backing -> compute, and compute -> backing
-        # Each Einsum's delay is its slowest input's wind-down plus its output's
-        # wind-up (5 hops each way), repeated for each of the 4 iterations of the
-        # fused loop above the intermediate's GlobalBuffer backing.
+        # Each Einsum's delay is its slowest input's path to compute plus its
+        # output's path back (5 hops each way), a descent at level 1 that the
+        # sequential split repays on each of the 4 iterations of the fused m loop.
         expected = 2 * (down + down) * 4
         for hop_latency in [0, 1, 100]:
             row = total_latency(
@@ -200,9 +217,16 @@ class TestLatencyTimeline(unittest.TestCase):
         from accelforge.plotting.latency import _latency_timeline
 
         scenarios = [
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 363),
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 804),
-            (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 8000),
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 427, {}),
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 972, {}),
+            (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 8000, {}),
+            # Two fused loop levels with the split below both. The Einsum delays
+            # over the 32 m iterations are (30 + 3 + 20) x 32 = 1696 and
+            # (10 + 3 + 30) x 32 = 1376; the weights' level-1 GlobalBuffer nodes
+            # (30 + 30) have no split there and are paid once with the MainMemory
+            # reads (100 + 100) and T2's MainMemory write (200), plus each Einsum's
+            # 512 MACs at one per cycle (1024).
+            (LATENCY_ARCH, TWO_FUSED_LOOPS_MAPPING, 2, 4556, {"M": 32, "M_TILE": 4}),
         ]
         jinja = {
             "MM_READ_LATENCY": 100,
@@ -213,9 +237,9 @@ class TestLatencyTimeline(unittest.TestCase):
             "MAC_TILE": 1,
             "HOP_LATENCY": 100,
         }
-        for arch, mapping, n_einsums, expected in scenarios:
+        for arch, mapping, n_einsums, expected, extra in scenarios:
             blocks, _, total = _latency_timeline(
-                make_spec(arch, mapping, n_einsums, **jinja)
+                make_spec(arch, mapping, n_einsums, **jinja, **extra)
             )
             self.assertEqual(total, expected)
             self.assertEqual(len(blocks), n_einsums)
@@ -253,7 +277,7 @@ class TestLatencyTimeline(unittest.TestCase):
             [
                 ("Matmul0", 0, 128, 256),  # W0 reads, shareable
                 ("Matmul0", 1, 0, 128),  # T0 reads, private
-                # W1 reads, shareable; right-aligned to the 1664 deadline
+                # W1 reads, shareable; right-aligned to the 1664 end
                 ("Matmul1", 0, 1536, 1664),
                 ("Matmul1", 1, 320, 1600),  # T2 writeback, private
             ],
@@ -294,6 +318,8 @@ class TestLatencyTimeline(unittest.TestCase):
             af.examples.workloads.basic.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 16, "KN": 16},
         )
+        spec.model._share_resource_latency_above_splits = True
+        spec.model._include_wind_up_latency = True
         spec.mapper.metrics = af.mapper.Metrics.LATENCY
         result = spec.map_workload_to_arch(print_progress=False)
         two = copy.copy(result)

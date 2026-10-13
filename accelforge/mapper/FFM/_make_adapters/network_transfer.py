@@ -252,6 +252,7 @@ class NetworkTransferAdapter:
         # pulling in the dataframe-convention module.
         from accelforge.mapper.FFM._pareto_df.df_convention import (
             add_to_col,
+            col2total_latency,
             tensor2col,
         )
 
@@ -282,8 +283,10 @@ class NetworkTransferAdapter:
             if col in df.columns:
                 add_to_col(df, col, cost.energy)
                 break
-        if "Total<SEP>latency" in df.columns:
-            add_to_col(df, "Total<SEP>latency", cost.latency)
+        for col in df.columns:
+            if (key := col2total_latency(col)) is not None and not key.left:
+                add_to_col(df, col, cost.latency)
+                break
 
 
 def _elementwise_max(a, b):

@@ -1,0 +1,73 @@
+# Three matmuls. Matmul0 reads T0 and W0 from MainMemory and writes T1 back to it with
+# no GlobalBuffer at all; Matmul1 and Matmul2 share loop m with T2 in GlobalBuffer.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T1, T3]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Storage
+    tensors: [W2]
+    component: MainMemory
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n0
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul0
+        component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [W1]
+        component: GlobalBuffer
+      - !Storage
+        tensors: [W2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Sequential
+        nodes:
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1, T2]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n1
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n2
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul1
+            component: MAC
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T2, T3]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n2
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n3
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul2
+            component: MAC

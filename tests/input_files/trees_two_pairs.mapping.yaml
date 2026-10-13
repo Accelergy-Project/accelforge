@@ -1,0 +1,116 @@
+# Two branches below loop m, each holding a pair below its own m loop at the same level:
+# Matmul0 and Matmul1 share T1 in the left branch, Matmul2 and Matmul3 share T3 in the
+# right branch, and T2 is handed from the left branch to the right branch inside each
+# branch above its m loop. Matmul0 and Matmul1 run on four MAC instances each so every
+# sequential/parallel choice at the three joins is visible in arms().
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T4]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Storage
+    tensors: [W2]
+    component: MainMemory
+  - !Storage
+    tensors: [W3]
+    component: MainMemory
+  - !Temporal
+    rank_variable: m
+    tile_shape: 4
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: {{ LEFT_M_TILE | default(1) }}
+      - !Sequential
+        nodes:
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [W0]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [T0]
+            component: GlobalBuffer
+          - !Spatial
+            rank_variable: n1
+            tile_shape: 1
+            component: MAC
+            name: X
+          - !Temporal
+            rank_variable: n0
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul0
+            component: MAC
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Spatial
+            rank_variable: n2
+            tile_shape: 1
+            component: MAC
+            name: X
+          - !Temporal
+            rank_variable: n1
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul1
+            component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: {{ RIGHT_M_TILE | default(1) }}
+      - !Sequential
+        nodes:
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T3]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [W2]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n2
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n3
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul2
+            component: MAC
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T3]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n3
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n4
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul3
+            component: MAC

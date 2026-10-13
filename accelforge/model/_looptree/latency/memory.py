@@ -40,23 +40,20 @@ def isl_to_summarized(
 def communication_latency(
     reuse: SymbolicAnalysisOutput,
     flattened_arch: FlattenedArch,
-    tensor_to_backing: dict[str, str],
-    output_tensors,
     n_fused: int = 0,
-) -> tuple[object, dict[str, dict[int, object]]]:
+) -> dict[str, dict[int, object]]:
     """
     Communication latency, split at the fused loops.
 
-    Each tensor's path is a chain of connection latencies, one into each storage.
-    Connections that cross loops are paid for each loop iteration, and are returned as
-    descent (inputs moving down) or ascent (outputs moving up) latencies. These are
-    multiplied by the number of iterations above the destination.
+    Each tensor's path is a chain of connection latencies through each tensor holder.
 
-    The rest of each path is lumped into the Einsum delay: the slowest input winds down
-    to compute, a computation runs, and the result winds up to the slowest output, all
-    repeating once per iteration of the deepest backing storage.
+    For storages, the connection latency is one read + one write. For networks, it is
+    the max hop latency. For compute, it is the compute latency.
 
-    Returns (Einsum delay, {"descent" | "ascent": {level: latency}}).
+    For a given above_loop_index, the ascent and descent latencies are the latencies of
+    reservations at that level.
+
+    Returns {"descent" | "ascent": {level: latency}}.
     """
     name2component = {n.name: n for n in flattened_arch}
     name2index = {n.name: i for i, n in enumerate(flattened_arch)}
@@ -72,22 +69,50 @@ def communication_latency(
         """
         stats = sorted(stats, key=lambda c: name2index[c[0]])
         connections = []
-        connection_latency = 0
+        hop_latency = 0
+        moves_down = moves_up = False
+        
+        def _eq_zero(x):
+            # symengine and sympy use is_zero
+            return x == 0 if isinstance(x, Number) else x.is_zero
+        
         for i, (level, s) in enumerate(stats):
             if isinstance(s, NetworkStats):
-                connection_latency += (
-                    s.max_hops * name2component[level].actions["hop"].latency
-                )
+                hop_latency += s.max_hops * name2component[level].actions["hop"].latency
             elif isinstance(s, BuffetStats):
                 actions = name2component[level].actions
-                for action, count in s.net_total_actions().items():
-                    if not isinstance(count, Number) or count != 0:
-                        connection_latency += actions[action].latency
-                connections.append((level, s, connection_latency))
-                connection_latency = 0
+                down = up = 0
+                moves_down = moves_up = False
+                for to_parent, counts in (
+                    (True, s.net_max_per_unit_actions_to_parent()),
+                    (False, s.net_max_per_unit_actions_to_child()),
+                ):
+                    for action, count in counts.items():
+                        if _eq_zero(count):
+                            continue
+
+                        # Writes to parent (MY WRITES, in the direction of the parent)
+                        # go down). writes to child (MY WRITES, in the direction of the
+                        # child) go up. Opposite for reads.
+                        action_going_down = (action == "write") == to_parent
+                        if action_going_down:
+                            down, moves_down = down + actions[action].latency, True
+                        else:
+                            up, moves_up = up + actions[action].latency, True
+
+                if moves_down:
+                    down += hop_latency
+                if moves_up:
+                    up += hop_latency
+
+                connections.append((level, s, down, up))
+                hop_latency = 0
             else:
                 raise ValueError(f"Unknown stats type: {type(s)}")
-        return connections, connection_latency
+
+        into_compute = hop_latency if moves_down else 0, hop_latency if moves_up else 0
+
+        return connections, into_compute
 
     tensor_stats = {}
     for b, s in reuse.buffet_stats.items():
@@ -98,50 +123,41 @@ def communication_latency(
 
     per_level_latencies = {"descent": defaultdict(list), "ascent": defaultdict(list)}
     slowest_input, slowest_output = 0, 0
-    backing = []
 
     for tensor, stats in tensor_stats.items():
-        is_output = tensor in output_tensors
-        cur_latencies = per_level_latencies["ascent" if is_output else "descent"]
-
         connections, into_compute = connection_latencies(stats)
-        cumulative_latency = into_compute
-        for level, s, connection_latency in connections:
-            if level == tensor_to_backing.get(tensor):
-                backing.append(s)
-
+        cumulative_down, cumulative_up = into_compute
+        at_level = {"descent": defaultdict(int), "ascent": defaultdict(int)}
+        for level, s, down, up in connections:
             # < n_fused -> track each level independently
             if s.n_loops_above < n_fused:
                 nloops = max(0, s.n_loops_above)
-                cur_latencies[nloops].append(connection_latency * s.iterations_above)
+                at_level["descent"][nloops] += down
+                at_level["ascent"][nloops] += up
 
             # >= n_fused -> lump all levels together. We can start once our
             # longest-latency input arrives at compute, does a computation, and then
             # goes back up to the longest-latency output.
             else:
-                cumulative_latency += connection_latency
+                cumulative_down += down
+                cumulative_up += up
 
-        if is_output:
-            slowest_output = max_nonzero(slowest_output, cumulative_latency)
-        else:
-            slowest_input = max_nonzero(slowest_input, cumulative_latency)
+        for direction, per in at_level.items():
+            for nloops, latency in per.items():
+                if latency:
+                    per_level_latencies[direction][nloops].append(latency)
+        slowest_input = max_nonzero(slowest_input, cumulative_down)
+        slowest_output = max_nonzero(slowest_output, cumulative_up)
 
     compute_latency = compute.actions["compute"].latency
-    if backing:
-        deepest_backing = max(backing, key=lambda s: s.n_loops_above)
-        fused_iterations = deepest_backing.iterations_above
-    else:
-        fused_iterations = 1
-    einsum_delay = slowest_input + slowest_output + compute_latency
-    einsum_delay *= fused_iterations
-
-    return (
-        einsum_delay,
-        {
-            direction: {level: max_nonzero(*vals) for level, vals in per.items()}
-            for direction, per in per_level_latencies.items()
-        },
+    per_level_latencies["descent"][n_fused].append(
+        slowest_input + slowest_output + compute_latency
     )
+
+    return {
+        direction: {level: max_nonzero(*vals) for level, vals in per.items()}
+        for direction, per in per_level_latencies.items()
+    }
 
 
 def component_latency(
@@ -161,13 +177,12 @@ def component_latency(
 
     The per-level dict covers components in per_level_components, mapping each to
     {n_loops_above: latency of the actions at that many loops above plus the latency of
-    actions lower in the tree}. Each level includes the levels below it, so the
-    shallowest level is the component's whole latency.
+    actions lower in the tree}. Each level includes the levels below it.
 
     A transfer can only run while both ends' reservations are alive, so a storage's
-    actions exchanged with its parent land at the storage's own loop level and actions
-    exchanged with its child (or peers) at the child's level. Levels deeper than
-    n_shared_loops cannot be shared with other Einsums and are collapsed into one.
+    actions exchanged with its parent count at its loop level. Actions exchanged with
+    its child (or peers) count at the child's level. Levels deeper than n_shared_loops
+    cannot be shared with other Einsums and are collapsed together.
     """
     component_to_actions: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(lambda: 0)
@@ -244,7 +259,9 @@ def component_latency(
             # = above_loop_index
             n_above = min(stats.n_loops_above, n_shared_loops)
             n = i + 1
-            child_above = bs[bufs[i + 1]].n_loops_above if n < len(bufs) else n_above
+            child_above = (
+                bs[bufs[i + 1]].n_loops_above if n < len(bufs) else n_shared_loops
+            )
 
             for action, count in stats.net_max_per_unit_actions_to_parent().items():
                 add(component_obj, action, count, n_above if track else None)
@@ -314,18 +331,13 @@ def component_latency(
             return total
 
         if component in component_to_level_actions:
-            actions = component_to_level_actions[component]
-            # Evaluate on running action totals from the deepest level up so each
-            # level's latency includes the levels below it and the shallowest level
-            # is the whole latency.
             cumulative = defaultdict(lambda: 0)
             per_level = component_level_latency[component] = {}
-            for level, cur_actions in sorted(actions.items(), reverse=True):
-                for action, count in cur_actions.items():
+            level_actions = component_to_level_actions[component]
+            for level in range(n_shared_loops, -1, -1):
+                for action, count in level_actions.get(level, {}).items():
                     cumulative[action] += count
                 per_level[level] = counts2latency(cumulative)
-            component_latency[component] = per_level[min(per_level)]
-        else:
-            component_latency[component] = counts2latency(counts)
+        component_latency[component] = counts2latency(counts)
 
     return component_latency, component_level_latency

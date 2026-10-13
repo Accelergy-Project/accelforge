@@ -7,7 +7,7 @@ import accelforge as af
 from accelforge.frontend.workload import EinsumName
 
 # Keys in result.data
-GLB_USAGE = "reservation<SEP>GlobalBuffer<SEP>-1<SEP>right"
+GLB_USAGE = "reservation<SEP>GlobalBuffer<SEP>-1<SEP>left"
 ACCESSES = "Total<SEP>energy"
 
 

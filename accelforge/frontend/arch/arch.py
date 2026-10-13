@@ -8,8 +8,19 @@ from accelforge.util._basetypes import (
 )
 
 from accelforge.frontend.arch.structure import Leaf, Branch, Hierarchical
+from accelforge.util._frozenset import oset
 from accelforge.frontend.arch.components import Component
 from accelforge.frontend.arch.spatialable import Spatialable, Spatial
+
+
+def _spatial2resource(component: str, dim: str, multi_einsum_parallel=False) -> str:
+    parallel = " MULTI EINSUM PARALLEL" if multi_einsum_parallel else ""
+    return f"{component}{parallel} {dim}"
+
+
+def _is_multi_einsum_parallel_resource(resource: str) -> bool:
+    """The one resource parallel Einsums sum: the parallel dimension's usage."""
+    return " MULTI EINSUM PARALLEL " in resource
 
 
 class Arch(Hierarchical):
@@ -220,3 +231,40 @@ class Arch(Hierarchical):
             n = l.name
             leaves.setdefault(n, l)
             assert l is leaves[n], f"Duplicate name {n} found in architecture"
+
+    def _multi_einsum_parallel_spatial(self, nodes=None) -> tuple[str, str] | None:
+        """
+        The (component, dimension) whose fanout Einsums may split to run in parallel, or
+        None. At most one spatial dimension may allow multi-Einsum parallelism.
+        """
+        if nodes is None:
+            nodes = self.get_nodes_of_type(Spatialable)
+        flagged = [
+            (node.name, s)
+            for node in nodes
+            if isinstance(node, Spatialable)
+            for s in node.spatial
+            if s._allow_multi_einsum_parallelism
+        ]
+        for _, s in flagged:
+            assert not s.power_gateable, (
+                "Multi-Einsum parallels can't be power gated because our model "
+                "does a max for leak power across branches. Can be fixed by "
+                "implementing leak power above and below the split. Ctrl-F for "
+                '"LEAK_POWER_MAX".'
+            )
+        allow_multi_einsum = sorted((name, s.name) for name, s in flagged)
+        if len(allow_multi_einsum) > 1:
+            raise ValueError(
+                "At most one spatial dimension may set _allow_multi_einsum_parallelism, "
+                "but got: " + ", ".join(f"{c} {d}" for c, d in allow_multi_einsum)
+            )
+        return allow_multi_einsum[0] if allow_multi_einsum else None
+
+    def _components_above_multi_einsum_parallelism(self, nodes=None) -> oset:
+        """Returns names of nodes above a _allow_multi_einsum_parallelism fanout."""
+        if nodes is None:
+            nodes = list(self.get_nodes_of_type(Leaf))
+        flagged = self._multi_einsum_parallel_spatial(nodes)
+        names = [n.name for n in nodes]
+        return oset(names[: names.index(flagged[0])] if flagged else [])

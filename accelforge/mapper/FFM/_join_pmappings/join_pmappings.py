@@ -37,7 +37,11 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
 )
-from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
+from accelforge.frontend.arch.arch import _spatial2resource
+from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2reservation,
+    col2total_latency,
+)
 from accelforge.util import (
     _fillna_and__numeric_cast,
     delayed,
@@ -76,13 +80,20 @@ def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
     if not metrics & Metrics.ENERGY_DELAY_PRODUCT:
         return df
 
+    # After final fence, latency column is total latency
+    latency_col = "Total<SEP>latency"
+    # Before the final fence latency is split across multiple levels
+    if latency_col in df.columns:
+        latency = df[latency_col]
+    else:
+        latency = sum(df[c] for c in df.columns if col2total_latency(c) is not None)
+
     energy = df["Total<SEP>energy"]
-    latency = df["Total<SEP>latency"]
     df["Total<SEP>energy_delay_product"] = energy * latency
     if not (metrics & Metrics.ENERGY):
         del df["Total<SEP>energy"]
-    if not (metrics & Metrics.LATENCY):
-        del df["Total<SEP>latency"]
+    if not (metrics & Metrics.LATENCY) and latency_col in df.columns:
+        del df[latency_col]
     return df
 
 
@@ -352,6 +363,11 @@ def clean_compress_and_join_pmappings(
 
     joined = decompress_pmappings(joined, decompress_data)
 
+    # Latency is used for (leak power * latency) when energy is the objective, but it's
+    # not needed after leak energy calculation is done
+    if not metrics.includes_latency() and "Total<SEP>latency" in joined.data:
+        joined.data.drop(columns=["Total<SEP>latency"], inplace=True)
+
     # These are normally dropped during each join, but that never happens if there's
     # just one Einsum, so we do it once more here.
     joined.data.drop(
@@ -407,6 +423,7 @@ class PmappingsOneEinsum:
 
 def get_memories_to_track(
     pmapping_groups: dict[str, list[PmappingGroup]],
+    spec: Spec,
     print_progress: bool = True,
 ) -> tuple[dict[str, list[PmappingGroup]], set[str], set[str]]:
 
@@ -442,6 +459,11 @@ def get_memories_to_track(
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
+
+    # Parallel Einsums share these resources even when no fused loop does.
+    always_below -= spec.arch._components_above_multi_einsum_parallelism()
+    if s := spec.arch._multi_einsum_parallel_spatial():
+        always_below -= oset([_spatial2resource(*s, multi_einsum_parallel=True)])
 
     ignore = oset(t for t, s in total_sizes.items() if s <= 1) | always_below
 
@@ -508,9 +530,18 @@ def join_pmappings(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
+    # ======================================================================
+    # Setup
+    # ======================================================================
+
     skip_invalid = spec.mapper._skip_invalid
     combine_reservations = spec.mapper._combine_reservations
     _runtime_log_file = spec.mapper._runtime_log_file
+
+    # ======================================================================
+    # Select resources to track
+    # ======================================================================
+    parallel_spatial = spec.arch._multi_einsum_parallel_spatial()
 
     assert (
         skip_invalid
@@ -537,12 +568,16 @@ def join_pmappings(
 
     if drop_valid_reservations:
         pmapping_groups, ignored_resources = get_memories_to_track(
-            pmapping_groups, print_progress
+            pmapping_groups, spec, print_progress
         )
 
     for einsum_name, einsum_pmapping_groups in pmapping_groups.items():
         for s in einsum_pmapping_groups:
             s.mappings.drop_valid_reservations = drop_valid_reservations
+
+    # ======================================================================
+    # More setup
+    # ======================================================================
 
     aliased_tensors = spec.workload.get_tensor_copies()
 
@@ -774,36 +809,32 @@ def join_pmappings(
 
                 compatibility_a = perm_a.apply(a.compatibility)
                 compatibility_b = perm_b.apply(b.compatibility)
-                try:
-                    compatibility_joined = compatibility_a.merge_next(
-                        compatibility_b,
-                        live_tensors,
-                    )
-                    if DO_PRINT:
-                        print(
-                            f"\t{a.compatibility}        <-->        {b.compatibility}"
-                        )
-                except ValueError as e:  # Incompatible!
-                    # if DO_PRINT:
-                    #     print(f"\tIncompatible: {e}")
-                    continue
-
                 t0 = time.time()
 
-                combined.append(
-                    a.merge_next(
-                        b,
-                        live_tensors,
-                        live_tensors_with_right,
-                        aliased_tensors,
-                        compatibility_joined=compatibility_joined,
-                        permuted_compatibility_left=compatibility_a,
-                        permuted_compatibility_right=compatibility_b,
-                        delay=DELAY,
-                        _pmapping_row_filter_function=_pmapping_row_filter_function,
-                        ignored_resources=ignored_resources,
+                for sequential in [False, True] if parallel_spatial else [True]:
+                    try:
+                        compatibility_joined = compatibility_a.merge_next(
+                            compatibility_b, live_tensors, sequential=sequential
+                        )
+                        if DO_PRINT:
+                            print(f"\t{a.compatibility} <--> {b.compatibility}")
+                    except ValueError as e:  # Incompatible!
+                        continue
+                    combined.append(
+                        a.merge_next(
+                            b,
+                            live_tensors,
+                            live_tensors_with_right,
+                            aliased_tensors,
+                            compatibility_joined=compatibility_joined,
+                            permuted_compatibility_left=compatibility_a,
+                            permuted_compatibility_right=compatibility_b,
+                            sequential=sequential,
+                            delay=DELAY,
+                            _pmapping_row_filter_function=_pmapping_row_filter_function,
+                            ignored_resources=ignored_resources,
+                        )
                     )
-                )
 
                 if DO_PRINT:
                     # s = f"\t-->\n\t{combined[-1].compatibility}"
@@ -991,18 +1022,8 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-    mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
-    mappings.free_to_loop_index(-2)
-    assert not mappings._make_latencies(), (
-        f"Component latency columns were not folded into the total latency: "
-        f"{mappings._make_latencies()}"
-    )
-    assert not any(mappings._make_commlatencies().values()), (
-        f"Descent/ascent latency columns were not folded into the total latency: "
-        f"{mappings._make_commlatencies()}"
-    )
-    mappings.make_pareto()
 
+    mappings.finish()
     timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:
     #     edp = data["Total_latency"] * data["Total_energy"]

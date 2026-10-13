@@ -22,11 +22,13 @@ from accelforge.frontend.mapping import (
     TensorHolder,
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
+from accelforge.frontend.arch.arch import _spatial2resource
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     SEP,
     col2commlatency,
     col2complatency,
     col2reservation,
+    col2total_latency,
     is_action_col,
     is_energy_col,
     is_objective_col,
@@ -2339,6 +2341,12 @@ def _make_tile_shapes(job: "Job"):
     # Each resource's usage is its reservation at the first level other Einsums
     # can never share (the reservation with the most loops). Only that one gets
     # max_value=1: shallower reservation columns are running subsets of it.
+    parallel_spatial = job.spec_one_einsum.arch._multi_einsum_parallel_spatial(
+        job.flattened_arch
+    )
+    parallel_resource = parallel_spatial and _spatial2resource(
+        *parallel_spatial, multi_einsum_parallel=True
+    )
     for k, v in {**per_memory_usage_df, **usage_df}.items():
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
@@ -2351,9 +2359,7 @@ def _make_tile_shapes(job: "Job"):
         if resource in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
-        # TODO: Update check to see if we may be sharing usage with other
-        # pmappings in parallel/pipeline.
-        if k in usage_df:
+        if k in usage_df and resource != parallel_resource:
             only_care_if_valid = True
 
         tolerance = job.resource_usage_tolerance
@@ -2395,7 +2401,8 @@ def _make_tile_shapes(job: "Job"):
         component_name,
         name,
     ), constraint in job.constraints.min_usage_constraints.items():
-        n = f"{component_name} {name}"
+        is_parallel_spatial = (component_name, name) == parallel_spatial
+        n = _spatial2resource(component_name, name, is_parallel_spatial)
         rcols = [(k, col2reservation(k)) for k in usage_df]
         matches = [r for r in rcols if r[1] is not None and r[1].name == n]
         assert matches, (
@@ -2435,7 +2442,7 @@ def _make_tile_shapes(job: "Job"):
     # just doing the same pruning, perhaps with a different number of objectives).
     for k, v in symbolic_df.items():
         # Objectives (total latency, total energy)
-        if is_objective_col(k):
+        if is_objective_col(k) or col2total_latency(k) is not None:
             pass
         # Per-component latencies. Include as separate objectives since they may be
         # overlapped during joining

@@ -15,11 +15,23 @@ from accelforge.frontend.workload import EinsumName
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
     clean_compress_and_join_pmappings,
 )
+from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_pareto
 from accelforge._accelerated_imports import pd
 
 from accelforge.util import delayed, _fillna_and__numeric_cast, parallel, oset
 
 logger = logging.getLogger(__name__)
+
+
+def _closest_row(evaluated: pd.DataFrame, mapper_row: pd.Series) -> int:
+    """The evaluated row whose objectives and reservations match the mapper's."""
+    error = pd.Series(0.0, index=evaluated.index)
+    for c in evaluated.columns:
+        if not col_used_in_pareto(c) or c == "Total<SEP>mapping" or c not in mapper_row:
+            continue
+        expected = mapper_row[c]
+        error += abs(evaluated[c] - expected) / max(abs(expected), 1)
+    return int(error.argmin())
 
 
 def map_workload_to_arch(
@@ -97,14 +109,17 @@ def map_workload_to_arch(
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"](
             _for_model=True,
         )
-        with open("mapping.svg", "w") as f:
-            f.write(mappings[i].render())
         try:
             this_mapping = evaluate_mapping(
                 local_spec,
                 flattened_arches=mappings.flattened_arches,
                 evaluated_specs=mappings.evaluated_specs,
             )
+            # Parallel exploration re-evaluates every sequential/parallel combination of
+            # the mapping, so keep the one that matches the mapper's objectives.
+            if len(this_mapping.data) > 1:
+                row = _closest_row(this_mapping.data, mappings.data.iloc[i])
+                this_mapping.data = this_mapping.data.iloc[[row]]
         except:
             # import os
 

@@ -1,0 +1,94 @@
+# Three matmuls, M = 16. Loop 0 (m tile 8, 2 iterations) above a sequential split at
+# level 1. Branch A: T2 in GlobalBuffer at level 1, loop 1 (m tile 2, 4 iterations), W0
+# and W1 in GlobalBuffer at level 2 where there is no split, loop 2 (m tile 1, 2
+# iterations), then Matmul0 and Matmul1 split sequentially at level 3 sharing T1.
+# Branch B: T2 and W2 in GlobalBuffer at level 1, its own m loop, Matmul2.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T3]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Storage
+    tensors: [W2]
+    component: MainMemory
+  - !Temporal
+    rank_variable: m
+    tile_shape: 8
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 2
+      - !Storage
+        tensors: [W0]
+        component: GlobalBuffer
+      - !Storage
+        tensors: [W1]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Sequential
+        nodes:
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [T0]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n0
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n1
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul0
+            component: MAC
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Temporal
+            rank_variable: n1
+            tile_shape: 1
+          - !Temporal
+            rank_variable: n2
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul1
+            component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Storage
+        tensors: [W2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n3
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul2
+        component: MAC

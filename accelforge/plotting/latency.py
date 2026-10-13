@@ -7,10 +7,12 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 
+from accelforge.frontend.arch.spatialable import Spatialable
 from accelforge.mapper.FFM import Mappings
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     col2commlatency,
     col2complatency,
+    col2total_latency,
 )
 from accelforge.util import oset
 
@@ -38,12 +40,15 @@ def _latency_timeline(
     from accelforge.model.main import _model_pmappings
 
     flattened_arches = evaluated_specs = None
+    spec = deepcopy(spec)
+    # The timeline lays Einsums out one after another.
+    for s in (s for n in spec.arch.get_nodes_of_type(Spatialable) for s in n.spatial):
+        s._allow_multi_einsum_parallelism = False
     if mappings is not None:
         if len(mappings.data) != 1:
             raise ValueError(
                 f"mappings holds {len(mappings.data)} mappings; pass exactly one"
             )
-        spec = deepcopy(spec)
         spec.model.metrics = spec.mapper.info_metrics
         spec.mapping = mappings.data.iloc[0]["Total<SEP>mapping"](_for_model=True)
         flattened_arches = mappings.flattened_arches
@@ -56,32 +61,53 @@ def _latency_timeline(
     tensors = [g.compatibility.tensor_names for g in groups]
 
     # Per-Einsum latency outside the per-level columns, and per-(component, level)
-    # latency. Columns are upward-inclusive, so the latency at a level alone is the
-    # column minus the next-deeper column.
+    # latency, one level per column. The blocks run sequentially, so each join is a
+    # sequential split at the number of loops the joined Einsums share.
+    splits = oset()
+    for i in range(1, n):
+        past = oset.union(oset(), *tensors[:i])
+        splits.add(groups[i].compatibility.shared_loop_index(past & tensors[i]) + 1)
+
     privates = []
     inclusives = []
     excls = []
     comms = []  # per Einsum: {(direction, level): wind-up/down latency}
     for group in groups:
         row = group.mappings.data.iloc[0]
-        privates.append(row["Total<SEP>latency"])
+        privates.append(
+            sum(
+                row[c]
+                for c in group.mappings.data.columns
+                if (k := col2total_latency(c)) is not None and not k.left
+            )
+        )
         inclusive = defaultdict(dict)
-        comm = {}
+        comm_latency = {}
         for col in group.mappings.data.columns:
+            # Component latency is upward-inclusive (lower nloops includes higher)
             if (key := col2complatency(col)) is not None:
                 inclusive[key.name][key.nloops] = row[col]
+            # Communication latencies are per-level and, if any sequential loop happens,
+            # repeated per iteration of any loops
             elif (key := col2commlatency(col)) is not None:
-                comm[key] = row[col]
-        inclusives.append(inclusive)
-        comms.append(comm)
+                iters = group.compatibility.per_loop_calculated_n_iterations
+                comm_latency[key] = row[col]
+                for i, it in enumerate(iters[: key.nloops]):
+                    if any(i < split <= key.nloops for split in splits):
+                        multiplier = row[it] if isinstance(it, str) else it
+                        comm_latency[key] *= multiplier
+
+        # Each level's column includes the levels below it, so differences against
+        # the next deeper level recover the per-level latency.
         excl = {}
-        for component, by_level in inclusive.items():
+        for c, by_level in inclusive.items():
             levels = sorted(by_level)
-            excl[component] = {
-                l: by_level[l] - by_level[deeper]
-                for l, deeper in zip(levels, levels[1:])
+            deeper = dict(zip(levels, levels[1:]))
+            excl[c] = {
+                l: v - by_level.get(deeper.get(l), 0) for l, v in by_level.items()
             }
-            excl[component][levels[-1]] = by_level[levels[-1]]
+        inclusives.append(dict(inclusive))
+        comms.append(comm_latency)
         excls.append(excl)
     # Outermost-first architecture order, so lanes read top-down like the arch.
     arch_order = list(
@@ -95,11 +121,11 @@ def _latency_timeline(
         key=lambda c: (arch_order.index(c.split(" (")[0]), c),
     )
 
-    # keep[i]: deepest loop index at which Einsum i's reservations are co-resident
-    # with another Einsum's. Deeper latency is private to block i. settle[i]:
-    # deepest loop index still co-resident after Einsum i. Deeper latency must
-    # finish by the end of block i; shallower latency may spill into later blocks.
-    keeps, settles = [], []
+    # keep[i]: deepest loop index at which Einsum i's reservations are shared
+    # with another Einsum's. Deeper latency is private to block i.
+    # shared_after[i]: deepest loop index still shared after Einsum i. Deeper
+    # latency must finish by the end of block i; shallower may finish later.
+    keeps, shared_after = [], []
     backings = {}
     for i, group in enumerate(groups):
         live = oset.union(oset(), *tensors[i + 1 :])
@@ -107,15 +133,15 @@ def _latency_timeline(
         keeps.append(group.compatibility.shared_loop_index(live | (past & tensors[i])))
         for t, l in group.compatibility.get_backing_levels().items():
             backings[t] = min(backings.get(t, l), l)
-        settles.append(
+        shared_after.append(
             max((backings[t] for t in live if t in backings), default=-1) - 1
         )
-    settles[-1] = -2
+    shared_after[-1] = -2
 
-    # Exact block ends, mirroring the join: each Einsum folds levels deeper than
-    # keep into its own width by max; merged pool columns sum across Einsums, a
-    # missing level falling back to the next-deeper column; levels deeper than
-    # settle fold into the running total by max.
+    # Exact block ends, mirroring the join: each Einsum maxes levels deeper than
+    # keep into its own width; shared busy columns sum across Einsums, a missing
+    # level falling back to the next-deeper column; levels deeper than
+    # shared_after max into the running total.
     def at_or_below(cols, level):
         deeper = [l for l in cols if l >= level]
         return cols[min(deeper)] if deeper else 0
@@ -123,8 +149,8 @@ def _latency_timeline(
     total = 0.0
     ends = []
     winds = []  # per block: wind-up/down added at its end
-    pool = defaultdict(dict)  # component -> {level: latency summed across Einsums}
-    comm_pool = {}  # (direction, level) -> wind-up/down maxed across Einsums
+    shared_busy = defaultdict(dict)  # component -> {level: busy summed across Einsums}
+    shared_winds = {}  # (direction, level) -> wind-up/down maxed across Einsums
     for i in range(n):
         width = privates[i]
         for cols in inclusives[i].values():
@@ -132,55 +158,57 @@ def _latency_timeline(
             if done:
                 width = max(width, cols[min(done)])
         # Wind-up/down of unshared fused loops serializes with the busy time.
-        wind = sum(v for (_, l), v in comms[i].items() if l > keeps[i])
+        wind = sum(v for k, v in comms[i].items() if k.nloops > keeps[i])
         total += width + wind
         for component, cols in inclusives[i].items():
             kept = {l: v for l, v in cols.items() if l <= keeps[i]}
-            mine = pool[component]
-            pool[component] = {
+            mine = shared_busy[component]
+            shared_busy[component] = {
                 l: at_or_below(mine, l) + at_or_below(kept, l)
                 for l in set(mine) | set(kept)
             }
-        # Shared fused loops' wind-up/down is maxed across the Einsums filling
-        # them, then added when the loop is freed.
+        # Shared fused loops' wind-up/down is summed across the Einsums filling
+        # them (wind-up latency is serialized), then added when the loop is freed.
         for key, v in comms[i].items():
-            if key[1] <= keeps[i]:
-                comm_pool[key] = max(comm_pool.get(key, 0), v)
-        for cols in pool.values():
-            done = [l for l in cols if l > settles[i]]
+            if key.nloops <= keeps[i]:
+                shared_winds[key] = shared_winds.get(key, 0) + v
+        # A freed loop's wind-up/down serializes, so it is paid before the busy time.
+        for key in list(shared_winds):
+            if key.nloops > shared_after[i]:
+                paid = shared_winds.pop(key)
+                total += paid
+                wind += paid
+        for cols in shared_busy.values():
+            done = [l for l in cols if l > shared_after[i]]
             if done:
                 total = max(total, cols[min(done)])
             for l in done:
                 del cols[l]
-        for key in list(comm_pool):
-            if key[1] > settles[i]:
-                folded = comm_pool.pop(key)
-                total += folded
-                wind += folded
         ends.append(total)
         winds.append(wind)
 
     def floor(level, i):
-        return max((ends[j] for j in range(i) if settles[j] < level), default=0.0)
+        return max((ends[j] for j in range(i) if shared_after[j] < level), default=0.0)
 
-    def deadline(level, i):
-        # Busy time must finish before the wind-up/down at its deadline block's end.
-        j = next((j for j in range(i, n) if settles[j] < level), n - 1)
+    def finish_by(level, i):
+        # Busy time must finish before the wind-up/down at the end of the block
+        # that frees its level.
+        j = next((j for j in range(i, n) if shared_after[j] < level), n - 1)
         return ends[j] - winds[j]
 
     busy = defaultdict(list)  # component -> sorted (start, end) of placed bars
 
-    def place(component, lo, amount, due):
+    def place(component, lo, amount, finish):
         # Earliest gap in the component's schedule that fits, from lo onward.
         start = lo
         for s, e in busy[component]:
             if s >= start + amount:
                 break
             start = max(start, e)
-        if start + amount > due:
-            # The model lets busy time fill slack anywhere before the deadline,
+        if start + amount > finish:
+            # The model lets busy time fill slack anywhere before the finish,
             # even when this component was already busy then.
-            start = due - amount
+            start = finish - amount
         insort(busy[component], (start, start + amount))
         return start
 
@@ -192,14 +220,14 @@ def _latency_timeline(
             bars.append(
                 _Bar(None, None, einsum, block_start, block_start + privates[i], False)
             )
-        # Wind-up/down folded at this block's end serializes after its busy time.
+        # Wind-up/down paid at this block's end serializes after its busy time.
         if winds[i] > 0:
             bars.append(_Bar(None, None, einsum, ends[i] - winds[i], ends[i], False))
 
-    # Latency deeper than keep is private to its Einsum's block; co-resident
-    # latency may fill slack anywhere in its co-residency window (down to the
-    # window's start, until it folds into the total at its deadline block).
-    # Private latency has a fixed home, so place it first and let co-resident
+    # Latency deeper than keep is private to its Einsum's block; shared latency
+    # may fill slack anywhere while its level stays shared (down to where that
+    # sharing starts, until it maxes into the total at the block that frees its
+    # level). Private latency has a fixed home, so place it first and let shared
     # latency fill the gaps that remain.
     for shared in [False, True]:
         for i, einsum in enumerate(einsums):
@@ -210,7 +238,7 @@ def _latency_timeline(
                         continue
                     if shared:
                         start = place(
-                            component, floor(level, i), amount, deadline(level, i)
+                            component, floor(level, i), amount, finish_by(level, i)
                         )
                     else:
                         start = place(

@@ -1,0 +1,61 @@
+# The fused pair below loop m with one weight inside its own branch (level 1) and the
+# other above the loop (level 0). INSIDE picks which Einsum keeps its weight inside:
+# INSIDE = 0 puts W0 inside Matmul0's branch and W1 above the loop; INSIDE = 1 puts W1
+# inside Matmul1's branch and W0 above the loop.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T2]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Storage
+    tensors: [W{{ 1 - INSIDE }}]
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      {% if INSIDE == 0 %}
+      - !Storage
+        tensors: [W0]
+        component: GlobalBuffer
+      {% endif %}
+      - !Storage
+        tensors: [T0, T1]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: n0
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul0
+        component: MAC
+    - !Nested
+      nodes:
+      {% if INSIDE == 1 %}
+      - !Storage
+        tensors: [W1]
+        component: GlobalBuffer
+      {% endif %}
+      - !Storage
+        tensors: [T1, T2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul1
+        component: MAC

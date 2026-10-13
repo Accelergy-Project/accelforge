@@ -31,6 +31,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops im
     label_imperfect_tile_shapes,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
+from accelforge.frontend.mapper.metrics import Metrics
 
 
 class InvalidMappingError(Exception):
@@ -72,6 +73,46 @@ def evaluate_mapping(
     )
 
 
+def _assert_splits_above_reservations(nodes, below_loop: bool = False):
+    """
+    Assert that, if splits and reservations don't have loops between, the reservations
+    are below the splits. This is NOT GENERALLY REQUIRED but the model and mapper will
+    assume that the split is below.
+    """
+    
+    failstr = """
+    A reservation is above a split. This is not allowed because the model and mapper
+    assume that splits are below reservations. Please ensure that all splits are placed
+    below any reservations in the mapping, or there is a loop between.
+    """
+    
+    reservation_in_slot = False
+    for node in nodes:
+        if isinstance(node, Loop):
+            below_loop, reservation_in_slot = True, False
+        elif isinstance(node, (TensorHolder, Reservation)):
+            reservation_in_slot = True
+        elif isinstance(node, Split):
+            assert not (below_loop and reservation_in_slot), failstr
+            for branch in node.nodes:
+                _assert_splits_above_reservations(branch.nodes, below_loop)
+
+
+def _assert_perfect_loops(nodes, rank_variable_shapes):
+    """
+    Wind-up latency is multiplied by the product of per-loop iteration counts. For
+    imperfect, we'd need to track the total iterations of each loop and use that.
+    Ctrl-F for WINDUP_LATENCY_PERFECT_ASSUMPTION.
+    """
+    shapes = dict(rank_variable_shapes)
+    for node in nodes:
+        if isinstance(node, Loop):
+            assert (
+                shapes[node.rank_variable] % node.tile_shape == 0
+            ), f"Imperfect loop {node} is not supported with wind-up latency"
+            shapes[node.rank_variable] = node.tile_shape
+
+
 def _model_pmappings(
     spec: Spec,
     flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
@@ -87,6 +128,8 @@ def _model_pmappings(
     from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
     from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
     from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
+        _components_track_latency,
+        _shared_components,
         get_rank_variable_bounds_for_all_einsums,
     )
     from accelforge.model.run_model import (
@@ -129,6 +172,7 @@ def _model_pmappings(
     stride_and_halo = get_stride_and_halo(spec.workload)
 
     assert not getattr(spec, "_evaluated", False), s
+    _assert_splits_above_reservations(spec.mapping.nodes)
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         _assert_valid_pmapping(pmapping, spec.workload)
 
@@ -185,14 +229,23 @@ def _model_pmappings(
             job.spec_one_einsum.workload.einsums[job.einsum_name],
             job,
         )
+        if spec.model._include_wind_up_latency:
+            _assert_perfect_loops(pmapping.nodes, job.rank_variable_bounds)
 
         einsum2jobs[job.einsum_name] = job
 
         job.flattened_arch = flattened_arch
+        shared = (
+            oset(m.name for m in flattened_arch)
+            if Metrics.RESOURCE_USAGE in spec.mapper.metrics
+            else _shared_components(
+                spec, flattened_arch, pmapping.nodes, fusable_tensors
+            )
+        )
         job.memories_track_all = [
-            m.name for m in flattened_arch if isinstance(m, Memory)
+            m.name for m in flattened_arch if isinstance(m, Memory) and m.name in shared
         ]
-        job.components_track_latency = oset(m.name for m in flattened_arch)
+        job.components_track_latency = _components_track_latency(spec, flattened_arch)
         job.ignored_resources = oset()
 
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)

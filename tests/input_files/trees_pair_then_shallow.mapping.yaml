@@ -1,0 +1,92 @@
+# spec_pair_then_shallow with Matmul1 also on four MAC instances: a sequential or
+# parallel pair (Matmul0 and Matmul1, four instances each) below two m loops, and
+# Matmul2 (one instance) beside it below one. Every sequential/parallel choice at the
+# two joins then uses a distinct number of instances and beats every cheaper choice, so
+# arms() shows all four.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T3]
+    component: MainMemory
+  - !Storage
+    tensors: [W0]
+    component: MainMemory
+  - !Storage
+    tensors: [W1]
+    component: MainMemory
+  - !Storage
+    tensors: [W2]
+    component: MainMemory
+  - !Temporal
+    rank_variable: m
+    tile_shape: 4
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Sequential
+        nodes:
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [W0]
+            component: GlobalBuffer
+          - !Storage
+            tensors: [T0]
+            component: GlobalBuffer
+          - !Spatial
+            rank_variable: n1
+            tile_shape: 1
+            component: MAC
+            name: X
+          - !Temporal
+            rank_variable: n0
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul0
+            component: MAC
+        - !Nested
+          nodes:
+          - !Storage
+            tensors: [T1]
+            component: GlobalBuffer
+          - !Spatial
+            rank_variable: n2
+            tile_shape: 1
+            component: MAC
+            name: X
+          - !Temporal
+            rank_variable: n1
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul1
+            component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T2]
+        component: GlobalBuffer
+      - !Storage
+        tensors: [W2]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n3
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul2
+        component: MAC

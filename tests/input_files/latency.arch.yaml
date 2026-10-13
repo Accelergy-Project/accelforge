@@ -19,8 +19,8 @@ arch:
 
   - !Memory
     name: GlobalBuffer
-    size: inf
-    leak_power: 0
+    size: {{ GB_SIZE | default("inf") }}
+    leak_power: {{ GB_LEAK_POWER | default(0) }}
     area: 0
     tensors: {keep: All}
     actions:
@@ -37,6 +37,10 @@ arch:
     name: MAC
     leak_power: 0
     area: 0
+    spatial:
+    - name: X
+      fanout: {{ MAC_FANOUT | default(1) }}
+      _allow_multi_einsum_parallelism: {{ MAC_PARALLEL | default(False) }}
     actions:
     - name: compute
       energy: 1

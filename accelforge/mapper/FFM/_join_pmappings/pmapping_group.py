@@ -67,6 +67,7 @@ class PmappingGroup:
         ignored_resources: set[str],
         permuted_compatibility_left: Compatibility,
         permuted_compatibility_right: Compatibility,
+        sequential: bool = True,
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
@@ -109,6 +110,7 @@ class PmappingGroup:
             compatibility_left=permuted_compatibility_left,
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
+            sequential=sequential,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
             _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,
@@ -141,16 +143,27 @@ class PmappingGroup:
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.tensors.pop(t)
-        if self.mappings.free_to_loop_index(shared_loop_index):
+        if self.mappings.free_to_loop_index(
+            shared_loop_index,
+            self.compatibility.per_loop_calculated_n_iterations,
+            self.compatibility.levels_with_sequential_splits,
+        ):
             self.mappings.make_pareto()
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
         check_tensors = live_tensors or oset()
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
-        self.mappings.free_to_loop_index(shared_loop_index)
+        self.mappings.free_to_loop_index(
+            shared_loop_index,
+            self.compatibility.per_loop_calculated_n_iterations,
+            self.compatibility.levels_with_sequential_splits,
+        )
         if live_tensors is None:
             self.mappings.clear_fused_loop_symbols()
+            self.compatibility = self.compatibility.update(
+                levels_with_sequential_splits=fzs()
+            )
         return self
 
     @staticmethod
