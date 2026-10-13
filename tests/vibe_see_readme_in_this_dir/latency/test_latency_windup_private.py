@@ -19,6 +19,7 @@ noted).
 import unittest
 
 import accelforge as af
+from tests.vibe_see_readme_in_this_dir.latency.test_latency import INPUT_FILES_DIR
 from tests.vibe_see_readme_in_this_dir.latency.test_latency import (
     LATENCY_ARCH,
     TWO_FUSED_LOOPS_MAPPING,
@@ -29,8 +30,8 @@ from tests.vibe_see_readme_in_this_dir.latency.test_parallel_mappings import (
     evaluate,
 )
 
-SIMPLE_MAPPING = af.examples.mappings.fused_matmuls_to_simple
-UNFUSED_MAPPING = af.examples.mappings.unfused_matmuls_to_simple
+SIMPLE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_simple.mapping.yaml"
+UNFUSED_MAPPING = INPUT_FILES_DIR / "unfused_matmuls_to_simple.mapping.yaml"
 INFINITELY_FAST_COMPUTE = {"COMPUTE_THROUGHPUT": float("inf")}
 
 # MainMemory reads take 100 cycles and writes 200, GlobalBuffer reads 10 and writes 20,

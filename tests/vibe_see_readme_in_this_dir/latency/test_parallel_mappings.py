@@ -98,7 +98,7 @@ GB = "reservation<SEP>GlobalBuffer<SEP>-1<SEP>left"
 
 def evaluate(mapping, explore_parallel, metrics=None, **jinja):
     spec = Spec.from_yaml(
-        af.examples.workloads.basic.matmuls,
+        af.examples.workloads.basic.matmuls_any_einsums,
         LATENCY_ARCH,
         mapping,
         jinja_parse_data={
@@ -144,7 +144,7 @@ class TestParallelSemantics(unittest.TestCase):
         to 256 + 1408 = 1664, which already exceeds the branches' 1600, so the slack
         is used up and parallelism gains nothing."""
         jinja = {"MM_WRITE_THROUGHPUT": 0.1, "COMPUTE_THROUGHPUT": 0.2}
-        simple = af.examples.mappings.fused_matmuls_to_simple
+        simple = INPUT_FILES_DIR / "fused_matmuls_to_simple.mapping.yaml"
 
         off = evaluate(simple, False, MM_READ_THROUGHPUT=4, **jinja)
         self.assertEqual(list(off["Total<SEP>latency"]), [1600])
@@ -166,7 +166,7 @@ class TestParallelSemantics(unittest.TestCase):
         320 of compute hides under, and the branches serialize into 2688. Running them
         in parallel sums MainMemory's busy time to the same 2688, so nothing is gained
         and only the single-instance result stays on the front."""
-        unfused = af.examples.mappings.unfused_matmuls_to_simple
+        unfused = INPUT_FILES_DIR / "unfused_matmuls_to_simple.mapping.yaml"
         off = evaluate(unfused, False, **SLOW_MM_THROUGHPUTS)
         self.assertEqual(list(off["Total<SEP>latency"]), [2688])
 
@@ -431,7 +431,7 @@ class TestParallelSemantics(unittest.TestCase):
 class TestParallelMapper(unittest.TestCase):
     def map_workload(self, explore_parallel):
         spec = Spec.from_yaml(
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             LATENCY_ARCH,
             jinja_parse_data={
                 "N_EINSUMS": 3,
@@ -466,7 +466,7 @@ class TestParallelMapper(unittest.TestCase):
 class TestTpuZParallelism(unittest.TestCase):
     def make_spec(self, z_parallel):
         spec = Spec.from_yaml(
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             af.examples.arches.tpu_v4i,
             jinja_parse_data={"N_EINSUMS": 2, "M": 16, "KN": 16},
         )

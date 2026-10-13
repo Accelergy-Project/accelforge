@@ -203,7 +203,7 @@ class TestArchRender(unittest.TestCase):
 
     def test_render_from_yaml_arch(self):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML files not found")
         spec = Spec.from_yaml(arch_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})

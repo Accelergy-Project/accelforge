@@ -157,10 +157,12 @@ class Spec(EvalableModel):
             st["workload"] = evaluated_workload
 
             if einsum_name is not None:
-                renames = evaluated_workload.einsums[einsum_name].renames
-                st.update(**{k.name: k.source for k in renames})
+                einsum = evaluated_workload.einsums[einsum_name]
+                st.update(**{k.name: k.source for k in einsum.renames})
             else:
                 st.update(evaluated_workload.empty_renames())
+            tags = evaluated_workload._tags_as_bools(einsum_name)
+            st.update(tags)
 
             if eval_arch:
                 evaluated_arch, st = self.arch._eval_expressions(st)

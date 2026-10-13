@@ -15,8 +15,8 @@ from accelforge.model.main import evaluate_mapping
 INPUT_FILES_DIR = Path(__file__).resolve().parent.parent.parent / "input_files"
 LATENCY_ARCH = INPUT_FILES_DIR / "latency.arch.yaml"
 
-FUSED = af.examples.mappings.fused_matmuls_to_simple
-UNFUSED = af.examples.mappings.unfused_matmuls_to_simple
+FUSED = INPUT_FILES_DIR / "fused_matmuls_to_simple.mapping.yaml"
+UNFUSED = INPUT_FILES_DIR / "unfused_matmuls_to_simple.mapping.yaml"
 WEIGHTS_INSIDE = INPUT_FILES_DIR / "fused_matmuls_weights_inside.mapping.yaml"
 TWO_FUSED_LOOPS = INPUT_FILES_DIR / "fused_matmuls_two_fused_loops.mapping.yaml"
 DEEP_THEN_SHALLOW = INPUT_FILES_DIR / "fused_matmuls_deep_then_shallow.mapping.yaml"
@@ -44,7 +44,7 @@ GB = "reservation<SEP>GlobalBuffer<SEP>-1<SEP>left"
 def evaluate(mapping, n_einsums=2, share=True, windup=True, metrics=None, **jinja):
     """All throughputs infinite and all latencies zero unless given in jinja."""
     spec = Spec.from_yaml(
-        af.examples.workloads.basic.matmuls,
+        af.examples.workloads.basic.matmuls_any_einsums,
         LATENCY_ARCH,
         mapping,
         jinja_parse_data={

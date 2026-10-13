@@ -28,7 +28,7 @@
 
   # If N_TOTAL_TOKENS = CHUNK_SIZE, stop us from having a zero there. 
   {% set N_CHUNK_TOKENS = N_TOTAL_TOKENS % CHUNK_SIZE if N_TOTAL_TOKENS % CHUNK_SIZE != 0 else CHUNK_SIZE %}
-  {% set CONTEXT_TOKENS_PER_CHUNK = max(N_CHUNK_TOKENS, N_NEW_TOKENS) - N_NEW_TOKENS %}
+  {% set CONTEXT_TOKENS_PER_CHUNK = [N_CHUNK_TOKENS, N_NEW_TOKENS] | max - N_NEW_TOKENS %}
 
   # If no context makes it into the chunk, it's just a prefill of the next chunk
   {% if CONTEXT_TOKENS_PER_CHUNK == 0 %} {% set _DECODE = False %} {% endif %}
@@ -36,11 +36,11 @@
 
 {% if not _DECODE %}
   {% set N_TOTAL_TOKENS = N_NEW_TOKENS %}
-  {% set N_CHUNKS = ceil(N_TOTAL_TOKENS / CHUNK_SIZE) %}
-  {% set CONTEXT_TOKENS_PER_CHUNK = ceil(N_NEW_TOKENS / N_CHUNKS) %}
+  {% set N_CHUNKS = (N_TOTAL_TOKENS / CHUNK_SIZE) | round(method='ceil') | int %}
+  {% set CONTEXT_TOKENS_PER_CHUNK = (N_NEW_TOKENS / N_CHUNKS) | round(method='ceil') | int %}
 {% endif %}
 
-{% set NEW_TOKENS_PER_CHUNK = ceil(N_NEW_TOKENS / N_CHUNKS) %}
+{% set NEW_TOKENS_PER_CHUNK = (N_NEW_TOKENS / N_CHUNKS) | round(method='ceil') | int %}
 
 workload:
   rank_sizes:

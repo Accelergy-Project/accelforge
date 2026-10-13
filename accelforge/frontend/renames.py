@@ -15,11 +15,6 @@ RankVariable: TypeAlias = str
 Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
-# The "don't care" rank is useful when specifying in a binding that a loop can
-# be over any rank.
-RANK_DUPLICATE: Rank = "DUPLICATE"
-
-
 class Rename(EvalableModel):
     """
     A rename of something into something else.

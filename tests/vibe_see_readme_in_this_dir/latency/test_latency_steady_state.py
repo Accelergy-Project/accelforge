@@ -14,6 +14,7 @@ Einsum does 64 MACs and each tensor is 128 bits.
 import unittest
 
 import accelforge as af
+from tests.vibe_see_readme_in_this_dir.latency.test_latency import INPUT_FILES_DIR
 from tests.vibe_see_readme_in_this_dir.latency.test_latency import (
     LATENCY_ARCH,
     total_latency,
@@ -26,7 +27,7 @@ from tests.vibe_see_readme_in_this_dir.latency.test_parallel_mappings import (
     evaluate,
 )
 
-SIMPLE_MAPPING = af.examples.mappings.fused_matmuls_to_simple
+SIMPLE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_simple.mapping.yaml"
 
 # Every MainMemory and GlobalBuffer action moves one bit per cycle.
 UNIT_THROUGHPUTS = {

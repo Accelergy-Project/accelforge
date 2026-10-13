@@ -23,6 +23,7 @@ LATENCY_ARCH = INPUT_FILES_DIR / "latency.arch.yaml"
 NETWORKED_ARCH = INPUT_FILES_DIR / "networked_latency.arch.yaml"
 NETWORKED_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_networked.mapping.yaml"
 WEIGHTS_INSIDE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_weights_inside.mapping.yaml"
+FUSED_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_simple.mapping.yaml"
 TWO_FUSED_LOOPS_MAPPING = INPUT_FILES_DIR / "fused_matmuls_two_fused_loops.mapping.yaml"
 SHALLOW_THEN_DEEP_MAPPING = (
     INPUT_FILES_DIR / "fused_matmuls_shallow_then_deep.mapping.yaml"
@@ -34,7 +35,7 @@ DEEP_THEN_SHALLOW_MAPPING = (
 
 def make_spec(arch, mapping, n_einsums, **jinja):
     spec = Spec.from_yaml(
-        af.examples.workloads.basic.matmuls,
+        af.examples.workloads.basic.matmuls_any_einsums,
         arch,
         mapping,
         jinja_parse_data={"N_EINSUMS": n_einsums, "M": 4, "KN": 4, **jinja},
@@ -54,14 +55,12 @@ class TestCommunicationLatency(unittest.TestCase):
         """Action latencies add wind-up/down (communication) latency to the total."""
         # With zero action latencies there is no communication latency and the total
         # is the compute steady state: 64 MACs / 1 MAC per second.
-        row = total_latency(
-            LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1
-        )
+        row = total_latency(LATENCY_ARCH, FUSED_MAPPING, 1)
         self.assertEqual(row["Total<SEP>latency"], 64)
 
         row = total_latency(
             LATENCY_ARCH,
-            af.examples.mappings.fused_matmuls_to_simple,
+            FUSED_MAPPING,
             1,
             MM_READ_LATENCY=100,
             MM_WRITE_LATENCY=200,
@@ -86,7 +85,7 @@ class TestCommunicationLatency(unittest.TestCase):
         is serialized."""
         row = total_latency(
             LATENCY_ARCH,
-            af.examples.mappings.fused_matmuls_to_simple,
+            FUSED_MAPPING,
             2,
             MM_READ_LATENCY=100,
             MM_WRITE_LATENCY=200,
@@ -144,7 +143,7 @@ class TestSharedMemoryOverlap(unittest.TestCase):
         Einsum. MainMemory's total busy time still bounds the total either way."""
         row = total_latency(
             LATENCY_ARCH,
-            af.examples.mappings.fused_matmuls_to_simple,
+            FUSED_MAPPING,
             2,
             MM_READ_THROUGHPUT=1,
             MM_WRITE_THROUGHPUT=0.1,
@@ -168,7 +167,7 @@ class TestSharedMemoryOverlap(unittest.TestCase):
         writeback, saving their 64 bit-times versus the shared port's 1664."""
         row = total_latency(
             LATENCY_ARCH,
-            af.examples.mappings.fused_matmuls_to_simple,
+            FUSED_MAPPING,
             2,
             MM_READ_THROUGHPUT=1,
             MM_WRITE_THROUGHPUT=0.1,
@@ -217,8 +216,8 @@ class TestLatencyTimeline(unittest.TestCase):
         from accelforge.plotting.latency import _latency_timeline
 
         scenarios = [
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 427, {}),
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 972, {}),
+            (LATENCY_ARCH, FUSED_MAPPING, 1, 427, {}),
+            (LATENCY_ARCH, FUSED_MAPPING, 2, 972, {}),
             (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 8000, {}),
             # Two fused loop levels with the split below both. The Einsum delays
             # over the 32 m iterations are (30 + 3 + 20) x 32 = 1696 and
@@ -255,7 +254,7 @@ class TestLatencyTimeline(unittest.TestCase):
         blocks, bars, total = _latency_timeline(
             make_spec(
                 LATENCY_ARCH,
-                af.examples.mappings.fused_matmuls_to_simple,
+                FUSED_MAPPING,
                 2,
                 MM_READ_THROUGHPUT=1,
                 MM_WRITE_THROUGHPUT=0.1,
@@ -299,7 +298,7 @@ class TestLatencyTimeline(unittest.TestCase):
         fig, _ = plot_latency(
             make_spec(
                 LATENCY_ARCH,
-                af.examples.mappings.fused_matmuls_to_simple,
+                FUSED_MAPPING,
                 2,
                 MM_READ_THROUGHPUT=1,
                 MM_WRITE_THROUGHPUT=0.1,
@@ -315,7 +314,7 @@ class TestLatencyTimeline(unittest.TestCase):
 
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={"N_EINSUMS": 2, "M": 16, "KN": 16},
         )
         spec.model._share_resource_latency_above_splits = True

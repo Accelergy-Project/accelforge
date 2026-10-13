@@ -7,6 +7,7 @@ from itertools import product
 import itertools
 import logging
 import re
+from collections.abc import Iterable
 from typing import Annotated, Any, TypeAlias
 
 import pydot
@@ -128,7 +129,7 @@ class TensorAccess(EvalableModel):
     backing_storage_size_scale: float = 1.0
     """ If != 1, then the backing storage size will be scaled by this factor. """
 
-    bits_per_value: int | str | None = None
+    bits_per_value: EvalsTo[int | None] = None
     """ Bits per value for this tensor. """
 
     def model_post_init(self, __context__=None) -> None:
@@ -472,6 +473,18 @@ class Einsum(EvalableModel):
     value, but non-persistent reservations are not, as they are assumed to be freed
     between each instance.
     """
+    tags: list[str] = []
+    """
+    Tags of the Einsum. Any number of tags may be given. When evaluating the
+    architecture, every tag is included in the symbol table, evaluating to True if it is
+    in the current Einsum's tags and False if it is in the tags of any other Einsum. 
+    
+    By default, tags also include: 
+    
+    - "has_reduction" if the Einsum performs a reduction 
+    - "matmul_like" if it also has three tensors and only simple rank variables (rank
+      variables that never appear inside an expression).
+    """
 
     def model_post_init(self, __context__=None) -> None:
         if self.name == "Total":
@@ -678,6 +691,7 @@ class Einsum(EvalableModel):
         outputs = self.output_tensor_names
         all_ = inputs | outputs
         persistent = oset(t.name for t in self.tensor_accesses if t.persistent)
+        element_bits = {}
         element_to_child_space = {}
         all_rank_variables = self.rank_variables
         for tensor in self.tensor_names:
@@ -707,6 +721,7 @@ class Einsum(EvalableModel):
             space_type=TensorName,
             child_access_name="rank_variables",
             element_to_child_space=element_to_child_space,
+            full_space_element_to_bits_per_value=element_bits,
         )
         kwargs_rank_variables = dict(
             full_space=all_rank_variables,
@@ -762,7 +777,7 @@ class Einsum(EvalableModel):
         # Put these after the eval because they don't need eval and it slows things
         # down.
         all_renames = oset(r.name for r in evaluated.renames)
-        for t in workload.tensor_names:
+        for t in workload.tensor_names():
             if t not in all_renames:
                 evaluated.renames.append(
                     Rename(name=t, source=InvertibleSet(instance=(), **kwargs_tensors))
@@ -809,7 +824,20 @@ class Einsum(EvalableModel):
                     source_field=f"tensor_accesses[{t.name}].bits_per_value",
                 )
             if t.bits_per_value is None:
-                t.bits_per_value = bits_per_value[t.name]
+                t.bits_per_value = eval_expression(
+                    bits_per_value[t.name],
+                    st,
+                    attr_name=f"bits_per_value[{t.name}]",
+                )
+
+        element_bits.update(
+            {t.name: t.bits_per_value for t in evaluated.tensor_accesses}
+        )
+        for r in evaluated.renames:
+            if isinstance(r.source, InvertibleSet) and all(
+                t in element_bits for t in r.source.instance
+            ):
+                r.source.full_space_element_to_bits_per_value = element_bits
 
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
@@ -877,9 +905,12 @@ class Workload(EvalableModel):
     matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
     """
 
+    _all_tags_from_all_einsums: set[str] | None = None
+
     def _for_einsum(self, einsum_name: EinsumName) -> "Workload":
         """Return a copy of the workload with only the Einsum with the given name."""
         new = self.model_copy(deep=False)
+        new._all_tags_from_all_einsums = self._all_tags()
         new.einsums = EvalableList([e for e in new.einsums if e.name == einsum_name])
         return new
 
@@ -1063,7 +1094,7 @@ class Workload(EvalableModel):
         return " and ".join(exprs)
 
     def _check_consistent_persistent(self):
-        for tensor in self.tensor_names:
+        for tensor in self.tensor_names():
             persistents = oset(
                 e.tensor_accesses[tensor].persistent
                 for e in self.einsums_with_tensor(tensor)
@@ -1075,17 +1106,97 @@ class Workload(EvalableModel):
                     f"all Einsums that use the tensor."
                 )
 
-    @property
-    def tensor_names_used_in_multiple_einsums(self) -> set[TensorName]:
-        """Returns the names of the tensors that are used in multiple Einsums."""
+    def _resolve_einsum_names(
+        self, einsums: str | Iterable[str] | None
+    ) -> oset[EinsumName]:
+        """
+        Normalizes an ``einsums`` argument into an ``oset`` of Einsum names. ``None``
+        means all Einsums in the workload; a bare string means a single Einsum.
+        """
+        if einsums is None:
+            return oset(self.einsum_names)
+        if isinstance(einsums, str):
+            einsums = [einsums]
+        einsums = oset(EinsumName(e) for e in einsums)
+        unknown = einsums - oset(self.einsum_names)
+        if unknown:
+            raise ValueError(
+                f"Unknown Einsum name(s) {sorted(unknown)}. Einsums in this workload "
+                f"are {sorted(self.einsum_names)}."
+            )
+        return einsums
+
+    def tensor_names(
+        self, einsums: str | Iterable[str] | None = None
+    ) -> oset[TensorName]:
+        """
+        Returns the names of tensors in `einsums`, which may be the name of an Einsum,
+        the names of a collection of Einsums, or `None`, meaning all Einsums in the workload.
+        """
+        einsums = self._resolve_einsum_names(einsums)
         return oset(
-            t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1
+            TensorName(t.name)
+            for e in self.einsums
+            if e.name in einsums
+            for t in e.tensor_accesses
         )
 
-    @property
-    def tensor_names(self) -> set[TensorName]:
-        """Returns the names of all tensors in the workload."""
-        return oset(TensorName(t.name) for e in self.einsums for t in e.tensor_accesses)
+    def shared_tensor_names(
+        self, einsums: str | Iterable[str] | None = None
+    ) -> oset[TensorName]:
+        """
+        Returns the names of shared tensors in `einsums`, which may be the name of an Einsum,
+        the names of a collection of Einsums, or `None`, meaning all Einsums in the workload.
+        A tensor is shared if more than one of the given Einsums accesses it.
+        """
+        einsums = self._resolve_einsum_names(einsums)
+        return oset(
+            t
+            for t in self.tensor_names(einsums)
+            if len(oset(e.name for e in self.einsums_with_tensor(t)) & einsums) > 1
+        )
+
+    def tensor_names_used_in_multiple_einsums(
+        self, einsums: str | Iterable[str] | None = None
+    ) -> oset[TensorName]:
+        """
+        Deprecated alias of :meth:`Workload.shared_tensor_names`.
+        """
+        return self.shared_tensor_names(einsums)
+
+    def input_tensors(
+        self, einsums: str | Iterable[str] | None = None
+    ) -> oset[TensorName]:
+        """
+        Returns the names of input tensors in `einsums`, which may be the name of an Einsum,
+        the names of a collection of Einsums, or `None`, meaning all Einsums in the workload.
+        A tensor is an input if none of the given Einsums writes it.
+        """
+        einsums = self._resolve_einsum_names(einsums)
+        return oset(
+            t
+            for t in self.tensor_names(einsums)
+            if not (
+                oset(e.name for e in self.einsums_with_tensor_as_output(t)) & einsums
+            )
+        )
+
+    def output_tensors(
+        self, einsums: str | Iterable[str] | None = None
+    ) -> oset[TensorName]:
+        """
+        Returns the names of output tensors in `einsums`, which may be the name of an Einsum,
+        the names of a collection of Einsums, or `None`, meaning all Einsums in the workload.
+        A tensor is an output if none of the given Einsums reads it.
+        """
+        einsums = self._resolve_einsum_names(einsums)
+        return oset(
+            t
+            for t in self.tensor_names(einsums)
+            if not (
+                oset(e.name for e in self.einsums_with_tensor_as_input(t)) & einsums
+            )
+        )
 
     @property
     def rank_variables(self) -> set[RankVariable]:
@@ -1223,7 +1334,7 @@ class Workload(EvalableModel):
             share indexing rank variables with the key.
         """
         rank2rankvars = {}
-        for tensor in self.tensor_names:
+        for tensor in self.tensor_names():
             for acc in self.accesses_for_tensor(tensor):
                 for rank, rank_vars in acc.rank2rank_variables.items():
                     rank2rankvars.setdefault(rank, oset()).update(rank_vars)
@@ -1295,7 +1406,7 @@ class Workload(EvalableModel):
 
         return get_tensor_size(self, tensor)
 
-    def n_computes(self, einsum_name: str | None = None) -> int:
+    def n_computes(self, einsum_name: str | Iterable[str] | None = None) -> int:
         """
         Returns the number of computes for the given Einsum name, or total computes
         across all Einsums if ``einsum_name`` is ``None``.
@@ -1303,8 +1414,9 @@ class Workload(EvalableModel):
         Parameters
         ----------
         einsum_name:
-            The name of the Einsum. If ``None``, returns the total number of computes
-            across all Einsums.
+            - If a str, returns the number of computes of that Einsum,
+            - If an iterable, returns the total for all the Einsums,
+            - If ``None``, returns the total number of computes of all Einsums.
 
         Returns
         -------
@@ -1314,25 +1426,98 @@ class Workload(EvalableModel):
         from accelforge.frontend._workload_isl._isl import get_operation_space_size
 
         if einsum_name is None:
-            return sum(get_operation_space_size(self, e) for e in self.einsum_names)
-        return get_operation_space_size(self, einsum_name)
+            einsum_name = self.einsum_names
+        elif isinstance(einsum_name, str):
+            einsum_name = [einsum_name]
+        return sum(get_operation_space_size(self, e) for e in einsum_name)
 
-    def get_compute_intensity(self, einsum_name: str) -> float:
+    def einsum_has_reduction(self, einsum_name: str) -> bool:
         """
-        Returns the compute intensity of the given Einsum, defined as the number of
-        computes divided by the total number of tensor elements.
+        Returns whether the given Einsum performs a reduction; that is, whether its
+        number of computes exceeds the number of values in its smallest output tensor.
+        """
+        einsum = self.einsums[einsum_name]
+        n_outputs = min(self.get_tensor_size(t) for t in einsum.output_tensor_names)
+        return self.n_computes(einsum_name) > n_outputs
+
+    def _einsum_tags(self, einsum_name: str) -> set[str]:
+        """
+        Returns the tags of the given Einsum: the tags given by the user plus the
+        default tags "has_reduction" and "matmul_like" where they apply.
+        """
+        einsum = self.einsums[einsum_name]
+        tags = oset(einsum.tags)
+        if self.einsum_has_reduction(einsum_name):
+            tags.add("has_reduction")
+            all_simple = einsum._simple_rank_variables == einsum.rank_variables
+            if len(einsum.tensor_names) == 3 and all_simple:
+                tags.add("matmul_like")
+        return tags
+
+    def _all_tags(self) -> set[str]:
+        """Returns the default tags plus every tag given to any Einsum."""
+        if self._all_tags_from_all_einsums is not None:
+            return self._all_tags_from_all_einsums
+        default_tags = oset(("has_reduction", "matmul_like"))
+        return default_tags.union(*(e.tags for e in self.einsums))
+
+    def _tags_as_bools(self, einsum_name: str | None) -> dict[str, bool]:
+        """
+        Returns every tag of every Einsum, True if the given Einsum has it and False
+        otherwise. All True if no Einsum is given.
+        """
+        every_tag = self._all_tags()
+        tags = every_tag if einsum_name is None else self._einsum_tags(einsum_name)
+        return {t: t in tags for t in every_tag}
+
+    def get_compute_intensity(
+        self, einsum_name: str | Iterable[str] | None = None
+    ) -> float:
+        """
+        Returns the compute intensity of the given Einsum(s), defined as the number of
+        computes divided by the total number of elements in their input and output
+        tensors. Tensors that are internal to the given Einsums (written by one and
+        read by another) are excluded from the denominator.
 
         Parameters
         ----------
         einsum_name:
-            The name of the Einsum.
+            - If a str, the compute intensity of that Einsum,
+            - If an iterable, the compute intensity of that group of Einsums,
+            - If ``None``, the compute intensity of the whole workload.
 
         Returns
         -------
         float
             The compute intensity in #computes / #tensor elements.
         """
-        return self.n_computes(einsum_name) / sum(
-            self.get_tensor_size(tensor)
-            for tensor in self.einsums[einsum_name].tensor_names
+        n_computes = self.n_computes(einsum_name)
+        total_tensor_size = sum(
+            self.get_tensor_size(t)
+            for t in self.input_tensors(einsum_name) | self.output_tensors(einsum_name)
         )
+        if total_tensor_size == 0:
+            raise ValueError(
+                f"Cannot compute the compute intensity of {einsum_name}: it has no "
+                f"input or output tensors."
+            )
+        return n_computes / total_tensor_size
+
+    def get_per_tensor_compute_intensity(self) -> dict[TensorName, float]:
+        """
+        Returns the compute intensity of each tensor, defined as the sum of the number
+        of computes of each Einsum that accesses the tensor, divided by the number of
+        elements in the tensor.
+
+        Returns
+        -------
+        dict[TensorName, float]
+            The compute intensity of each tensor in #computes / #tensor elements.
+        """
+        return {
+            tensor: sum(
+                self.n_computes(e.name) for e in self.einsums_with_tensor(tensor)
+            )
+            / self.get_tensor_size(tensor)
+            for tensor in self.tensor_names()
+        }

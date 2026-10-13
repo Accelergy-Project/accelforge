@@ -1,0 +1,59 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference implementation:
+#     https://huggingface.co/moonshotai/Kimi-K3/blob/f831ab66814297da540d832a5235f8e904f29d06/modeling_kimi_linear.py
+# Tech report:
+#     https://github.com/MoonshotAI/Kimi-K3/blob/main/k3_tech_report.pdf
+#
+# Kimi K3 is a 2.8T-parameter (104B activated) MoE model with 93 decoder layers. The
+# attention is a hybrid of 24 gated multi-head latent attention (MLA) layers and 69 Kimi
+# Delta Attention (KDA) linear-attention layers (config.json#L66-L169), chosen by
+# ATTENTION_TYPE. The feedforward is chosen by FEEDFORWARD_TYPE: 'moe' is the LatentMoE
+# block (routed experts in a lower-dimensional latent space plus shared experts) and
+# 'dense' is the plain GLU MLP used by the first layer.
+#
+# TODO: missing the MLA output gate (mla_use_output_gate, config.json#L174) and the
+#       attention residuals (AttnRes, config.json#L26).
+
+{% set ATTENTION_TYPE = ATTENTION_TYPE | default("mla") %}
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% set ABSORBED = ABSORBED | default(True) %}
+{% assert ATTENTION_TYPE in ['mla', 'kda'], "ATTENTION_TYPE must be 'mla' or 'kda'." %}
+{% set ATTENTION = include("multi_head_latent.yaml", "") if ATTENTION_TYPE == "mla" else include("kimi_delta.yaml", "") %}
+{% assert FEEDFORWARD_TYPE in ['moe', 'dense'], "FEEDFORWARD_TYPE must be 'moe' or 'dense'." %}
+{% set FEEDFORWARD = include("latent_mixture_of_experts_shared.yaml", "") if FEEDFORWARD_TYPE == "moe" else include("gated_linear_unit.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value:
+    # Weights are MXFP4 (4b), except that the quantization ignore list keeps the
+    # attention (both MLA and KDA are self_attn), shared expert, dense MLP, and lm_head
+    # weights in bf16.   config.json#L202-L240
+    {% if FEEDFORWARD_TYPE == "moe" %}
+    WZL: 4    # routed expert down projection into the latent space
+    WFFG: 4   # routed expert gate projection
+    WFFU: 4   # routed expert up projection
+    WFFD: 4   # routed expert down projection
+    WRFFB: 4  # routed expert up projection out of the latent space
+    {% endif %}
+    Other: 16 # bfloat16   config.json#L40
+
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  {% if ATTENTION_TYPE == "mla" %}
+  # Gated MLA: q_a_proj/q_b_proj and kv_a_proj_with_mqa/kv_b_proj give the latent
+  # projections, then scores, then the output projection. The output gate is omitted.
+  {% else %}
+  # KDA (KimiDeltaAttention, modeling_kimi_linear.py#L477): q/k/v, forget-gate (f_a_proj
+  # /f_b_proj), beta (b_proj) and output-gate (g_proj) projections, then the chunkwise
+  # delta rule over the recurrent state, then the output projection.
+  {% endif %}
+  - {{ATTENTION}}.workload.einsums
+  # LatentMoE: routed_expert_down_proj, the routed experts, routed_expert_up_proj, and
+  # the shared experts. Router (KimiMoEGate) is omitted. Dense MLP for the first layer.
+  - {{FEEDFORWARD}}.workload.einsums

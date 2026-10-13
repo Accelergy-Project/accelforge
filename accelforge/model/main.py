@@ -15,7 +15,9 @@ from accelforge.frontend.mapping import (
     Split,
     Nested,
     NodeList,
+    Storage,
     TensorHolder,
+    Toll,
     Loop,
 )
 from accelforge.frontend.workload import Workload
@@ -168,7 +170,7 @@ def _model_pmappings(
 
     # needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
 
-    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    fusable_tensors = spec.workload.shared_tensor_names()
     stride_and_halo = get_stride_and_halo(spec.workload)
 
     assert not getattr(spec, "_evaluated", False), s
@@ -200,11 +202,11 @@ def _model_pmappings(
         # spec, not cur_spec, becuase cur_spec only has one einsum and the delta choices
         # depend on >1 Einsums
         job.initial_delta_choices = get_initial_delta_choices(
-            job.einsum_name, spec.workload
+            job.einsum_name, spec.workload, stride_and_halo
         )
-        pmapping.split_reservations()
-        pmapping.split_loop_with_multiple_rank_variables(job.einsum_name)
-        pmapping.split_tensor_holders_with_multiple_tensors()
+        pmapping._split_reservations()
+        pmapping._split_loop_with_multiple_rank_variables(job.einsum_name)
+        pmapping._split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
 
         job.mapping = pmapping
@@ -216,9 +218,9 @@ def _model_pmappings(
                 job.einsum_name
             ].tensor_names
         }
-        pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
-        pmapping.clear_reservations()
-        pmapping.clear_bindings()
+        pmapping._clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
+        pmapping._clear_reservations()
+        pmapping._clear_bindings()
 
         # component_objects are can become stale from mapper to here
         # if calling just model, they are unset
@@ -359,11 +361,26 @@ def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
 def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
     """
     Remove tensors from Storage nodes that are not relevant to the Einsum being
-    mapped.
+    mapped, and tolls that belong to other Einsums.
     """
     einsum_name = pmapping.nodes[-1].einsum
     einsum = workload.einsums[einsum_name]
     relevant_tensors = oset(t.name for t in einsum.tensor_accesses)
+
+    # Drop duplicated tolls
+    nodes = pmapping.nodes
+    kept: set[tuple[str, TensorName]] = oset()
+    for i, node in enumerate(nodes):
+        if not isinstance(node, Toll):
+            continue
+        for tensor in list(node.tensors):
+            parent_above = any(
+                isinstance(n, Storage) and tensor in n.tensors for n in nodes[:i]
+            )
+            if parent_above and (node.component, tensor) not in kept:
+                kept.add((node.component, tensor))
+            else:
+                node.tensors.remove(tensor)
 
     new_nodes = []
     for node in pmapping.nodes:

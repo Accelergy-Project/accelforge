@@ -48,7 +48,7 @@ MM_BOUND_WITH_DELAY = {
 def evaluate_spec(mapping, n_einsums=2, arch=LATENCY_ARCH, n_instances=None, **jinja):
     """As the helpers' evaluate, with a choice of arch and Matmul0's n_instances."""
     spec = Spec.from_yaml(
-        af.examples.workloads.basic.matmuls,
+        af.examples.workloads.basic.matmuls_any_einsums,
         arch,
         mapping,
         jinja_parse_data={

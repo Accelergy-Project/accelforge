@@ -286,6 +286,7 @@ def valid_tensor_holder_order(
     fusable_tensors: set[TensorName],
     fanouts: dict[str, int],
     remaining_choices: list[TensorHolder],
+    is_copy_op: bool = False,
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
 
@@ -424,6 +425,18 @@ def valid_tensor_holder_order(
                             False,
                             f"{shared} is stored in back-to-back storage nodes, and could have bypassed the outer one.",
                         )
+
+            # Nodes for the same memory level must be back-to-back for copy ops because
+            # we wouldn't store both a full tensor and a partition of the tensor in the
+            # same memory at the same time
+            if is_copy_op and s1 == s2:
+                between = mapping[i + 1 : j]
+                holders_between = [n for n in between if isinstance(n, TensorHolder)]
+                if any(h.component != s1 for h in holders_between):
+                    return (
+                        False,
+                        f"Nodes for memory level {s1} are not back-to-back."
+                    )
 
     for i, m0 in enumerate(mapping):
         for j, m1 in enumerate(mapping[i:]):

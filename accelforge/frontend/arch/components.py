@@ -985,6 +985,22 @@ class Tensors(EvalableModel):
     tensors must be backed.
     """
 
+    min_stored: EvalsTo[int] = 0
+    """
+    The minimum number of tensors that must be stored in this
+    :class:`accelforge.frontend.arch.TensorHolder`. The mapper only explores keep choices
+    that store at least this many tensors. May be an expression, e.g. ``len(All) - 2`` to
+    store all but two tensors.
+    """
+
+    max_stored: EvalsTo[int] = "len(All)"
+    """
+    The maximum number of tensors that must be stored in this
+    :class:`accelforge.frontend.arch.TensorHolder`. The mapper only explores keep choices
+    that store fewer than this many tensors. May be an expression, e.g. ``len(All) - 1`` to
+    store up to all but one tensor.
+    """
+
     tile_shape: EvalableList[Comparison] = []
     """
     The tile shape for each rank variable. This is given as a list of
@@ -1168,6 +1184,12 @@ class Memory(TensorHolder):
 
     size: EvalsTo[int | float]
     """ The size of this `Memory` in bits. """
+
+    min_usage: EvalsTo[int | float] = 0.0
+    """ The minimum usage of this `Memory` as a value from 0 to 1. A mapping
+    is invalid if less than this porportion of the memory is used. Mappers that support
+    it (e.g., FFM) may, if no mappings satisfy this constraint, return the highest-usage
+    mappings. These constraints are disabled for copy Einsums. """
 
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
