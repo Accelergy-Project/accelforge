@@ -80,11 +80,20 @@ def insert_temporal_loops(
                 inserted.add(id(m))
     split_mapping.append(storage_nodes_above_any_loop)
 
-    # All other storage nodes may have loops between them
+    # All other storage nodes may have loops between them, unless its a copy op in which
+    # case we put back-to-back storage nodes for the same component together (so we
+    # don't have both a tensor and a partition of the tensor living in the same memory
+    # at one time).
+    is_copy_op = einsum.is_copy_operation
+    prev_component = None
     for m in mapping:
         if id(m) in inserted:
             continue
-        split_mapping.append([m])
+        if is_copy_op and prev_component == m.component:
+            split_mapping[-1].append(m)
+        else:
+            split_mapping.append([m])
+        prev_component = m.component
 
     for s in split_mapping:
         # Within each split mapping group, sort by arch levels.
@@ -125,7 +134,7 @@ def insert_temporal_loops(
     def _get_next_storages(i: int, toll_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
             assert (
-                len(split_mapping[j]) <= 1
+                len(split_mapping[j]) <= 1 or is_copy_op
             ), f"Mapping: {[m.compact_str() for m in mapping]}"
             # We don't add loops before tolls since they don't reuse things
             if isinstance(split_mapping[j][0], Toll) and not toll_allowed:
@@ -177,6 +186,16 @@ def insert_temporal_loops(
 
         # Can't have loops above persistent tensor holders
         if next_persistent:
+            rank_variables &= oset()
+
+        # Can't have both a tensor and a copied partition of the tensor living in the
+        # same memory at one time
+        if is_copy_op and any(
+            s.component == s2.component
+            for s in prev_storages
+            for group in split_mapping[i + 1 :]
+            for s2 in group
+        ):
             rank_variables &= oset()
 
         # No recomputation: If we haven't seen a tensor yet, must only iterate over

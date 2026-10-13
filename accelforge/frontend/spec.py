@@ -157,10 +157,12 @@ class Spec(EvalableModel):
             st["workload"] = evaluated_workload
 
             if einsum_name is not None:
-                renames = evaluated_workload.einsums[einsum_name].renames
-                st.update(**{k.name: k.source for k in renames})
+                einsum = evaluated_workload.einsums[einsum_name]
+                st.update(**{k.name: k.source for k in einsum.renames})
             else:
                 st.update(evaluated_workload.empty_renames())
+            tags = evaluated_workload._tags_as_bools(einsum_name)
+            st.update(tags)
 
             if eval_arch:
                 evaluated_arch, st = self.arch._eval_expressions(st)
@@ -191,6 +193,7 @@ class Spec(EvalableModel):
         area: bool = True,
         energy: bool = True,
         throughput: bool = True,
+        latency: bool = True,
         leak: bool = True,
     ) -> "Spec":
         """
@@ -218,10 +221,12 @@ class Spec(EvalableModel):
             Whether to compute and populate energy entries.
         throughput : bool, optional
             Whether to compute and populate throughput entries.
+        latency : bool, optional
+            Whether to compute and populate latency entries.
         leak : bool, optional
             Whether to compute and populate leak power entries.
         """
-        if not area and not energy and not throughput and not leak:
+        if not area and not energy and not throughput and not latency and not leak:
             return self
 
         models = hwcomponents.get_models(
@@ -275,6 +280,11 @@ class Spec(EvalableModel):
                 for a in c.actions:
                     orig_action = orig.actions[a.name]
                     orig_action.throughput = a.throughput
+            if latency:
+                c = c.calculate_action_latency(models)
+                for a in c.actions:
+                    orig_action = orig.actions[a.name]
+                    orig_action.latency = a.latency
             if leak:
                 c = c.calculate_leak_power(models)
                 orig.leak_power = c.leak_power
@@ -369,7 +379,8 @@ class Spec(EvalableModel):
         print_progress: bool = True,
         print_number_of_pmappings: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
-    ) -> Mappings:
+        report_statistics: bool = False,
+    ) -> Mappings | tuple[Mappings, dict]:
         """
         Maps the workload to the architecture using the AccelForge Fast and Fusiest
         Mapper (FFM).
@@ -398,11 +409,15 @@ class Spec(EvalableModel):
             A function that takes in a row of the pmapping dataframe and returns True if
             the row should be included in the final mappings, and False otherwise. If
             None, all rows will be included.
+        report_statistics:
+            If True, also return statistics about joining. See
+            `accelforge.mapper.FFM.join_pmappings`.
 
         Returns
         -------
         Mappings
-            The mappings of the workload to the architecture.
+            The mappings of the workload to the architecture. If ``report_statistics``
+            is True, a tuple of the mappings and the joining statistics.
         """
         from accelforge.mapper.FFM.main import map_workload_to_arch
 
@@ -413,6 +428,7 @@ class Spec(EvalableModel):
             print_progress=print_progress,
             print_number_of_pmappings=print_number_of_pmappings,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
+            report_statistics=report_statistics,
         )
 
 

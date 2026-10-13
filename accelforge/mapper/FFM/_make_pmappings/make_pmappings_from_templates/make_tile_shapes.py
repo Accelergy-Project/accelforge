@@ -4,6 +4,7 @@ from math import ceil, prod
 import copy
 import re
 import resource
+import signal
 from sympy.core.symbol import Symbol
 import time
 from typing import Callable, Counter, Optional
@@ -11,6 +12,7 @@ from sympy import Expr, Symbol, factorint, lambdify
 from accelforge import util
 from accelforge._accelerated_imports import np
 from accelforge._accelerated_imports import pd
+from accelforge.frontend import arch
 from accelforge.frontend._workload_isl._symbolic import get_projection_expr
 from accelforge.frontend.mapping.mapping import MappingNode
 from accelforge.frontend.workload import Einsum
@@ -23,6 +25,16 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    SEP,
+    col2commlatency,
+    col2complatency,
+    col2reservation,
+    is_action_col,
+    is_energy_col,
+    is_objective_col,
+    is_usage_col,
+    is_latency_col,
+    is_tensor_col,
     stride2col,
     initial2col,
     iterations2col,
@@ -898,7 +910,7 @@ def get_padded_choices(
             raise ValueError(f"Can't tell if {s} is increasing or decreasing")
         else:
             new_s = 1
-        formula = formula.xreplace({s: new_s})
+        formula = formula.xreplace({s: sympy.sympify(new_s)})
         substitutions[s] = new_s
         for k, v in substitutions.items():
             if v == s:
@@ -929,21 +941,31 @@ def check_loops(
     max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     what_tiles_symbol: SymbolRelations,
 ):
+    def known_or_int(x: Symbol | int):
+        return isinstance(x, int) or isinstance(x, Symbol) and x in symbols_enumerated
+
     def get_size(x: Symbol | int):
-        if isinstance(x, Symbol) and x in symbols_enumerated:
+        if isinstance(x, Symbol):
             return choices_enumerated[:, symbols_enumerated.index(x)]
-        elif isinstance(x, Symbol):
-            return what_tiles_symbol.get_max_size(x)
-        else:
+        elif isinstance(x, int):
             return x
+        raise TypeError(f"cannot get_size object of type: {type(x)}")
 
     def has_fanout(x: Symbol | int):
-        try:
-            outer = get_size(what_tiles_symbol.get_outer_tiles(x))
-        except ValueError:
+        # A loop exists iff the tile shape differs from the one just outside it. Only
+        # count loops for which we can prove that here: if either tile shape is not
+        # enumerated yet, the two may still be chosen equal, and guessing a size for
+        # the un-enumerated one would prune choices that are still valid. Every group
+        # is fully enumerated by the time enumeration finishes, so the count becomes
+        # exact before we return any tile shapes.
+        if isinstance(x, int):
             return False
-        inner = get_size(x)
-        return outer != inner
+        elif isinstance(x, Symbol):
+            outer = what_tiles_symbol.get_outer_tiles(x)
+            if not known_or_int(x) or not known_or_int(outer):
+                return False
+            return get_size(outer) != get_size(x)
+        raise TypeError("cannot if has_fanout an object of type: {type(x)}")
 
     for limit, group in max_loop_check_groups:
         if len(group) <= limit:
@@ -2052,9 +2074,8 @@ def makesymbol(name: str):
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = oset()
     for node in pmapping.nodes:
-        if (
-            (isinstance(node, Loop) and node._fused)
-            or (isinstance(node, Spatial) and node._shared_tensor_binding)
+        if (isinstance(node, Loop) and node._fused) or (
+            isinstance(node, Spatial) and node._shared_tensor_binding
         ):
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
@@ -2327,21 +2348,19 @@ def _make_tile_shapes(job: "Job"):
     # ==================================================================================
     # Memory usage and usage constraints.
     # ==================================================================================
+    # Each resource's usage is its reservation at the first level other Einsums
+    # can never share (the reservation with the most loops). Only that one gets
+    # max_value=1: shallower reservation columns are running subsets of it.
     for k, v in {**per_memory_usage_df, **usage_df}.items():
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
 
-        split = k.split("<SEP>")
-        assert split[0] == "usage", f"invalid {split}"
-        if split[1] == "spatial":
-            assert len(split) == 4
-        elif split[1] == "memory":
-            assert len(split) == 3
-        else:
-            assert False, f"invalid {split}"
+        reservation = col2reservation(k)
+        assert reservation is not None, f"invalid usage column {k}"
+        resource = reservation.name
 
         only_care_if_valid = False
-        if split[2] in job.memories_track_pmappings_only:
+        if resource in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
         # TODO: Update check to see if we may be sharing usage with other
@@ -2364,7 +2383,7 @@ def _make_tile_shapes(job: "Job"):
         # with a different number of objectives).
 
         absolute_tolerance = tolerance
-        if split[-1] not in job.memories_track_pmappings_only:
+        if resource not in job.memories_track_pmappings_only:
             absolute_tolerance /= job.workload_n_einsums
 
         objectives.append(
@@ -2388,16 +2407,40 @@ def _make_tile_shapes(job: "Job"):
         component_name,
         name,
     ), constraint in job.constraints.min_usage_constraints.items():
-        usage_key = f"usage<SEP>spatial<SEP>{component_name}<SEP>{name}"
-        if usage_key not in usage_df:
-            continue
+        n = f"{component_name} {name}"
+        rcols = [(k, col2reservation(k)) for k in usage_df]
+        matches = [r for r in rcols if r[1] is not None and r[1].name == n]
+        assert matches, (
+            f"min_usage constraint on {component_name} {name} matches no usage "
+            f"column; have {sorted(usage_df)}"
+        )
         objectives.append(
             Objective(
                 name=f"min_usage_{component_name}_{name}",
-                formula=usage_df[usage_key],
+                formula=usage_df[max(matches, key=lambda x: x[1].nloops)[0]],
                 symbols=symbols,
                 only_care_if_valid=True,
                 min_value=constraint.min_usage,
+                try_best_if_none_reaches_min=True,
+                terms_do_not_cross_zero=True,
+            )
+        )
+
+    is_copy = job.spec_one_einsum.workload.einsums[job.einsum_name].is_copy_operation
+    for node in job.flattened_arch:
+        if not isinstance(node, arch.Memory) or not node.min_usage or is_copy:
+            continue
+        usage_key = f"usage<SEP>memory<SEP>{node.name}"
+        formula = {**per_memory_usage_df, **usage_df}.get(usage_key)
+        if formula is None:
+            continue
+        objectives.append(
+            Objective(
+                name=f"min_usage_{node.name}",
+                formula=formula,
+                symbols=symbols,
+                only_care_if_valid=True,
+                min_value=node.min_usage,
                 try_best_if_none_reaches_min=True,
                 terms_do_not_cross_zero=True,
             )
@@ -2423,15 +2466,41 @@ def _make_tile_shapes(job: "Job"):
     # transformation of the values between these steps, so error doesn't stack (it's
     # just doing the same pruning, perhaps with a different number of objectives).
     for k, v in symbolic_df.items():
-        if "Total" not in k:
+        # Objectives (total latency, total energy)
+        if is_objective_col(k):
+            pass
+        # Per-component latencies. Include as separate objectives since they may be
+        # overlapped during joining
+        elif col2complatency(k) is not None:
+            pass
+        # Descent/ascent latency columns are identical for all pmappings within a
+        # compatibility
+        elif col2commlatency(k) is not None:
             continue
+        # Handled by reservations above
+        elif col2reservation(k) is not None:
+            continue
+        # Reservation sizes for allocs&frees in joining. The same for all pmappings with
+        # a compatibility, so ignore here
+        elif is_tensor_col(k):
+            continue
+        # For model. Skip.
+        elif (
+            is_latency_col(k) or is_action_col(k) or is_energy_col(k) or is_usage_col(k)
+        ):
+            continue
+        else:
+            raise ValueError(
+                f"Column {k} is not handled by the tile-shape search objective "
+                f"selection. Add it above as an objective (pass) or not (continue)."
+            )
 
         objectives.append(
             Objective(
                 name=k,
                 formula=v,
                 symbols=symbols,
-                terms_do_not_cross_zero="energy" in k or "latency" in k,
+                terms_do_not_cross_zero=is_energy_col(k) or is_latency_col(k),
                 tolerance=job.objective_tolerance,
             )
         )
@@ -2449,10 +2518,18 @@ def _make_tile_shapes(job: "Job"):
         )
 
     rank2symbols = {}
+    spatial_symbol_groups = (
+        {}
+    )  # lists of the tile shape symbols of loops that map to the same arch fanout
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
             if node.tile_shape in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
+        if isinstance(node, Spatial):
+            key = (node.name, node.component)
+            spatial_symbol_groups[key] = spatial_symbol_groups.get(key, []) + [
+                node.tile_shape
+            ]
 
     max_loop_check_groups = [
         (job.spec_one_einsum.mapper.max_fused_loops, all_fused_loops),
@@ -2461,8 +2538,12 @@ def _make_tile_shapes(job: "Job"):
             for x in rank_var_to_fused_loops.values()
         ],
     ]
-
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
+
+    max_loop_check_groups += [
+        (job.spec_one_einsum.mapper.max_loops_per_spatial_dimension, spatial_group)
+        for spatial_group in spatial_symbol_groups.values()
+    ]
 
     alt_objectives_first = n_total_objectives > 1
     choices_enumerated = get_tile_shape_choices(
@@ -2500,11 +2581,11 @@ def _make_tile_shapes(job: "Job"):
     t0 = time.time()
     for key in compiled_df:
         df[key] = call_compiled_objective(compiled_df[key], *choices_float.T)
-        if "latency" in key and "first_latency" not in key:
+        if is_latency_col(key):
             val = [df[key]] if isinstance(df[key], Number) else df[key]
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
-        if "energy" in key:
+        if is_energy_col(key):
             arr = df[key]
             if isinstance(arr, Number):
                 if arr < 0:
@@ -2531,7 +2612,7 @@ def _make_tile_shapes(job: "Job"):
         df = pd.DataFrame(df, columns=df.keys(), index=[0])
     assert not df.isna().any().any()
 
-    energy_cols = [c for c in df.columns if "energy" in c]
+    energy_cols = [c for c in df.columns if is_energy_col(c)]
     if (df[energy_cols] < 0).any(axis=None):
         for col in energy_cols:
             series = df[col]
@@ -2558,6 +2639,10 @@ def _make_tile_shapes(job: "Job"):
     return df, tensor2mapping
 
 
+def _raise_timeout(signum, frame):
+    raise TimeoutError()
+
+
 def make_tile_shapes(job: "Job"):
     memory_limit = job.memory_limit // 8  # Bytes -> bits
     if job.memory_limit != float("inf"):
@@ -2569,9 +2654,10 @@ def make_tile_shapes(job: "Job"):
 
     if job.time_limit != float("inf"):
         try:
-            resource.setrlimit(
-                resource.RLIMIT_CPU, (ceil(job.time_limit), ceil(job.time_limit))
-            )
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            soft = ceil(usage.ru_utime + usage.ru_stime + job.time_limit)
+            signal.signal(signal.SIGXCPU, _raise_timeout)
+            resource.setrlimit(resource.RLIMIT_CPU, (soft, resource.RLIM_INFINITY))
         except (ValueError, OSError):
             # Ignore permission errors when trying to set CPU limits
             pass
@@ -2611,6 +2697,7 @@ def make_tile_shapes(job: "Job"):
             resource.setrlimit(
                 resource.RLIMIT_CPU, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
             )
+            signal.signal(signal.SIGXCPU, signal.SIG_DFL)
         except (ValueError, OSError):
             # Ignore permission errors when trying to reset CPU limits
             pass

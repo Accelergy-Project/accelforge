@@ -25,7 +25,7 @@ _PF = {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 256}
 REGRESSION_CASES = {
     af.examples.arches.simple: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -51,7 +51,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.eyeriss: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -77,7 +77,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.simba: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -103,7 +103,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.tpu_v4i: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -127,11 +127,8 @@ REGRESSION_CASES = {
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
     ],
-    # snowcat: broad workload-coverage smoke -- ENERGY objective + unfused (see
-    # ENERGY_UNFUSED_ARCHES), one representative config per example workload, to catch
-    # load/map regressions across every workload at low cost.
     af.examples.arches.snowcat: [
-        {"workload": af.examples.workloads.basic.matmuls, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
+        {"workload": af.examples.workloads.basic.matmuls_any_einsums, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
         {"workload": af.examples.workloads.basic.matvecs},
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
         {"workload": af.examples.workloads.cnns.mobilenet.mobilenet_28},
@@ -171,7 +168,7 @@ def _key(arch, workload, fused):
     )
 
 
-def _run(arch, workload, fused, print_progress: bool = True):
+def _run(arch, workload, fused):
     spec = Spec.from_yaml(
         arch,
         workload["workload"],
@@ -186,7 +183,7 @@ def _run(arch, workload, fused, print_progress: bool = True):
             if isinstance(node, af.arch.Memory):
                 node.tensors.keep = "All"
                 break
-    mappings = spec.map_workload_to_arch(print_progress=print_progress)
+    mappings = spec.map_workload_to_arch(one_pbar_only=True)
     m = mappings[0]
     return cast(
         {
@@ -215,7 +212,7 @@ def generate(fusion_choices=(False, True)):
     from accelforge.util import parallel, delayed, get_n_parallel_jobs
 
     jobs = {
-        key: delayed(_run)(arch, workload, fused, print_progress=not PARALLEL_GENERATE)
+        key: delayed(_run)(arch, workload, fused)
         for key, arch, workload, fused in _cases(fusion_choices)
     }
     n_jobs = 1 if not PARALLEL_GENERATE else get_n_parallel_jobs()
@@ -317,7 +314,7 @@ class TestHWComponentsConsistency(unittest.TestCase):
         for name, arch_path in arches.items():
             spec = Spec.from_yaml(
                 arch_path,
-                af.examples.workloads.basic.matmuls,
+                af.examples.workloads.basic.matmuls_any_einsums,
                 jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
             )
             spec = spec.calculate_component_costs(einsum_name="Matmul0")
@@ -416,7 +413,7 @@ def generate_hwcomponents():
     for name, arch_path in arches.items():
         spec = Spec.from_yaml(
             arch_path,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         spec = spec.calculate_component_costs(einsum_name="Matmul0")

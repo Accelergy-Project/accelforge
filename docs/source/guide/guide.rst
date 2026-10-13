@@ -72,7 +72,7 @@ The examples directory contains:
 - **arches/** - Example architecture specifications, including various published and
   commercial accelerators
 - **workloads/** - Example workload specifications including matrix multiplications,
-  convolutions, and transformer models
+  convolutions, CNNs, and transformer models.
 - **mappings/** - Example mapping specifications
 
 **Architecture:** An architecture specification defines the hardware structure,

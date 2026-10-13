@@ -341,14 +341,14 @@ arch:
     leak_power: 0
     area: 0
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 
 workload:
   rank_sizes: {M: 16}
@@ -386,14 +386,14 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         mem = spec.arch.find("Mem")
@@ -411,14 +411,14 @@ arch:
     area: 0
     tensors: {keep: input | output}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         mem = spec.arch.find("Mem")
@@ -437,8 +437,8 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Memory
     name: Buffer
     size: inf
@@ -446,14 +446,14 @@ arch:
     area: 0
     tensors: {keep: ~MainMemory.tensors, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         buf = spec.arch.find("Buffer")
@@ -608,7 +608,9 @@ class TestTollParsed(unittest.TestCase):
             direction="up",
             leak_power=0,
             area=0,
-            actions=[{"name": "read", "energy": 1, "latency": 0}],
+            actions=[
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0}
+            ],
         )
         self.assertEqual(t.direction, "up")
 
@@ -636,19 +638,28 @@ class TestTollParsed(unittest.TestCase):
 
 
 class TestMemoryTotalLatency(unittest.TestCase):
-    """Test that total_latency expression is stored on Memory."""
+    """total_latency was removed: setting it errors, and separate read/write
+    ports are expressed with separate_read_write_ports."""
 
-    def test_total_latency_expression(self):
-        """The TPU GlobalBuffer uses a throughput-based total_latency expression."""
+    def test_total_latency_raises(self):
+        with self.assertRaisesRegex(Exception, "total_latency was removed"):
+            Memory(
+                name="GB",
+                size=1024,
+                leak_power=0,
+                area=0,
+                total_latency="max(a.n_calls / a.throughput for a in actions)",
+            )
+
+    def test_separate_read_write_ports(self):
+        """The TPU GlobalBuffer models its separate ports with the attribute."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
         wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(arch_path, wl_path)
         gb = spec.arch.find("GlobalBuffer")
-        self.assertEqual(
-            gb.total_latency, "max(a.n_calls / a.throughput for a in actions)"
-        )
+        self.assertTrue(gb.separate_read_write_ports)
 
 
 class TestEnabledField(unittest.TestCase):
@@ -659,7 +670,7 @@ class TestEnabledField(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertTrue(c.enabled)
 
@@ -668,7 +679,7 @@ class TestEnabledField(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             enabled="len(All) == 3",
         )
         self.assertEqual(c.enabled, "len(All) == 3")
@@ -751,8 +762,13 @@ class TestFanoutVariationsParsed(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(mem.get_fanout(), 1)
@@ -992,6 +1008,7 @@ class TestConciseVsVerboseEquivalence(unittest.TestCase):
                     dict(v_ta.projection),
                     f"{c_ta.name} in {c_e.name}",
                 )
+
 
 if __name__ == "__main__":
     unittest.main()

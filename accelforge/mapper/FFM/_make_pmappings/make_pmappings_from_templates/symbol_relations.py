@@ -180,8 +180,11 @@ class SymbolRelations:
         return relation
 
 
-def get_initial_delta_choices(einsum_name: str, workload: Workload):
-    stride_and_halo = get_stride_and_halo(workload)
+def get_initial_delta_choices(
+    einsum_name: str, workload: Workload, stride_and_halo: dict | None = None
+):
+    if stride_and_halo is None:
+        stride_and_halo = get_stride_and_halo(workload)
     einsum = workload.einsums[einsum_name]
 
     choices = defaultdict(lambda: oset([0]))

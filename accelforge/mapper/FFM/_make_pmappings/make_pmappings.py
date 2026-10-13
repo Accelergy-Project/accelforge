@@ -26,6 +26,9 @@ from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates import (
     make_pmapping_templates,
 )
 from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.mapper.FFM._make_pmappings.drop_less_fused_pmappings_that_are_worse import (
+    drop_less_fused_pmappings_that_are_worse,
+)
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import (
     make_pmappings_from_templates,
 )
@@ -89,7 +92,7 @@ def get_jobs(
     spec = spec
 
     einsum2jobs = {}
-    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    fusable_tensors = spec.workload.shared_tensor_names()
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
@@ -164,7 +167,7 @@ def get_jobs(
 
     stride_and_halo = get_stride_and_halo(spec.workload)
     initial_delta_chocies = {
-        e: get_initial_delta_choices(e, spec.workload)
+        e: get_initial_delta_choices(e, spec.workload, stride_and_halo)
         for e in spec.workload.einsum_names
     }
 
@@ -232,19 +235,23 @@ def get_jobs(
     return einsum2jobs
 
 
-def get_memories_to_track(
+def get_components_to_track(
     spec: Spec,
     einsum2jobs: dict[EinsumName, list[Job]],
     metrics: Metrics,
     can_combine_multiple_runs: bool,
     print_progress: bool = True,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], set[str], set[str]]:
 
     memories_track_all = oset()
+    components_track_latency = oset()
     for einsum, jobs in einsum2jobs.items():
         for job in jobs:
             memories_track_all.update(
                 m.name for m in job.flattened_arch if isinstance(m, arch.Memory)
+            )
+            components_track_latency.update(
+                m.name for m in job.flattened_arch if isinstance(m, arch.TensorHolder)
             )
 
     memories_track_pmappings_only = []
@@ -258,6 +265,7 @@ def get_memories_to_track(
             memories_track_all,
             memories_track_pmappings_only,
             ignored_resources,
+            components_track_latency,
         )
 
     tensor_sizes = {}
@@ -269,7 +277,7 @@ def get_memories_to_track(
         tensor_sizes[tensor] = size * scale
 
     # If the memory is big enough to hold all the tensors then we don't need to consider
-    # it
+    # it. Memories with a min_usage must stay tracked so the constraint can be checked.
     for memory in list(memories_track_all):
         usage = 0
         for einsum in einsum2jobs.keys():
@@ -278,6 +286,8 @@ def get_memories_to_track(
                 mem: arch.Memory = job.spec_one_einsum.arch.find(memory)
             except ValueError:
                 continue
+            if mem.min_usage:
+                usage = 2
             for tensor in spec.workload.einsums[einsum].tensor_names:
                 if mem.size == 0:
                     usage = 2  # FAIL
@@ -300,24 +310,23 @@ def get_memories_to_track(
                 )
             memories_track_all.remove(memory)
 
+    # A component is shared across Einsums if it's above any fused loops or it's backing
+    shared_components = oset()
+    for jobs in einsum2jobs.values():
+        for job in jobs:
+            seen = oset()
+            for node in job.mapping.nodes:
+                if isinstance(node, TensorHolder):
+                    seen.add(node.component)
+                    if node._backing or node.persistent:
+                        shared_components.add(node.component)
+                if isinstance(node, Loop) and node._fused:
+                    shared_components.update(seen)
+
     # If the memory is below every backing tensor holder node, then we need it for the
     # pmapping exploration but can drop it immediately
     for m in list(memories_track_all):
-        must_track = False
-        for _, jobs in einsum2jobs.items():
-            for job in jobs:
-                seen = False
-                for node in job.mapping.nodes:
-                    if isinstance(node, TensorHolder) and node.component == m:
-                        seen = True
-                        if node.persistent:
-                            ignored_resources.add(m)
-                        if node._backing:
-                            must_track = True
-                    if isinstance(node, Loop) and node._fused and seen:
-                        must_track = True
-
-        if not must_track:
+        if m not in shared_components:
             memories_track_all.remove(m)
             memories_track_pmappings_only.append(m)
             if print_progress:
@@ -326,7 +335,25 @@ def get_memories_to_track(
                     f"reserved across fused loop iterations."
                 )
 
-    return memories_track_all, memories_track_pmappings_only, ignored_resources
+    # A component's latency can only be shared with other Einsums if the component's
+    # reservations may be shared.
+    # PIPELINE: This would have to change
+    for m in list(components_track_latency):
+        if m not in shared_components:
+            components_track_latency.remove(m)
+            if print_progress:
+                print(
+                    f"Not tracking latency for component {m}. It never holds tensors "
+                    f"at or above a backing storage node, so its latency is private "
+                    f"to each Einsum."
+                )
+
+    return (
+        memories_track_all,
+        memories_track_pmappings_only,
+        ignored_resources,
+        components_track_latency,
+    )
 
 
 def make_pmappings(
@@ -409,12 +436,27 @@ def make_pmappings(
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
         keep_rates.extend(cur_keep_rates)
 
-    for einsum_name in list(pmapping_groups.keys()):
-        pmapping_groups[einsum_name] = PmappingGroup.combine_combineable(
-            pmapping_groups[einsum_name],
-            "All",
-            pbar_postfix=f" for {einsum_name}",
-            print_progress=print_progress,
+    grouped = {
+        einsum_name: PmappingGroup.combine_combineable(
+            groups, "All", print_progress=False, delay=True
+        )
+        for einsum_name, groups in pmapping_groups.items()
+    }
+    concat_jobs = [
+        (einsum_name, job) for einsum_name, (_, jobs) in grouped.items() for job in jobs
+    ]
+    combined = parallel(
+        [job for _, job in concat_jobs],
+        pbar="Combining pmappings" if print_progress else None,
+    )
+    for einsum_name, (singles, _) in grouped.items():
+        pmapping_groups[einsum_name] = singles
+    for (einsum_name, _), group in zip(concat_jobs, combined):
+        pmapping_groups[einsum_name].append(group)
+
+    if spec.mapper.drop_less_fused_pmappings_that_are_worse:
+        drop_less_fused_pmappings_that_are_worse(
+            pmapping_groups, einsum2jobs, print_progress
         )
 
     return_jobs = {
@@ -477,17 +519,21 @@ def _fill_jobs_with_memories_to_track(
         e: [j for jobs in v.values() for j in jobs] for e, v in einsum2jobs.items()
     }
 
-    memories_track_all, memories_track_pmappings_only, ignored_resources = (
-        get_memories_to_track(
-            spec,
-            einsum2jobs_flattened,
-            metrics,
-            can_combine_multiple_runs,
-            print_progress,
-        )
+    (
+        memories_track_all,
+        memories_track_pmappings_only,
+        ignored_resources,
+        components_track_latency,
+    ) = get_components_to_track(
+        spec,
+        einsum2jobs_flattened,
+        metrics,
+        can_combine_multiple_runs,
+        print_progress,
     )
     for jobs in einsum2jobs_flattened.values():
         for j in jobs:
             j.memories_track_all = memories_track_all
             j.memories_track_pmappings_only = memories_track_pmappings_only
             j.ignored_resources = ignored_resources
+            j.components_track_latency = components_track_latency

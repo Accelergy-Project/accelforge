@@ -18,7 +18,7 @@ arch:
     bits_per_value: {All: 4}
     bits_per_action: 16
     actions:
-    - {name: read, energy: 100, latency: 0}
+    - {name: read, energy: 100, throughput: inf, latency: 0}
 
   - !Memory
     name: LocalBuffer

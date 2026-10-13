@@ -37,6 +37,7 @@ from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
+    EvalableDict,
     EvalableModel,
     EvalableList,
     EvalsTo,
@@ -68,6 +69,7 @@ NodeList: TypeAlias = EvalableList[
             Annotated["Reservation", Tag("Reservation")],
             Annotated["Mapping", Tag("Mapping")],
             Annotated["Toll", Tag("Toll")],
+            Annotated["TextBox", Tag("TextBox")],
         ],
         Discriminator(_get_tag),
     ]
@@ -96,6 +98,9 @@ class MappingNode(EvalableModel):
     node, etc.
     """
 
+    text: str | None = None
+    """ If not None, overrides the text shown in the rendered node. """
+
     _constraint_lambdas: List[Callable[[], bool]] = []
     """ Constraints that apply to this node. """
 
@@ -119,9 +124,10 @@ class MappingNode(EvalableModel):
 
     def _render_node(self, **kwargs) -> str:
         """Render this node using Pydot."""
+        label = self._render_node_label(**kwargs) if self.text is None else self.text
         return pydot.Node(
             self._render_node_name(),
-            label=self._render_node_label(**kwargs),
+            label=label,
             shape=self._render_node_shape(),
             style="filled",
             fillcolor=self._render_node_color(),
@@ -162,6 +168,13 @@ class MappingNode(EvalableModel):
                     nodes.append(node)
                 if isinstance(node, MappingNodeWithChildren):
                     nodes.extend(node.get_nodes_of_type(types))
+        return nodes
+
+    def get_all_children(self) -> list["MappingNode"]:
+        nodes: list["MappingNode"] = []
+        for node in self._flatten():
+            if node is not self:
+                nodes.append(node)
         return nodes
 
     def _flatten(self) -> list["MappingNode"]:
@@ -325,7 +338,7 @@ class Loop(MappingNode):
     :class:`~.Spatial`.
     """
 
-    rank_variable: set[RankVariable] | RankVariable
+    rank_variable: set[RankVariable] | RankVariable | None = None
     """ The rank variable(s) iterated over in this loop. This may be a
     single rank variable, or a set of rank variables if the loop is shared between
     multiple Einsums.
@@ -491,10 +504,10 @@ class Temporal(Loop):
 class Spatial(Loop):
     """A spatial :class:`~.Loop`."""
 
-    name: int | str
+    name: int | str | None = None
     """ The dimension over which the spatial is occuring. """
 
-    component: str
+    component: str | None = None
     """ The component name across which different spatial iterations occur. """
 
     component_object: NoParse[arch.ArchNode] = None
@@ -550,10 +563,10 @@ class Spatial(Loop):
 class TensorHolder(MappingNode):
     """A node that represents a hardware Component holding a set of tensors."""
 
-    tensors: EvalableList[TensorName]
+    tensors: EvalableList[TensorName] = EvalableList()
     """ The names of the tensors being held in this node. """
 
-    component: str
+    component: str | None = None
     """ The name of the component holding the tensors. """
 
     component_object: NoParse[arch.TensorHolder] = None
@@ -641,7 +654,7 @@ class Storage(TensorHolder):
     A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
     """
 
-    binding: EvalableList[Spatial] = []
+    binding: EvalableDict[EinsumName, Spatial] = []
     """
     Spatial loops that make up the binding of the tensor. Should only be used
     if `tensors` only has one tensor.
@@ -657,6 +670,13 @@ class Storage(TensorHolder):
             )
 
         return super()._merge(other)
+
+    @override
+    def compact_str(self):
+        s = super().compact_str()
+        if self.binding:
+            s += f"-{self.binding}"
+        return s
 
 
 class Toll(TensorHolder):
@@ -683,10 +703,10 @@ class Compute(MappingNode):
     """A node that represents a compute operation. These nodes are the leaves of the
     LoopTree."""
 
-    einsum: str
+    einsum: str | None = None
     """ The Einsum being computed. """
 
-    component: str
+    component: str | None = None
     """ The name of the compute component performing the computation. """
 
     component_object: NoParse[arch.Compute | None] = None
@@ -705,6 +725,19 @@ class Compute(MappingNode):
 
     def _render_node_color(self) -> str:
         return "#E0EEFF"
+
+
+class TextBox(MappingNode):
+    """A text box."""
+
+    text: str
+    """ The text to show. """
+
+    def __str__(self) -> str:
+        return self.text
+
+    def _render_node_shape(self) -> str:
+        return "none"
 
 
 class MappingNodeWithChildren(MappingNode):
@@ -740,8 +773,9 @@ class MappingNodeWithChildren(MappingNode):
 
     @override
     def _get_backers(self) -> list[TensorHolder]:
+        """Returns all backers among children of this node."""
         backing = []
-        for child in self.nodes:
+        for child in self.get_all_children():
             if isinstance(child, TensorHolder) and child._backing:
                 backing.append(child)
             elif isinstance(child, MappingNodeWithChildren):
@@ -1030,6 +1064,12 @@ class Nested(MappingNodeWithChildren):
         return self.nodes[0]._render_node_name()
 
     def _get_n_shared_loops(self, other: "Nested") -> int:
+        """
+        Return the number of loops in `self` above backers of shared tensors. These
+        backers are assumed to be at the top segment (not under any split). When
+        used to determine number of shared loops, one must be certain that the
+        loops are indeed the same since this method does not check that.
+        """
         my_backing = oset(
             (t, s.component) for s in self._get_backers() for t in s._backing
         )
@@ -1042,26 +1082,17 @@ class Nested(MappingNodeWithChildren):
             return 0
 
         n_shared_loops = 0
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             if isinstance(node, Loop):
                 n_shared_loops += 1
-            if (
+            elif (
                 isinstance(node, Reservation)
                 and (node.purpose, node.resource) in shared_backing
             ):
-                return n_shared_loops
-            if isinstance(node, Split):
-                for child in node.nodes:
-                    max_child_n_shared_loops = 0
-                    try:
-                        max_child_n_shared_loops = max(
-                            max_child_n_shared_loops, child._get_n_shared_loops(other)
-                        )
-                    except ValueError:
-                        pass
-                    return max_child_n_shared_loops + n_shared_loops
-
-        raise ValueError("BUG")
+                shared_backing.remove((node.purpose, node.resource))
+                if len(shared_backing) == 0:
+                    return n_shared_loops
+        return n_shared_loops
 
     def _break_into_reorderable_groups(
         self, stop_at_n_loops: int
@@ -1628,16 +1659,27 @@ MappingNodeTypes: TypeAlias = Union[
 class Mapping(Nested):
     """A Mapping of a workload onto a hardware architecture."""
 
+    title: str | None = None
+    """ If not None, a title shown above rendered figures. """
+
     _n_loop_orders: int | None = None
     """ Used for counting number of unique mappings. Do not touch. """
 
     _template_index: int | None = None
     """ Used for tracking which mapping is which. """
 
-    def remove_reservations(self):
-        self.nodes = [n for n in self.nodes if not isinstance(n, Reservation)]
+    _connections: list[tuple[MappingNode, MappingNode, str | None]] = []
+    """ Extra edges drawn when rendering. """
 
-    def split_reservations(self):
+    def add_connection(
+        self, a: MappingNode, b: MappingNode, text: str | None = None
+    ) -> None:
+        """
+        Adds an extra edge from node ``a`` to node ``b`` when rendering the mapping.
+        """
+        self._connections.append((a, b, text))
+
+    def _split_reservations(self):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Reservation):
@@ -1649,7 +1691,7 @@ class Mapping(Nested):
                 new_nodes.append(node)
         self.nodes = new_nodes
 
-    def split_loop_with_multiple_rank_variables(self, einsum_name: EinsumName):
+    def _split_loop_with_multiple_rank_variables(self, einsum_name: EinsumName):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
@@ -1665,7 +1707,7 @@ class Mapping(Nested):
                 new_nodes.append(node)
         self.nodes = new_nodes
 
-    def clear_irrelevant_reservations(self, relevant_tensors: set[TensorName]):
+    def _clear_irrelevant_reservations(self, relevant_tensors: set[TensorName]):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Reservation):
@@ -1677,13 +1719,13 @@ class Mapping(Nested):
                 if node.tensors:
                     new_nodes.append(node)
             elif isinstance(node, MappingNodeWithChildren):
-                node.clear_irrelevant_reservations(relevant_tensors)
+                node._clear_irrelevant_reservations(relevant_tensors)
                 new_nodes.append(node)
             else:
                 new_nodes.append(node)
         self.nodes = new_nodes
 
-    def clear_reservations(self):
+    def _clear_reservations(self):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Reservation):
@@ -1691,12 +1733,12 @@ class Mapping(Nested):
             new_nodes.append(node)
         self.nodes = new_nodes
 
-    def clear_bindings(self):
+    def _clear_bindings(self):
         for node in self.nodes:
             if isinstance(node, Storage):
                 node.binding = EvalableList()
 
-    def split_tensor_holders_with_multiple_tensors(self):
+    def _split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, TensorHolder) and len(node.tensors) > 1:
@@ -1774,7 +1816,7 @@ class Mapping(Nested):
         color_map = ColorMap(sorted(color_keys))
 
         for node in all_nodes:
-            if isinstance(node, (TensorHolder, Reservation)):
+            if isinstance(node, (TensorHolder, Reservation)) and node.text is None:
                 graph_nodes = graph.get_node(node._render_node_name())
                 for graph_node in graph_nodes:
                     # Set HTML-like label for color support
@@ -1796,6 +1838,29 @@ class Mapping(Nested):
         for parent_name, child_name in added_edges:
             if parent_name is not None:
                 graph.add_edge(pydot.Edge(parent_name, child_name))
+
+        for a, b, text in self._connections:
+            for node in (a, b):
+                if not any(n is node for n in all_nodes):
+                    name = node.text if node.text is not None else repr(node)
+                    raise ValueError(
+                        f"Connection endpoint {name!r} is not a node in this mapping."
+                    )
+            if isinstance(a, exclude_types) or isinstance(b, exclude_types):
+                continue
+            graph.add_edge(
+                pydot.Edge(
+                    a._render_node_name(),
+                    b._render_node_name(),
+                    label=text or "",
+                    style="dashed",
+                    constraint="false",
+                )
+            )
+
+        if self.title is not None:
+            graph.set_label(self.title)
+            graph.set_labelloc("t")
         return graph
 
     def render(self, with_reservations=True, with_tile_shape=True) -> _SVGJupyterRender:

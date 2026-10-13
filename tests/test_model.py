@@ -18,7 +18,7 @@ class TestInvalidMapping(unittest.TestCase):
         KN = 64
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml",
             "tests/input_files/mapping/invalid_matmul_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -40,13 +40,13 @@ class TestModel(unittest.TestCase):
         result = evaluate_mapping(spec)
         energy_breakdown = result.energy(per_component=True, per_tensor=True)
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T0")], M * KN * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "I")], M * KN * BITS_PER_VALUE
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T1")], M * KN * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "A")], M * KN * BITS_PER_VALUE
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "W0")], KN**2 * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "WA")], KN**2 * BITS_PER_VALUE
         )
 
     def test_bits_per_value_directly_sets(self):
@@ -62,21 +62,21 @@ class TestModel(unittest.TestCase):
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
 
-        # Set bits_per_value on MainMemory to override T0's bpv to 4
-        spec.arch["MainMemory"].bits_per_value = {"T0": OVERRIDE_BPV}
+        # Set bits_per_value on MainMemory to override I's bpv to 4
+        spec.arch["MainMemory"].bits_per_value = {"I": OVERRIDE_BPV}
 
         result = evaluate_mapping(spec)
         energy_breakdown = result.energy(per_component=True, per_tensor=True)
-        # T0 should use OVERRIDE_BPV (4) instead of WORKLOAD_BPV (8)
+        # I should use OVERRIDE_BPV (4) instead of WORKLOAD_BPV (8)
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T0")], M * KN * OVERRIDE_BPV
+            energy_breakdown[("MainMemory", "I")], M * KN * OVERRIDE_BPV
         )
-        # T1 and W0 should still use the workload's bits_per_value (8)
+        # A and WA should still use the workload's bits_per_value (8)
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T1")], M * KN * WORKLOAD_BPV
+            energy_breakdown[("MainMemory", "A")], M * KN * WORKLOAD_BPV
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "W0")], KN**2 * WORKLOAD_BPV
+            energy_breakdown[("MainMemory", "WA")], KN**2 * WORKLOAD_BPV
         )
 
     def test_bits_per_value_all_tensors(self):
@@ -96,13 +96,13 @@ class TestModel(unittest.TestCase):
         result = evaluate_mapping(spec)
         energy_breakdown = result.energy(per_component=True, per_tensor=True)
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T0")], M * KN * OVERRIDE_BPV
+            energy_breakdown[("MainMemory", "I")], M * KN * OVERRIDE_BPV
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T1")], M * KN * OVERRIDE_BPV
+            energy_breakdown[("MainMemory", "A")], M * KN * OVERRIDE_BPV
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "W0")], KN**2 * OVERRIDE_BPV
+            energy_breakdown[("MainMemory", "WA")], KN**2 * OVERRIDE_BPV
         )
 
     def test_skip_initial_output_write_false(self):
@@ -122,15 +122,15 @@ class TestModel(unittest.TestCase):
         energy_breakdown = result.energy(per_component=True, per_tensor=True)
         # Input and weight energy unchanged
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T0")], M * KN * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "I")], M * KN * BITS_PER_VALUE
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "W0")], KN**2 * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "WA")], KN**2 * BITS_PER_VALUE
         )
         # Output energy doubles: the initial fill from MainMemory is no longer
         # skipped, so MainMemory sees both the fill read and the writeback write.
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "T1")], 2 * M * KN * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "A")], 2 * M * KN * BITS_PER_VALUE
         )
 
     def test_two_matmuls(self):

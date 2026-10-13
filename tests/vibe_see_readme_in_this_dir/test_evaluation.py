@@ -55,15 +55,32 @@ class TestSpecEvalExpressions(unittest.TestCase):
                         name="MainMemory",
                         size=1_000_000,
                         actions=[
-                            {"name": "read", "energy": 1, "latency": 0},
-                            {"name": "write", "energy": 1, "latency": 0},
+                            {
+                                "name": "read",
+                                "energy": 1,
+                                "throughput": float("inf"),
+                                "latency": 0,
+                            },
+                            {
+                                "name": "write",
+                                "energy": 1,
+                                "throughput": float("inf"),
+                                "latency": 0,
+                            },
                         ],
                         leak_power=0,
                         area=0,
                     ),
                     Compute(
                         name="MAC",
-                        actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                        actions=[
+                            {
+                                "name": "compute",
+                                "energy": 1,
+                                "throughput": 1,
+                                "latency": 0,
+                            }
+                        ],
                         leak_power=0,
                         area=0,
                     ),
@@ -317,7 +334,7 @@ class TestJinjaEvaluation(unittest.TestCase):
     """Test that Jinja2 templating works during spec evaluation."""
 
     def test_jinja_variable_substitution(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(
@@ -326,7 +343,7 @@ class TestJinjaEvaluation(unittest.TestCase):
         self.assertEqual(len(spec.workload.einsums), 2)
 
     def test_jinja_three_einsums(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 3})
@@ -358,7 +375,7 @@ class TestMultiFileSpecEval(unittest.TestCase):
 
     def test_load_arch_and_workload(self):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML files not found")
         spec = Spec.from_yaml(arch_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -475,6 +492,7 @@ class TestConciseVerboseEquivalence(unittest.TestCase):
                 v_einsum.tensor_names,
                 f"Tensor names differ for {c_einsum.name}",
             )
+
 
 if __name__ == "__main__":
     unittest.main()

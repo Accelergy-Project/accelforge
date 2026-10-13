@@ -40,17 +40,14 @@ def gather_actions(
         else:
             level = bindings[level]
 
-        key = buffet_keyer(buffet, "read")
-        if key not in actions:
-            actions[key] = ActionCount.default()
-        actions[key].total += accesses.net_total_read_actions()
-        actions[key].max_per_unit += accesses.net_max_per_unit_read_actions()
-
-        key = buffet_keyer(buffet, "write")
-        if key not in actions:
-            actions[key] = ActionCount.default()
-        actions[key].total += accesses.net_total_write_actions()
-        actions[key].max_per_unit += accesses.net_max_per_unit_write_actions()
+        net_total = accesses.net_total_actions()
+        net_max_per_unit = accesses.net_max_per_unit_actions()
+        for action_name in net_total:
+            key = buffet_keyer(buffet, action_name)
+            if key not in actions:
+                actions[key] = ActionCount.default()
+            actions[key].total += net_total[action_name]
+            actions[key].max_per_unit += net_max_per_unit[action_name]
 
     for compute, ops in looptree_results.compute_stats.items():
         key = compute_keyer(compute, "compute")

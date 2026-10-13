@@ -18,6 +18,7 @@ __all__ = [
     "Temporal",
     "TensorHolder",
     "TensorName",
+    "TextBox",
     "TilePattern",
     "Toll",
 ]
