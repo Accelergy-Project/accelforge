@@ -1203,6 +1203,12 @@ class Memory(TensorHolder):
     it (e.g., FFM) may, if no mappings satisfy this constraint, return the highest-usage
     mappings. These constraints are disabled for copy Einsums. """
 
+    page_size: EvalsTo[int | float | None] = None
+    """ 
+    If set, every reservation in this `Memory` is rounded up to a multiple of page_size
+    bits.
+    """
+
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
 
