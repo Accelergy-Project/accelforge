@@ -1440,6 +1440,75 @@ class Workload(EvalableModel):
         n_outputs = min(self.get_tensor_size(t) for t in einsum.output_tensor_names)
         return self.n_computes(einsum_name) > n_outputs
 
+    def _rearrange_to_increase_fusion_opportunity() -> list[EinsumName]:
+        """ 
+        VIBE CODE WARNING: This function is vibe coded. See
+        rearrange_workload_to_increase_fusion_opportunity() in spec.py
+        """
+        max_placed_sets_per_size = 10_000
+        einsums = list(self.einsums)
+        n = len(einsums)
+        
+        bpv = {t.name: t.bits_per_value for e in einsums for t in e.tensor_accesses}
+        producers = {t: i for i, e in enumerate(einsums) for t in e.output_tensor_names}
+        consumers = {
+            t: sum(1 << j for j, e in enumerate(einsums) if t in e.input_tensor_names)
+            for t in producers
+        }
+        tensor_bits = {t: self.get_tensor_size(t) * bpv[t] for t in producers}
+        needs = [
+            sum(1 << producers[t] for t in e.input_tensor_names if t in producers)
+            for e in einsums
+        ]
+        # Placing an Einsum makes its read outputs live and kills the inputs it is the
+        # last reader of
+        produces = [
+            sum(tensor_bits[t] for t in e.output_tensor_names if consumers[t])
+            for e in einsums
+        ]
+        kills = [
+            [
+                (consumers[t], tensor_bits[t])
+                for t in e.input_tensor_names
+                if t in producers
+            ]
+            for e in einsums
+        ]
+
+        # For each set of placed Einsums: the cheapest cost to reach it, the live bits
+        # there and the Einsum placed last
+        placed_last = {}
+        frontier = {0: (0, 0)}
+        while frontier:
+            reached = {}
+            for placed, (cost, live) in frontier.items():
+                for i in range(n):
+                    if placed >> i & 1 or needs[i] & ~placed:
+                        continue
+                    with_i = placed | 1 << i
+                    live_i = live + produces[i]
+                    for other_readers, bits in kills[i]:
+                        if not other_readers & ~with_i:
+                            live_i -= bits
+                    cost_i = cost + live_i
+                    if with_i not in reached or cost_i < reached[with_i][0]:
+                        reached[with_i] = (cost_i, live_i)
+                        placed_last[with_i] = i
+            if max_placed_sets_per_size and len(reached) > max_placed_sets_per_size:
+                cheapest = sorted(reached, key=lambda p: reached[p][0])
+                reached = {p: reached[p] for p in cheapest[:max_placed_sets_per_size]}
+            frontier = reached
+
+        order = []
+        placed = (1 << n) - 1
+        while placed:
+            i = placed_last[placed]
+            order.append(einsums[i])
+            placed &= ~(1 << i)
+        order.reverse()
+        self.einsums = EvalableList(order)
+        return [e.name for e in order]
+
     def _einsum_tags(self, einsum_name: str) -> set[str]:
         """
         Returns the tags of the given Einsum: the tags given by the user plus the
