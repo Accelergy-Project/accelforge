@@ -1,3 +1,4 @@
+from collections import defaultdict
 from copy import copy, deepcopy
 from uuid import uuid4
 
@@ -6,7 +7,7 @@ from accelforge._accelerated_imports import pandas as pd
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Memory
 from accelforge.frontend.mapping.mapping import MappingNodeWithChildren
-from accelforge.frontend.renames import EinsumName, TensorName
+from accelforge.frontend.renames import EinsumName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
@@ -15,9 +16,7 @@ from accelforge.frontend.mapping import (
     Split,
     Nested,
     NodeList,
-    Storage,
     TensorHolder,
-    Toll,
     Loop,
 )
 from accelforge.frontend.workload import Workload
@@ -286,34 +285,62 @@ def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
     instead of links to children.
     """
     for nodes in _split_mapping_worker(mapping):
-        mapping = Mapping(nodes=deepcopy(nodes))
-        _remove_storage_of_unrelevant_tensors(mapping, workload)
-        yield mapping
+        pmapping = Mapping(nodes=deepcopy(nodes))
+        pre_merged = mapping._pre_merged_pmappings.get(pmapping.nodes[-1].einsum)
+        if pre_merged is not None:
+            _drop_duplicated_nodes(pmapping, pre_merged)
+        _remove_storage_of_unrelevant_tensors(pmapping, workload)
+        yield pmapping
+
+
+def _drop_duplicated_nodes(pmapping: Mapping, pre_merged: Nested):
+    """
+    If merging added additional nodes to this pmapping from other pmappings, drop them
+    """
+    my_nodes, depth = defaultdict(set), 0
+    for node in pre_merged.nodes:
+        if isinstance(node, Loop):
+            depth += 1
+        elif isinstance(node, TensorHolder):
+            for tensor in node.tensors:
+                my_nodes[node.component, tensor].add(depth)
+        elif isinstance(node, Reservation):
+            for purpose in node.purposes:
+                my_nodes[node.resource, purpose].add(depth)
+
+    new_nodes, depth = [], 0
+    for node in pmapping.nodes:
+        if isinstance(node, Loop):
+            depth += 1
+        elif isinstance(node, TensorHolder):
+            node.tensors = [
+                t
+                for t in node.tensors
+                if depth in my_nodes.get((node.component, t), ())
+            ]
+            if not node.tensors:
+                continue
+        elif isinstance(node, Reservation):
+            node.purposes = [
+                p
+                for p in node.purposes
+                if (node.resource, p) not in my_nodes
+                or depth in my_nodes[node.resource, p]
+            ]
+            if not node.purposes:
+                continue
+        new_nodes.append(node)
+    pmapping.nodes = new_nodes
 
 
 def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
     """
     Remove tensors from Storage nodes that are not relevant to the Einsum being
-    mapped, and tolls that belong to other Einsums.
+    mapped.
     """
     einsum_name = pmapping.nodes[-1].einsum
     einsum = workload.einsums[einsum_name]
     relevant_tensors = oset(t.name for t in einsum.tensor_accesses)
-
-    # Drop duplicated tolls
-    nodes = pmapping.nodes
-    kept: set[tuple[str, TensorName]] = oset()
-    for i, node in enumerate(nodes):
-        if not isinstance(node, Toll):
-            continue
-        for tensor in list(node.tensors):
-            parent_above = any(
-                isinstance(n, Storage) and tensor in n.tensors for n in nodes[:i]
-            )
-            if parent_above and (node.component, tensor) not in kept:
-                kept.add((node.component, tensor))
-            else:
-                node.tensors.remove(tensor)
 
     new_nodes = []
     for node in pmapping.nodes:
