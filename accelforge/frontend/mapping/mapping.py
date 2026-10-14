@@ -34,6 +34,7 @@ from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
+from accelforge.frontend.workload import RankVariable, TensorName, Workload
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
@@ -445,11 +446,14 @@ class Loop(MappingNode):
         other_rv = (
             other_rv if isinstance(other_rv, (set, frozenset)) else oset((other_rv,))
         )
-        return type(self)(
+        new = type(self)(
             rank_variable=my_rv | other_rv,
-            tile_pattern=self.tile_pattern,
+            tile_shape=self.tile_shape,
+            initial_tile_shape=self.initial_tile_shape,
             **kwargs,
         )
+        new.calculated_n_iterations = self.calculated_n_iterations
+        return new
 
     @property
     def tile_pattern(self) -> TilePattern:
@@ -644,8 +648,8 @@ class TensorHolder(MappingNode):
             tensors=self.tensors + other.tensors,
             component=self.component,
             component_object=self.component_object,
-            _lower=self._lower,
         )
+        new._lower = self._lower
         return new
 
 
