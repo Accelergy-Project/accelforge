@@ -77,11 +77,11 @@ class TestFinish(unittest.TestCase):
 
     def test_reservations_parallel_arm(self):
         """
-        AMBIGUITY: at a parallel join only the MAC X usage stays shared and sums; every
-        other resource is maxed to the left like a dead branch, so GlobalBuffer's two
-        parallel branches max rather than sum; asserting 320 of 1000 on the parallel arm
-        as on the sequential one. Summing the branches' tiles would give 384. MAC X
-        usage sums to 2 of 4.
+        RULING: at a parallel join the GlobalBuffer, above the multi-Einsum fanout, is
+        alive in both branches at once, so the two branches' tiles sum (Ctrl-F for
+        ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL): 320 of 1000 on the
+        sequential arm (the weights 256 plus one branch's tiles 64) and 384 on the
+        parallel arm (both branches' tiles). MAC X usage sums to 2 of 4.
         """
         data = evaluate(
             FUSED,
@@ -93,9 +93,8 @@ class TestFinish(unittest.TestCase):
         )
         rows = {round(u * 4): g for u, g in zip(data[MAC_X_PARALLEL], data[GB])}
         self.assertEqual(sorted(rows), [1, 2])
-        for pes, gb in rows.items():
-            with self.subTest(pes=pes):
-                self.assertAlmostEqual(gb, 0.32, places=4)
+        self.assertAlmostEqual(rows[1], 0.32, places=4)
+        self.assertAlmostEqual(rows[2], 0.384, places=4)
 
 
 if __name__ == "__main__":

@@ -255,21 +255,29 @@ class TestSpecLatencyTrees(unittest.TestCase):
         )
         self.assertEqual(a, {1: 186, 2: 63})
 
-    def test_reservations_maxed_across_parallel_branches(self):
+    def test_reservations_summed_across_parallel_branches(self):
         """
+        RULING: reservations of components above the multi-Einsum parallel spatial are
+        alive in every parallel branch at once, so a parallel join sums them; only
+        components below it are maxed. Ctrl-F for
+        ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL.
+
         The fused pair below loop m, GlobalBuffer sized to the bit. Per Einsum: W 128
         bits at level 0; W + a 32-bit row tile of T_i + one of T_i+1 = 192 bits at level
-        1. Joined: level 0 holds both weights all run, 256; each branch holds its 192
-        plus the other branch's weight 128 = 320. The branches are maxed, sequential or
-        parallel (ruling a), so the max usage is 320 bits either way.
+        1. Joined: level 0 holds both weights all run, 256. Sequential: each branch
+        holds its 192 plus the other branch's weight 128, and the fence maxes the
+        branches: 320. Parallel: both branches' row tiles are alive at once, 256 + 64 +
+        64 = 384.
 
-        GB_SIZE 320: both arms fit, {1: 80, 2: 20} (wind-ups 20 x 4 sequential, 20 once
-        parallel). GB_SIZE 319: nothing fits and the join raises.
+        GB_SIZE 320: only the sequential arm fits, {1: 80} (wind-ups 20 x 4). GB_SIZE
+        384: both arms, {1: 80, 2: 20} (wind-ups 20 once parallel); 383 drops the
+        parallel arm again. GB_SIZE 319: nothing fits and the join raises.
 
-        Wrong rule: parallel branches summed, 192 + 192 + 256 = 640, so the 2-PE arm
-        would be missing until GB_SIZE 640.
+        Wrong rule: parallel branches maxed too, 320, so the 2-PE arm would fit at 320.
         """
-        self.assertEqual(arms(FUSED, GB_SIZE=320, COMPUTE_LATENCY=10), {1: 80, 2: 20})
+        self.assertEqual(arms(FUSED, GB_SIZE=320, COMPUTE_LATENCY=10), {1: 80})
+        self.assertEqual(arms(FUSED, GB_SIZE=384, COMPUTE_LATENCY=10), {1: 80, 2: 20})
+        self.assertEqual(arms(FUSED, GB_SIZE=383, COMPUTE_LATENCY=10), {1: 80})
         with self.assertRaises(ValueError):
             arms(FUSED, GB_SIZE=319, COMPUTE_LATENCY=10)
 

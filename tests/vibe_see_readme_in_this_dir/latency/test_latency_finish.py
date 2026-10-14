@@ -58,15 +58,19 @@ class TestFinish(unittest.TestCase):
 
     def test_top_level_reservations(self):
         """Both weights' GlobalBuffer nodes are above the fused m loop, so the two
-        Einsums' 128-bit weights are summed (256); the T tiles are below the split, so
-        only one branch's count (32 + 32 = 64). 320 bits fill the GlobalBuffer exactly
-        whether the Einsums run sequentially or in parallel, while the MAC X dimension
-        holds one instance sequentially and two in parallel. With these throughputs
-        the parallel result is faster (1376 against 1600,
-        test_above_split_latency_uses_branch_slack), so both stay on the front."""
+        Einsums' 128-bit weights are summed (256). The T tiles are below the split:
+        sequentially only one branch's count is held (32 + 32 = 64), 320 bits; in
+        parallel both branches' tiles are alive at once, 384 bits (Ctrl-F for
+        ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL). The MAC X dimension holds
+        one instance sequentially and two in parallel. With these throughputs the
+        parallel result is faster (1376 against 1600,
+        test_above_split_latency_uses_branch_slack), so both stay on the front of a
+        384-bit GlobalBuffer; a 320-bit one keeps only the sequential arm."""
+        data = evaluate(SIMPLE_MAPPING, True, GB_SIZE=384, **SLOW_MM_THROUGHPUTS)
+        rows = sorted(zip(data["Total<SEP>latency"], data[MAC_X] * 4, data[GB] * 384))
+        self.assertEqual(rows, [(1376, 2, 384), (1600, 1, 320)])
         data = evaluate(SIMPLE_MAPPING, True, GB_SIZE=320, **SLOW_MM_THROUGHPUTS)
-        rows = sorted(zip(data["Total<SEP>latency"], data[MAC_X] * 4, data[GB] * 320))
-        self.assertEqual(rows, [(1376, 2, 320), (1600, 1, 320)])
+        self.assertEqual(list(data[MAC_X] * 4), [1])
 
     def test_timeline_shows_the_sequential_result(self):
         """The latency timeline lays the Einsums out one after another, so even with

@@ -223,14 +223,16 @@ class TestParallelSemantics(unittest.TestCase):
         - Matmul2 in parallel: 60 x 16 + 140 = 1100 on two, dominated;
         - both in parallel: 60 + 140 = 200 on three.
 
-        Every result holds the same 448 bits of GlobalBuffer. Counting each hop at its
-        lower node's level would give 1680 and 720."""
+        GlobalBuffer bits: sequential 448 (Matmul0's 192 beside Matmul1's 256 above
+        the split, the pair's larger branch); Matmul1 in parallel 480 (both branches'
+        tiles alive at once, 192 + 288); all parallel 768 (480 beside Matmul2's 288).
+        Counting each hop at its lower node's level would give 1680 and 720."""
         off = evaluate(DEEP_THEN_SHALLOW_MAPPING, False, **DEEP_THEN_SHALLOW_JINJA)
         self.assertEqual(list(off["Total<SEP>latency"]), [1520])
 
         on = evaluate(DEEP_THEN_SHALLOW_MAPPING, True, **DEEP_THEN_SHALLOW_JINJA)
         front = sorted(zip(on["Total<SEP>latency"], on[GB] * 2048, on[MAC_X] * 4))
-        self.assertEqual(front, [(200, 448, 3), (800, 448, 2), (1520, 448, 1)])
+        self.assertEqual(front, [(200, 768, 3), (800, 480, 2), (1520, 448, 1)])
 
     def test_windups_at_two_levels(self):
         """MainMemory reads take 100 cycles. Every MainMemory node is at level 0, which
@@ -272,13 +274,16 @@ class TestParallelSemantics(unittest.TestCase):
           110 + 70 x 16 = 1230 on two, dominated;
         - both in parallel: 110 + 70 = 180 on three.
 
-        Counting each hop at its lower node's level would give 1480 and 640."""
+        GlobalBuffer bits: sequential 448 (Matmul2's 192 beside Matmul1's 256 above
+        the pair's split); Matmul2 in parallel 480 (288 + 192, both branches' tiles
+        alive at once); all parallel 744 (480 beside Matmul0's 264). Counting each hop
+        at its lower node's level would give 1480 and 640."""
         off = evaluate(SHALLOW_THEN_DEEP_MAPPING, False, **SHALLOW_THEN_DEEP_JINJA)
         self.assertEqual(list(off["Total<SEP>latency"]), [1560])
 
         on = evaluate(SHALLOW_THEN_DEEP_MAPPING, True, **SHALLOW_THEN_DEEP_JINJA)
         front = sorted(zip(on["Total<SEP>latency"], on[GB] * 2048, on[MAC_X] * 4))
-        self.assertEqual(front, [(180, 448, 3), (720, 448, 2), (1560, 448, 1)])
+        self.assertEqual(front, [(180, 744, 3), (720, 480, 2), (1560, 448, 1)])
 
     def test_reservations_summed_above_split_maxed_below(self):
         """With two fused m loops, each Einsum's weights are held above the inner
@@ -298,16 +303,26 @@ class TestParallelSemantics(unittest.TestCase):
             data = evaluate(WEIGHTS_INSIDE_MAPPING, explore_parallel, **jinja)
             self.assertEqual(sorted(set(data[GB] * 192)), [192])
 
-    def test_parallel_sums_only_the_parallel_spatial(self):
-        """Parallel has no effect on reservations except that the branches' usage of
-        the _allow_multi_einsum_parallelism dimension is summed: the parallel results
-        fit the sequential join's exact 448-bit GlobalBuffer footprint while holding
-        two or three MAC X instances (latencies from
-        test_sequential_split_repays_windup)."""
-        jinja = {**DEEP_THEN_SHALLOW_JINJA, "GB_SIZE": 448}
-        on = evaluate(DEEP_THEN_SHALLOW_MAPPING, True, **jinja)
-        front = sorted(zip(on["Total<SEP>latency"], on[GB] * 448, on[MAC_X] * 4))
-        self.assertEqual(front, [(200, 448, 3), (800, 448, 2), (1520, 448, 1)])
+    def test_parallel_sums_reservations_above_the_fanout(self):
+        """Parallel branches' reservations of components above the
+        _allow_multi_einsum_parallelism fanout are alive at once and sum, like the
+        branches' usage of that dimension (Ctrl-F for
+        ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL). GlobalBuffer bits from
+        test_sequential_split_repays_windup: 448 sequential, 480 with Matmul1 in
+        parallel, 768 with all three in parallel. A 448-bit GlobalBuffer keeps only the
+        sequential arm, 480 bits admit the two-instance arm, 768 all three."""
+        for size, front in [
+            (448, [(1520, 448, 1)]),
+            (480, [(800, 480, 2), (1520, 448, 1)]),
+            (768, [(200, 768, 3), (800, 480, 2), (1520, 448, 1)]),
+        ]:
+            with self.subTest(size=size):
+                jinja = {**DEEP_THEN_SHALLOW_JINJA, "GB_SIZE": size}
+                on = evaluate(DEEP_THEN_SHALLOW_MAPPING, True, **jinja)
+                rows = sorted(
+                    zip(on["Total<SEP>latency"], (on[GB] * size).round(), on[MAC_X] * 4)
+                )
+                self.assertEqual(rows, front)
 
     def test_leak_power_paid_over_joined_runtime(self):
         """The whole chip leaks no matter which Einsum runs: leak power maxes across

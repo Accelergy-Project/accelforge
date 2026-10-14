@@ -425,6 +425,18 @@ class PmappingsOneEinsum:
         return self.pmapping_groups[i]
 
 
+def _resources_shared_across_parallel(spec: Spec) -> oset:
+    """
+    Components above the multi_einsum_parallel spatial are shared by parallel branches,
+    even if those reservations are below the split. Components below this parallel are
+    never. Ctrl-F for ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL.
+    """
+    shared = spec.arch._components_above_multi_einsum_parallelism()
+    if s := spec.arch._multi_einsum_parallel_spatial():
+        shared |= oset([_spatial2resource(*s, multi_einsum_parallel=True)])
+    return shared
+
+
 def get_memories_to_track(
     pmapping_groups: dict[str, list[PmappingGroup]],
     spec: Spec,
@@ -464,10 +476,9 @@ def get_memories_to_track(
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
 
-    # Parallel Einsums share these resources even when no fused loop does.
-    always_below -= spec.arch._components_above_multi_einsum_parallelism()
-    if s := spec.arch._multi_einsum_parallel_spatial():
-        always_below -= oset([_spatial2resource(*s, multi_einsum_parallel=True)])
+    # Parallel Einsums always share these resources. Ctrl-F for
+    # ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL
+    always_below -= _resources_shared_across_parallel(spec)
 
     ignore = oset(t for t, s in total_sizes.items() if s <= 1) | always_below
 
@@ -546,6 +557,7 @@ def join_pmappings(
     # Select resources to track
     # ======================================================================
     parallel_spatial = spec.arch._multi_einsum_parallel_spatial()
+    shared_across_parallel = _resources_shared_across_parallel(spec)
 
     assert (
         skip_invalid
@@ -834,6 +846,7 @@ def join_pmappings(
                             permuted_compatibility_left=compatibility_a,
                             permuted_compatibility_right=compatibility_b,
                             sequential=sequential,
+                            shared_across_parallel=shared_across_parallel,
                             delay=DELAY,
                             _pmapping_row_filter_function=_pmapping_row_filter_function,
                             ignored_resources=ignored_resources,

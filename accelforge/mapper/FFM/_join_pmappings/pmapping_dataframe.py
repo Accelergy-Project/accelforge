@@ -7,7 +7,6 @@ from typing import Any, Callable, Iterable
 
 import sympy
 
-from accelforge.frontend.arch.arch import _is_multi_einsum_parallel_resource
 from accelforge.frontend.mapping import Nested, TilePattern
 from accelforge.frontend.mapping import Loop as MappingLoop
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
@@ -469,9 +468,12 @@ class PmappingDataframe:
         - Joining
 
             - Don't touch left
-            - For reservations above and equal to the _multi_einsum_parallel spatial,
-              sum reservations on the right (shared between Einsums) with the next. For
-              reservations below, max the right with the next.
+            - For reservations whose components are below the _multi_einsum_parallel
+              spatial, always max the right with the next (ctrl-F for
+              ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL). For reservations
+              equal to or above the _multi_einsum_parallel_spatial, sum reservations on
+              the right with the next. If there was a sequential, a fence should've
+              pushed those that are freed to the left.
             - The next better not have any left reservations since it's just one Einsum
 
         - Freeing
@@ -496,7 +498,8 @@ class PmappingDataframe:
         - NOTE: We're not allowed to have any shared component latencies below the
           _multi_einsum_parallel_spatial in the arch (forcing latencies to be MAXED) and
           above the split point in any mapping (forcing latencies to be SUMMED) because
-          I'm not making the logic to handle that.
+          I'm not making the logic to handle that. Ctrl-F for
+          ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL.
 
         - Joining
 
@@ -711,7 +714,10 @@ class PmappingDataframe:
         self.make_pareto()
 
     def _free_dead_reservations(
-        self, n_loops: int, parallel: bool = False
+        self,
+        n_loops: int,
+        parallel: bool = False,
+        shared_across_parallel: set[str] = fzs(),
     ) -> list[str]:
         """
         If next join is parallel & the resource is shared across parallel branches, do
@@ -731,7 +737,8 @@ class PmappingDataframe:
         for resource, levels in r_reservations.items():
             if n_loops not in levels:
                 continue
-            if parallel and _is_multi_einsum_parallel_resource(resource):
+            # Ctrl-F for ALWAYS_PARALLEL_BELOW_MULTI_EINSUM_PARALLEL_SPATIAL
+            if parallel and resource in shared_across_parallel:
                 continue
             col = reservation2col(resource, n_loops)
             max_to_col(self.data, reservation2col(resource, n_loops, left=True), col)
@@ -786,6 +793,7 @@ class PmappingDataframe:
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
         sequential: bool = True,
+        shared_across_parallel: set[str] = fzs(),
         do_not_free: set[str] = fzs(),
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
@@ -833,7 +841,9 @@ class PmappingDataframe:
             self.sequential_fence_to_level(shared_loop_index)
         else:
             drop_cols = self._free_dead_reservations(
-                shared_loop_index + 1, parallel=True
+                shared_loop_index + 1,
+                parallel=True,
+                shared_across_parallel=shared_across_parallel,
             )
             self._data = self.data.drop(columns=drop_cols)
 
