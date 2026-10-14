@@ -243,6 +243,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor,
             job.flattened_arch,
             tensor_rank_variables=rvs,
+            workload=job.spec_one_einsum.workload,
         )
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
@@ -300,6 +301,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
                 t,
                 job.flattened_arch,
                 tensor_rank_variables=einsum.tensor2rank_variables[t],
+                workload=job.spec_one_einsum.workload,
             )
 
     result.symbols = symbols
