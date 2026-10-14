@@ -1440,7 +1440,7 @@ class Workload(EvalableModel):
         n_outputs = min(self.get_tensor_size(t) for t in einsum.output_tensor_names)
         return self.n_computes(einsum_name) > n_outputs
 
-    def _rearrange_to_increase_fusion_opportunity() -> list[EinsumName]:
+    def _rearrange_to_increase_fusion_opportunity(self) -> list[EinsumName]:
         """ 
         VIBE CODE WARNING: This function is vibe coded. See
         rearrange_workload_to_increase_fusion_opportunity() in spec.py
