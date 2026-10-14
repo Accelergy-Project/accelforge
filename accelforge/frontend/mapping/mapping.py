@@ -1342,6 +1342,7 @@ class Nested(MappingNodeWithChildren):
         tensor_name: TensorName,
         flattened_arch: FlattenedArch,
         tensor_rank_variables: set[str],
+        workload: Workload
     ) -> Self:
         """
         Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION
@@ -1416,9 +1417,9 @@ class Nested(MappingNodeWithChildren):
         that affect one another.
 
         I haven't thought through how this will work with more complex rank variable
-        expressions, so to be safe, will say that there can not be a temporal and
-        spatial loop that affect the same indexing expression or each others' loop
-        bounds.
+        expressions, so to be safe, I'll say that for non-simple rank variables, there
+        cannot be a temporal and spatial loop that affect the same indexing expression
+        or each others' loop bounds.
 
         These problems also aren't necessarily impossible to solve; I just haven't
         thought it through. If we do think it through, a good place to start would be to
@@ -1468,6 +1469,9 @@ class Nested(MappingNodeWithChildren):
 
         mapping.extend(spatials)
 
+        einsum_name = mapping[-1].einsum
+        simple_rank_variables = workload.einsums[einsum_name]._simple_rank_variables
+
         # Check that spatials are always above their respective fanouts
         for i, node in enumerate(mapping):
             if not isinstance(node, (TensorHolder, Compute)):
@@ -1494,9 +1498,6 @@ class Nested(MappingNodeWithChildren):
         groups = [sorted(g, key=lambda x: id2idx[id(x)]) for g in groups]
         mapping = [x for g in groups for x in g]
 
-        # Check that all storage-temporal relations are held from before.
-        # Precomputed id-sets avoid pydantic __instancecheck__ in the O(N²)
-        # combinations loops.
         node2idx = {id(node): i for i, node in enumerate(mapping)}
         prev_node2idx = {id(node): i for i, node in enumerate(self.nodes)}
         th_ids = {id(n) for n in mapping if isinstance(n, TensorHolder)}
@@ -1505,9 +1506,18 @@ class Nested(MappingNodeWithChildren):
         for n1, n2 in itertools.combinations(mapping, 2):
             i1, i2 = id(n1), id(n2)
             if (i1 in th_ids and i2 in th_ids) or (i1 in sp_ids and i2 in sp_ids):
-                assert (node2idx[i1] > node2idx[i2]) == (
-                    prev_node2idx[i1] > prev_node2idx[i2]
-                ), "BUG"
+                new_gt = node2idx[i1] > node2idx[i2]
+                prev_gt = prev_node2idx[i1] > prev_node2idx[i2]
+                if new_gt == prev_gt:
+                    continue
+                
+                prev_compact = Nested(nodes=mapping).compact_str()
+                new_compact = Nested(nodes=self.nodes).compact_str()
+                raise ValueError(
+                    f"BUG: Storage/Spatial order changed for {n1} and {n2}.\n"
+                    f"Previous order: {prev_compact}\n"
+                    f"New order: {new_compact}"
+                )
 
         # Check for spatial/temporal loops that have been reordered for the
         # same rank variable. These can't co-exist because the tiling is
@@ -1521,6 +1531,8 @@ class Nested(MappingNodeWithChildren):
             if node1.rank_variable not in tensor_rank_variables:
                 continue
             if node1.rank_variable != node2.rank_variable:
+                continue
+            if node1.rank_variable in simple_rank_variables:
                 continue
             s = """
             In the given mapping, there exists (potentially with other nodes in
