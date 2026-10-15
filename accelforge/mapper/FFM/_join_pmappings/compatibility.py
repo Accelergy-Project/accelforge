@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterator, Iterable
 from enum import Enum
 from dataclasses import dataclass, replace
+import functools
 import itertools
 from numbers import Number
 from typing import Literal, TypeVar
@@ -44,6 +45,24 @@ T = TypeVar("T", bound="Updatable")
 class Updatable:
     def update(self: T, **kwargs) -> T:
         return replace(self, **kwargs)
+
+
+def _cache_by_hash(method):
+    cache = {}
+
+    @functools.wraps(method)
+    def wrapper(self, *args):
+        key = (self._get_hash_tuple(), args)
+        try:
+            return cache[key]
+        except KeyError:
+            pass
+        if len(cache) > 32768:
+            cache.clear()
+        result = cache[key] = method(self, *args)
+        return result
+
+    return wrapper
 
 
 def _update_rename_dict(
@@ -167,7 +186,9 @@ class Loop(Updatable):
                 r[attr_val] = new_attr_val
             else:
                 new_attr_val = attr_val
-            new = new.update(tile_pattern=new.tile_pattern.update(**{attr: new_attr_val}))
+            new = new.update(
+                tile_pattern=new.tile_pattern.update(**{attr: new_attr_val})
+            )
 
         return r, new
 
@@ -229,9 +250,7 @@ class TensorReservation(Updatable):
         return self.update(loops=tuple(loop.clear_loop_bound() for loop in self.loops))
 
     def populate_loops(
-        self,
-        ranks_with_tile_pattern: set[Rank],
-        reservation_node: MappingReservation
+        self, ranks_with_tile_pattern: set[Rank], reservation_node: MappingReservation
     ) -> "TensorReservation":
         updated_loops = self.update(
             loops=tuple(
@@ -241,11 +260,15 @@ class TensorReservation(Updatable):
         )
         if len(self.physical_spatial_loops) > 0:
             new_loop = []
-            for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
+            for compat_loop, mapping_loop in zip(
+                updated_loops.physical_spatial_loops, reservation_node.binding
+            ):
                 mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
                 raise NotImplementedError()
                 new_compat_tile_pattern = mapping_tile_pattern
-                new_loop.append(compat_loop.update(tile_pattern=new_compat_tile_pattern))
+                new_loop.append(
+                    compat_loop.update(tile_pattern=new_compat_tile_pattern)
+                )
             return updated_loops.update(physical_spatial_loops=tuple(new_loop))
         else:
             return updated_loops
@@ -292,7 +315,9 @@ class TensorReservation(Updatable):
             physical_loops.append(l)
         return (
             result,
-            self.update(loops=tuple(loops), physical_spatial_loops=tuple(physical_loops))
+            self.update(
+                loops=tuple(loops), physical_spatial_loops=tuple(physical_loops)
+            ),
         )
 
     def add_n_iteration_symbols(self) -> "TensorReservation":
@@ -341,6 +366,7 @@ class CompatibilityDiff:
     """
     The diff applied to a Compatibility to generate another Compatibility.
     """
+
     loop_permutation: Permutation
 
     def apply(self, c: "Compatibility") -> "Compatibility":
@@ -372,7 +398,7 @@ class Compatibility(Updatable):
         return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
 
     def _get_hash_tuple(self):
-        return self.n_loops, self.tensors, self.reservation_indices
+        return self.n_loops, self.tensors, self.reservation_indices, self.is_copy
 
     def __hash__(self):
         return hash(self._get_hash_tuple())
@@ -465,7 +491,14 @@ class Compatibility(Updatable):
         """
         if live_tensors == "All":
             live_tensors = self.tensor_names
+        return self._clear_dead_tensors(
+            fzs(live_tensors), keep_reservation_indices_and_splits
+        )
 
+    @_cache_by_hash
+    def _clear_dead_tensors(
+        self, live_tensors: fzs[str], keep_reservation_indices_and_splits: bool
+    ) -> "Compatibility":
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
         new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
         splits, reservation_indices = self.splits, self.reservation_indices
@@ -536,22 +569,27 @@ class Compatibility(Updatable):
     def has_tensor(self, *tensors: TensorReservation) -> bool:
         return all(any(s == t for s in self.tensors) for t in tensors)
 
+    @_cache_by_hash
     def _permute_stops(self):
         stops = oset(len(s.loops) for s in self.tensors)
         stops |= self.reservation_indices
         stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
-    def permute_loops(
-        self,
-        loop_changes: Permutation,
-    ) -> "Compatibility":
+    def check_loop_permutation(self, loop_changes: Permutation):
+        """Raise if the permutation moves a loop across a reservation."""
         permute_stops = self._permute_stops()
         for i, c in enumerate(loop_changes):
             for r in permute_stops:
                 assert (i < r) == (
                     c < r
                 ), f"Loop changes {loop_changes} cross reservation {r}"
+
+    def permute_loops(
+        self,
+        loop_changes: Permutation,
+    ) -> "Compatibility":
+        self.check_loop_permutation(loop_changes)
         new_tensors = fzs(s.permute_loops(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
@@ -574,17 +612,21 @@ class Compatibility(Updatable):
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
         yield from (
-            Permutation(itertools.chain(*loop_changes)) for loop_changes in all_permutations
+            Permutation(itertools.chain(*loop_changes))
+            for loop_changes in all_permutations
         )
 
-    def make_equivalent_compatibilities(self) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
+    @_cache_by_hash
+    def make_equivalent_compatibilities(
+        self,
+    ) -> tuple[tuple["Compatibility", "CompatibilityDiff"], ...]:
         result = []
         for loop_permutation in self._make_equivalent_loop_permutations():
             diff = CompatibilityDiff(
                 loop_permutation=loop_permutation,
             )
             result.append((diff.apply(self), diff))
-        return result
+        return tuple(result)
 
     def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
@@ -691,8 +733,12 @@ class Compatibility(Updatable):
 
         def make_physical_spatial_loops(above_index: int) -> tuple[Loop]:
             """Make data binding of physically distributed storages."""
-            assert isinstance(reservation_node := mapping.nodes[above_index], MappingReservation)
-            assert isinstance(storage_node := reservation_node._tensor_holder, MappingStorage)
+            assert isinstance(
+                reservation_node := mapping.nodes[above_index], MappingReservation
+            )
+            assert isinstance(
+                storage_node := reservation_node._tensor_holder, MappingStorage
+            )
             memory = reservation_node._component_object
             if memory is None or not memory._is_distributed():
                 return ()
@@ -765,6 +811,7 @@ class Compatibility(Updatable):
             tensors=fzs(t._prepend_symbols(prepend) for t in self.tensors)
         )
 
+    @_cache_by_hash
     def clear_tile_patterns_and_reservation_indices(self) -> "Compatibility":
         return self.update(
             tensors=fzs(t.clear_symbolic_tile_patterns() for t in self.tensors),
@@ -772,6 +819,7 @@ class Compatibility(Updatable):
             check_reservation_indices=False,
         )
 
+    @_cache_by_hash
     def clear_symbolic_tile_patterns(self) -> "Compatibility":
         return self.update(
             tensors=fzs(t.clear_symbolic_tile_patterns() for t in self.tensors)
