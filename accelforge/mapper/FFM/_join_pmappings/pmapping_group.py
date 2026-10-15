@@ -279,8 +279,7 @@ class PmappingGroup:
             if include_permutations or combine_equivalent_permutations:
                 keys = compatibility.make_equivalent_compatibilities()
                 for t, equivalence in keys:
-                    # Line below DOES NOT MUTATE. It's a check that the transform works.
-                    equivalence.apply(pg.compatibility)
+                    pg.compatibility.check_loop_permutation(equivalence.loop_permutation)
                     grouped[clear(t)].append((pg, equivalence))
             else:
                 grouped[clear(compatibility)].append(pg)

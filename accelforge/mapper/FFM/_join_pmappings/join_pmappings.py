@@ -872,6 +872,7 @@ def join_pmappings(
         # ======================================================================
         # print_time(f"Consolidating")
 
+        t_combine = time.time()
         left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
@@ -882,6 +883,7 @@ def join_pmappings(
         # print_time(f"Combining")
         # Group left and right into buckets
         left = PmappingGroup.group(left, right_tensors)
+        combine_time = time.time() - t_combine
         # print_time("Grouping")
 
         # =============================================================================
@@ -1044,38 +1046,31 @@ def join_pmappings(
                 next_right_tensors = next_pmapping_groups.tensor_names
                 if not next_right_tensors & cur_tensors:
                     continue
-                prev_combined = combined
-                combined = PmappingGroup.group(combined, next_right_tensors)
                 next_keys = oset(
                     c.clear_dead_tensors(
                         cur_tensors
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 )
-                for k in list[Compatibility](combined):
-                    perms = k.make_equivalent_compatibilities()
-                    perms = [
-                        p[0]
-                        .clear_dead_tensors(next_right_tensors)
-                        .clear_tile_patterns_and_reservation_indices()
-                        for p in perms
-                    ]
-                    if not any(p in next_keys for p in perms):
-                        if DO_PRINT:
-                            for b, _ in combined[k]:
-                                print(
-                                    f"\tLOOKAHEAD to {next_pmapping_groups.einsum_name}: No match for {b.compatibility}"
-                                )
-                        del combined[k]
-                if not combined:
-                    PmappingGroup.group(prev_combined, next_right_tensors)
-                    no_match_lookahead_error(prev_combined, next_keys)
-
-                combined = list(itertools.chain.from_iterable(combined.values()))
-                combined = [c[0] for c in combined]
-                # Remove duplicates
-                id2combined = {id(c): c for c in combined}
-                combined = list(id2combined.values())
+                # A group can follow if some permutation of its compatibility, cleared
+                # to the next Einsum's tensors, is one of the next Einsum's keys. Groups
+                # sharing that cleared compatibility share the answer.
+                can_follow = {}
+                kept = []
+                for c in combined:
+                    key = c.compatibility.clear_dead_tensors(
+                        next_right_tensors
+                    ).clear_tile_patterns_and_reservation_indices()
+                    if key not in can_follow:
+                        can_follow[key] = any(
+                            p.clear_tile_patterns_and_reservation_indices() in next_keys
+                            for p, _ in key.make_equivalent_compatibilities()
+                        )
+                    if can_follow[key]:
+                        kept.append(c)
+                if not kept:
+                    no_match_lookahead_error(combined, next_keys)
+                combined = kept
                 # print(
                 #     f"Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)"
                 # )
@@ -1115,10 +1110,11 @@ def join_pmappings(
         if _runtime_log_file:
             import json as _json
 
-            # The merge and less-fused prune are parts of the join phase
+            # The combine and merge are parts of the join phase
             with open(_runtime_log_file, "a") as _f:
                 for phase, t in [
                     ("join", step_time),
+                    ("combine", combine_time),
                     ("merge", merge_time),
                 ]:
                     _f.write(

@@ -1058,10 +1058,10 @@ class PmappingDataframe:
     def clear_irrelevant_columns(
         self, compatibility: Compatibility
     ) -> "PmappingDataframe":
-        return self.update(
-            data=compatibility.clear_unrelated_columns(self._data),
-            skip_pareto=True,
-        )
+        data = compatibility.clear_unrelated_columns(self._data)
+        if data is self._data:
+            return self
+        return self.update(data=data, skip_pareto=True)
 
 
 def row2pmappings(
