@@ -180,7 +180,7 @@ class FFM(EvalableModel):
     is set.
     """
 
-    drop_less_fused_pmappings_that_are_worse: bool = False
+    drop_more_fused_pmappings_that_are_worse: bool = False
     """
     If set to True, drop pmappings that are worse, in all objective metrics and
     reservations, than a less-fused pmapping. A pmapping is less-fused than another if
