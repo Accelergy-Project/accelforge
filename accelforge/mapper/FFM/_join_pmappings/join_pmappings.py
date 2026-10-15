@@ -1,4 +1,5 @@
 from copy import deepcopy
+import copy
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     CompatibilityDiff,
@@ -96,8 +97,14 @@ class OptimalityThresholder:
         _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray],
         print_progress: bool,
         metrics: Metrics,
+        minima: dict[EinsumName, dict[str, dict]] | None = None,
     ):
+        """
+        Filters out rows that can not beat `prev_solutions`. Used to filter clean rounds
+        when we've already done a dirty join
+        """
         self.metrics = metrics
+        self.minima = minima or {}
         compare_to = _apply_edp_columns(prev_solutions.data.copy(), metrics)
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
         self._pmapping_row_filter_function = _pmapping_row_filter_function
@@ -122,11 +129,47 @@ class OptimalityThresholder:
                         f"{k}={float(v):.2e}" for k, v in self.compare_to[-1].items()
                     )
                 )
+                
+        # Set by make_for_one_join
+        self.joined_einsums = None
+        self.compatibility = None
+        
+    def make_for_one_join(
+        self,
+        joined_einsums: frozenset[EinsumName],
+        compatibility: Compatibility,
+    ) -> "OptimalityThresholder":
+        new = copy.copy(self)
+        new.joined_einsums = joined_einsums
+        new.compatibility = compatibility
+        return new
 
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
 
-        edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
+        pareto_cols = [c for c in mapping.columns if col_used_in_pareto(c)]
+        edp_mapping = mapping[pareto_cols].copy()
+
+        backings = (
+            [(t.name, t.resource_name) for t in self.compatibility.tensors]
+            if self.compatibility
+            else []
+        )
+        
+        if self.joined_einsums is not None:
+            # Other Einsums will contribute at least the minimum objective values over
+            # all pmappings compatible with the current compatibility. 
+            offsets = defaultdict(float)
+            for einsum, einsum_minima in self.minima.items():
+                if einsum not in self.joined_einsums:
+                    for k, by_backing in einsum_minima.items():
+                        offsets[k] += max(
+                            by_backing.get(b, by_backing[None])
+                            for b in [None, *backings]
+                        )
+            for k, offset in offsets.items():
+                edp_mapping[k] += offset
+        edp_mapping = _apply_edp_columns(edp_mapping, self.metrics)
 
         # A row survives if, for every reference, it is <= the reference in at least
         # one column. A reference with a column the mapping lacks constrains nothing.
@@ -134,7 +177,9 @@ class OptimalityThresholder:
         if refs:
             keys = list(refs[0])
             values = edp_mapping[keys].to_numpy(dtype=float)
-            thresholds = np.array([[c[k] for k in keys] for c in refs])
+            thresholds = np.array([[c[k] for k in keys] for c in refs], dtype=float)
+            # FP tolerance
+            thresholds = thresholds + np.abs(thresholds) * 1e-5
             for start in range(0, len(values), 4096):
                 chunk = values[start : start + 4096]
                 nondominated_by_all[start : start + 4096] = (
@@ -147,6 +192,35 @@ class OptimalityThresholder:
             nondominated_by_all &= self._pmapping_row_filter_function(mapping)
 
         return nondominated_by_all
+
+
+def _einsum_objective_minima(
+    compressed: dict[EinsumName, list[PmappingGroup]],
+) -> dict[EinsumName, dict[str, dict]]:
+    """
+    Returns a dict {einsum name: {objective: {(per-tensor backing storage): minimum
+    value}}}.
+
+    When another Einsum joins with a given Einsum, the total objectives must increase by
+    at least the minimum of the other Einsum's objectives. We further match this by
+    saying that they must increase by the minimum of compatible Einsums objectives,
+    using a simple filter that just checks backing storage.
+    """
+    minima = {}
+    for einsum_name, groups in compressed.items():
+        values = defaultdict(lambda: defaultdict(list))
+        for pg in groups:
+            for col in pg.mappings.data.columns:
+                if is_objective_col(col):
+                    lowest = pg.mappings.data[col].min()
+                    values[col][None].append(lowest)
+                    for t in pg.compatibility.tensors:
+                        values[col][t.name, t.resource_name].append(lowest)
+        minima[einsum_name] = {
+            col: {k: min(v) for k, v in by_backing.items()}
+            for col, by_backing in values.items()
+        }
+    return minima
 
 
 def prune_with_tolerance(
@@ -188,6 +262,7 @@ def prune_with_tolerance(
         print(f"Dirty joining uses {new_n / prev_n * 100:.2f}% of the pmappings")
 
     return result
+
 
 def _filter_coarse_fused_loops(
     compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
@@ -256,13 +331,14 @@ def join_strategy_2(
 ):
     filter_func = _pmapping_row_filter_function
     _runtime_log_file = spec.mapper._runtime_log_file
+    minima = _einsum_objective_minima(compressed)
 
     # Coarse iteration counts reduce the number of fused loop tile shapes Coarseness = N
     # ->  keep the lowest fused loop iteration count, then each next count at least N
     # times the last one picked, and always the highest.
     for coarseness, is_dirty in [(4, True), (1, False)]:
         objective_tolerance = 1 if is_dirty else spec.mapper.objective_tolerance
-        
+
         if not for_model and print_progress:
             if is_dirty:
                 print(
@@ -283,7 +359,9 @@ def join_strategy_2(
                 continue
 
             if is_dirty:
-                cur_compressed = _filter_pmappings_for_dirty_join(cur_compressed, coarseness)
+                cur_compressed = _filter_pmappings_for_dirty_join(
+                    cur_compressed, coarseness
+                )
                 if cur_compressed is None:
                     if print_progress:
                         print("An Einsum has no pmappings for the dirty join")
@@ -291,6 +369,7 @@ def join_strategy_2(
 
             if _runtime_log_file and is_dirty:
                 import json
+
                 with open(_runtime_log_file, "a") as f:
                     f.write(
                         json.dumps({"round": "dirty", "coarseness": coarseness}) + "\n"
@@ -309,6 +388,7 @@ def join_strategy_2(
                     _pmapping_row_filter_function,
                     print_progress,
                     metrics,
+                    minima,
                 )
         except Exception as e:
             if not is_dirty:
@@ -600,13 +680,19 @@ def join_pmappings(
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = oset()
 
+    def row_filter(joined_einsums: set[EinsumName], compatibility: Compatibility):
+        f = _pmapping_row_filter_function
+        if isinstance(f, OptimalityThresholder):
+            return f.make_for_one_join(frozenset(joined_einsums), compatibility)
+        return f
+
     if _pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
         pmapping_groups = {
             e: [
                 PmappingGroup(
                     s.compatibility,
-                    s.mappings.filter_rows(_pmapping_row_filter_function),
+                    s.mappings.filter_rows(row_filter({e}, s.compatibility)),
                 )
                 for s in pmapping_groups[e]
             ]
@@ -748,6 +834,7 @@ def join_pmappings(
 
     if pmgroups:
         left, left_einsum, left_tensors = grab_einsum_pmappings()
+        joined_einsums = {left_einsum}
 
     partial_mapping_size = 1
     while pmgroups:
@@ -770,6 +857,7 @@ def join_pmappings(
         # tensors that will be live after this Einsum.
         # ======================================================================
         right, right_einsum, right_tensors = grab_einsum_pmappings()
+        joined_einsums.add(right_einsum)
         logger.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
         partial_mapping_size += 1
@@ -885,7 +973,9 @@ def join_pmappings(
                         permuted_compatibility_left=compatibility_a,
                         permuted_compatibility_right=compatibility_b,
                         delay=DELAY,
-                        _pmapping_row_filter_function=_pmapping_row_filter_function,
+                        _pmapping_row_filter_function=row_filter(
+                            joined_einsums, compatibility_joined
+                        ),
                         ignored_resources=ignored_resources,
                     )
                 )
