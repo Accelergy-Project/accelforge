@@ -303,18 +303,14 @@ def _filter_coarse_fused_loops(
 def _filter_pmappings_for_dirty_join(
     compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
 ) -> dict[EinsumName, list[PmappingGroup]] | None:
-    if coarseness > 1:
-        keep = _filter_coarse_fused_loops(compressed, coarseness)
+    keep = _filter_coarse_fused_loops(compressed, coarseness)
     kept = {}
     for einsum_name, groups in compressed.items():
-        if coarseness > 1:
-            kept[einsum_name] = [
-                PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
-                for pg in groups
-            ]
-            kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
-        else:
-            kept[einsum_name] = [pg for pg in groups if pg.compatibility.n_loops <= 1]
+        kept[einsum_name] = [
+            PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
+            for pg in groups
+        ]
+        kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
         if not kept[einsum_name]:
             return None
     return kept
@@ -336,7 +332,7 @@ def join_strategy_2(
     # Coarse iteration counts reduce the number of fused loop tile shapes Coarseness = N
     # ->  keep the lowest fused loop iteration count, then each next count at least N
     # times the last one picked, and always the highest.
-    for coarseness, is_dirty in [(4, True), (1, False)]:
+    for coarseness, is_dirty in [(32, True), (4, True), (1, False)]:
         objective_tolerance = 1 if is_dirty else spec.mapper.objective_tolerance
 
         if not for_model and print_progress:
