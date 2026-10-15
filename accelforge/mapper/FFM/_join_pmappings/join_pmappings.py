@@ -174,7 +174,9 @@ class OptimalityThresholder:
             print(f"Filtering out pmappings worse than the following:")
 
         for i in chosen_indices.astype(int):
-            self.compare_to.append({c: compare_to[c].iloc[i]*(1+EPS) for c in compare_cols})
+            self.compare_to.append(
+                {c: compare_to[c].iloc[i] * (1 + EPS) for c in compare_cols}
+            )
             if print_progress:
                 print(
                     "\t"
@@ -182,11 +184,11 @@ class OptimalityThresholder:
                         f"{k}={float(v):.2e}" for k, v in self.compare_to[-1].items()
                     )
                 )
-                
+
         # Set by make_for_one_join
         self.joined_einsums = None
         self.compatibility = None
-        
+
     def make_for_one_join(
         self,
         joined_einsums: frozenset[EinsumName],
@@ -208,10 +210,10 @@ class OptimalityThresholder:
             if self.compatibility
             else []
         )
-        
+
         if self.joined_einsums is not None:
             # Other Einsums will contribute at least the minimum objective values over
-            # all pmappings compatible with the current compatibility. 
+            # all pmappings compatible with the current compatibility.
             offsets = defaultdict(float)
             for einsum, einsum_minima in self.minima.items():
                 if einsum not in self.joined_einsums:
@@ -385,7 +387,7 @@ def join_strategy_2(
     # ->  keep the lowest fused loop iteration count, then each next count at least N
     # times the last one picked, and always the highest.
     for coarseness, is_dirty in [(32, True), (4, True), (1, False)]:
-        objective_tolerance = 1 if is_dirty else spec.mapper.objective_tolerance
+        objective_tolernace = max(spec.mapper.objective_tolerance, 1 if is_dirty else 0)
 
         if not for_model and print_progress:
             if is_dirty:
