@@ -377,7 +377,7 @@ class CompatibilityDiff:
 @dataclass(frozen=True)
 class Compatibility(Updatable):
     tensors: fzs[TensorReservation]
-    splits: fzs[Split] = fzs()
+    reservation_indices: fzs[int] = fzs()
 
     # Note: The below are NOT in the cross Einsum hash tuple because they don't need to
     # match across Einsums
