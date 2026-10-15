@@ -37,7 +37,10 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
 )
-from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
+from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2reservation,
+    is_fused_loop_col,
+)
 from accelforge.util import (
     _fillna_and__numeric_cast,
     delayed,
@@ -186,43 +189,57 @@ def prune_with_tolerance(
 
     return result
 
-def _filter_coarse_fused_loops(compressed: PmappingGroup, coarseness: int):
-    keep = np.ones(len(compressed), dtype=bool)
-    for c in compressed.mappings.data.columns:
-        counts = sorted(compressed.mappings.data[c].astype(float).unique())
-        keep_shapes = counts[:1]
-        for c in counts[1:]:
-            if c >= keep_shapes[-1] * coarseness:
-                keep_shapes.append(c)
-        keep_shapes = set(keep_shapes) | set(counts[-1:])
-        keep &= compressed.mappings.data[c].astype(float).isin(keep_shapes).to_numpy()
+def _filter_coarse_fused_loops(
+    compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
+) -> Callable[[pd.DataFrame], np.ndarray]:
+    """
+    Uses the same logic as tile shape coarseness in the tile shape generation, except
+    that it looks at the iteration counts for every pmapping before picking coarse
+    shapes to make sure we get matches across Einsums. Otherwise we'd have weird cases
+    like: coarseness 4, one Einsum has only one rank that can be mapped to a fanout-2
+    min_usage 1 spatial, now that Einsum only has 2,8,32 and the others have 4,16,64...
+    """
+    counts = defaultdict(set)
+    for groups in compressed.values():
+        for pg in groups:
+            for c in pg.mappings.data.columns:
+                if is_fused_loop_col(c):
+                    counts[c] |= set(pg.mappings.data[c].astype(float).unique())
+    keep_shapes = {}
+    for c, values in counts.items():
+        values = sorted(values)
+        picked = values[:1]
+        for v in values[1:]:
+            if v >= picked[-1] * coarseness:
+                picked.append(v)
+        keep_shapes[c] = set(picked) | set(values[-1:])
+
+    def keep(df: pd.DataFrame) -> np.ndarray:
+        kept = np.ones(len(df), dtype=bool)
+        for c in df.columns:
+            if is_fused_loop_col(c):
+                cur_keep_shapes = keep_shapes[c] | set([df[c].max(), df[c].min()])
+                kept &= df[c].astype(float).isin(cur_keep_shapes).to_numpy()
+        return kept
+
     return keep
 
 
-def _dirty_pmapping_groups(
+def _filter_pmappings_for_dirty_join(
     compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
 ) -> dict[EinsumName, list[PmappingGroup]] | None:
-    if isinstance(compressed, dict):
-        keep = {}
-        for k, v in compressed.items():
-            keep[k] = _dirty_pmapping_groups(v, coarseness)
-            if keep[k] is None:
-                return None
-        return keep
-
-    if isinstance(compressed, list):
-        return [_dirty_pmapping_groups(pg, coarseness) for pg in compressed]
-
     if coarseness > 1:
         keep = _filter_coarse_fused_loops(compressed, coarseness)
-
     kept = {}
     for einsum_name, groups in compressed.items():
-        kept[einsum_name] = [
-            PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
-            for pg in groups
-        ]
-        kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
+        if coarseness > 1:
+            kept[einsum_name] = [
+                PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
+                for pg in groups
+            ]
+            kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
+        else:
+            kept[einsum_name] = [pg for pg in groups if pg.compatibility.n_loops <= 1]
         if not kept[einsum_name]:
             return None
     return kept
@@ -266,7 +283,7 @@ def join_strategy_2(
                 continue
 
             if is_dirty:
-                cur_compressed = _dirty_pmapping_groups(cur_compressed, coarseness)
+                cur_compressed = _filter_pmappings_for_dirty_join(cur_compressed, coarseness)
                 if cur_compressed is None:
                     if print_progress:
                         print("An Einsum has no pmappings for the dirty join")
