@@ -354,6 +354,7 @@ class Compatibility(Updatable):
     splits: fzs[Split] = fzs()
     reservation_indices: fzs[int] = fzs()
     check_reservation_indices: bool = True
+    is_copy: bool = False
 
     @property
     def n_loops(self) -> int:
@@ -444,6 +445,7 @@ class Compatibility(Updatable):
                 tensors=fzs(tensors),
                 splits=self.splits,
                 reservation_indices=self.reservation_indices,
+                is_copy=self.is_copy,
             ),
             renames,
         )
@@ -505,15 +507,14 @@ class Compatibility(Updatable):
         self_freed = self.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
         )
-        right_freed = right.clear_dead_tensors(
-            live_tensors, keep_reservation_indices_and_splits=True
-        )
         if (
-            self_freed.n_loops > right_freed.n_loops
+            self_freed.n_loops > right.n_loops
+            and not right.is_copy
             and not _force_allow_invalid_only_for_runtime_test
         ):
             # This can be relaxed if we have a way to do order-independent joining
-            # and/or non-looptree mappings.
+            # and/or non-looptree mappings. We CAN do this with copies because the
+            # copies don't actually show up as branches in the tree.
             raise ValueError(
                 f"Can't merge. I have more loops than the next, so my dataflow can't "
                 f"be carried through a LoopTree to where it's needed."
@@ -721,6 +722,7 @@ class Compatibility(Updatable):
                 Split(split=n, above_loop_index=i) for i in split_above_loop_indices
             ),
             reservation_indices=fzs(reservation_indices),
+            is_copy=bool(einsum.is_copy_operation),
         )
 
     def symbols(self) -> list[str]:
@@ -755,6 +757,7 @@ class Compatibility(Updatable):
             tensors=tensors,
             splits=splits,
             reservation_indices=reservation_indices,
+            is_copy=self.is_copy,
         )
 
     def _prepend_symbols(self, prepend: str) -> "Compatibility":
