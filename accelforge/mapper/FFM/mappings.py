@@ -445,7 +445,7 @@ class Mappings:
             if len(parts) >= 3 and (parts[1] == "energy" or parts[1] == "action"):
                 comp = parts[2]
                 return comp in keep
-            if len(parts) == 3 and parts[1] == "latency":
+            if len(parts) == 3 and parts[1] == "component_latency":
                 comp = parts[2]
                 return comp in keep
             return True  # Keep non-component columns (Total, mapping, etc.)
@@ -482,7 +482,7 @@ class Mappings:
             comp = None
             if len(parts) >= 3 and parts[1] in ("energy", "action"):
                 comp = parts[2]
-            elif len(parts) == 3 and parts[1] == "latency":
+            elif len(parts) == 3 and parts[1] == "component_latency":
                 comp = parts[2]
             if comp is None:
                 return True  # Non-component columns always kept
@@ -658,7 +658,7 @@ class Mappings:
             parameters are set to True, a float or a list of floats is returned.
         """
 
-        energy = self.access("latency")
+        energy = self.access("component_latency", col_idx=1)
 
         result = {}
         for einsum in self.einsum_names:

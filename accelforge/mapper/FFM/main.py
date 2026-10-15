@@ -13,6 +13,8 @@ from accelforge.mapper.FFM.mappings import Mappings
 import accelforge.mapper.FFM._make_pmappings.make_pmappings as pmapper
 from accelforge.frontend.workload import EinsumName
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
+    JoinRunParameters,
+    JoinStatistics,
     clean_compress_and_join_pmappings,
 )
 from accelforge._accelerated_imports import pd
@@ -32,7 +34,8 @@ def map_workload_to_arch(
     print_number_of_pmappings: bool = False,
     eval_in_detail: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
-) -> Mappings:
+    report_statistics: bool = False,
+) -> Mappings | tuple[Mappings, dict[JoinRunParameters, JoinStatistics]]:
     """
     Maps a workload to an architecture using the AccelForge Fast and Fusiest Mapper
     (FFM).
@@ -63,6 +66,13 @@ def map_workload_to_arch(
         A function that takes in a row of the pmapping dataframe and returns True if the
         row should be included in the final mappings, and False otherwise. If None, all
         rows will be included.
+    report_statistics:
+        If True, also return statistics about joining. See `join_pmappings`.
+
+    Returns
+    -------
+    Mappings | tuple[Mappings, dict[JoinRunParameters, JoinStatistics]]
+        The mappings, and the joining statistics if ``report_statistics`` is True.
     """
     from accelforge.model.main import evaluate_mapping
 
@@ -86,10 +96,13 @@ def map_workload_to_arch(
         _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
         metrics=spec.mapper.metrics,
+        report_statistics=report_statistics,
     )
+    if report_statistics:
+        mappings, statistics = mappings
 
     if not eval_in_detail:
-        return mappings
+        return (mappings, statistics) if report_statistics else mappings
 
     def eval_mapping(i, spec, mappings):
         local_spec = deepcopy(spec)
@@ -146,6 +159,8 @@ def map_workload_to_arch(
     #             print(f'\t{c}: {r[c]}')
 
     mappings.data = _fillna_and__numeric_cast(pd.concat(results), 0)
+    if report_statistics:
+        return mappings, statistics
     return mappings
 
 
@@ -221,7 +236,8 @@ def join_pmappings(
     _skip_invalid: bool = True,
     _combine_reservations: bool = True,
     _runtime_log_file: str | None = None,
-) -> Mappings:
+    report_statistics: bool = False,
+) -> Mappings | tuple[Mappings, dict[JoinRunParameters, JoinStatistics]]:
     """
     Joins pmappings into a full mappings for the entire workload. Pmappings can be
     generated using `make_pmappings`.
@@ -247,10 +263,15 @@ def join_pmappings(
         If True, consolidate reservations to increase pruning effectiveness.
     _runtime_log_file:
         If set, append per-step runtime as JSON lines to this file.
+    report_statistics:
+        If True, also return statistics about joining. Joining may be run several
+        times with different pruning tolerances, so the statistics are a dictionary
+        mapping a `JoinRunParameters` for each run to that run's `JoinStatistics`.
     Returns
     -------
-    Mappings
-        A Mappings object containing all valid, optimal mappings for the workload.
+    Mappings | tuple[Mappings, dict[JoinRunParameters, JoinStatistics]]
+        A Mappings object containing all valid, optimal mappings for the workload, and
+        the joining statistics if ``report_statistics`` is True.
     """
     spec = pmappings.spec
     if _skip_invalid is not True:
@@ -266,6 +287,7 @@ def join_pmappings(
         _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
         for_model=False,
+        report_statistics=report_statistics,
     )
 
 

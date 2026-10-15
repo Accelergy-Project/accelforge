@@ -23,9 +23,9 @@ from accelforge.plotting._common import (
 
 
 def _col2latency(colname: str):
-    """Parse latency columns: einsum<SEP>latency<SEP>component -> VerboseActionKey."""
+    """Parse latency columns: einsum<SEP>component_latency<SEP>name -> VerboseActionKey."""
     parts = colname.split("<SEP>")
-    if len(parts) == 3 and parts[1] == "latency":
+    if len(parts) == 3 and parts[1] == "component_latency":
         return VerboseActionKey(
             level=parts[2], action="latency", tensor="None", einsum=parts[0]
         )

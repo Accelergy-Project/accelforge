@@ -32,13 +32,23 @@ def _spec(
     if comp_bpv is not None:
         comp_kwargs["bits_per_value"] = comp_bpv
 
-    read_action = {"name": "read", "energy": 1, "latency": 0}
+    read_action = {
+        "name": "read",
+        "energy": 1,
+        "throughput": float("inf"),
+        "latency": 0,
+    }
     if read_bpa is not None:
         read_action["bits_per_action"] = read_bpa
     if read_vpa is not None:
         read_action["values_per_action"] = read_vpa
 
-    write_action = {"name": "write", "energy": 1, "latency": 0}
+    write_action = {
+        "name": "write",
+        "energy": 1,
+        "throughput": float("inf"),
+        "latency": 0,
+    }
     if write_bpa is not None:
         write_action["bits_per_action"] = write_bpa
     if write_vpa is not None:
@@ -70,7 +80,9 @@ def _spec(
                 ),
                 Compute(
                     name="MAC",
-                    actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                    actions=[
+                        {"name": "compute", "energy": 1, "throughput": 1, "latency": 0}
+                    ],
                     leak_power=0,
                     area=0,
                 ),

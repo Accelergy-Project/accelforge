@@ -306,14 +306,14 @@ arch:
       tile_shape:
       - {expression: "~m", operator: "<=", value: 64}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         mem = spec.arch.find("Mem")
@@ -345,14 +345,14 @@ arch:
     area: 100
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0.1
     area: 10
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 
 workload:
   rank_sizes: {M: 16}
@@ -402,14 +402,14 @@ arch:
     leak_power: 0
     area: 0
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         # total_area depends on total_area being set per-component
@@ -438,14 +438,14 @@ arch:
     area: 100
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 2.0, latency: 10}
-    - {name: write, energy: 3.0, latency: 15}
+    - {name: read, energy: 2.0, throughput: 1/10, latency: 0}
+    - {name: write, energy: 3.0, throughput: 1/15, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0.1
     area: 10
     actions:
-    - {name: compute, energy: 0.5, latency: 1}
+    - {name: compute, energy: 0.5, throughput: 1, latency: 0}
 
 workload:
   rank_sizes: {M: 16}
@@ -501,7 +501,7 @@ workload:
     def test_noop_if_all_false(self):
         spec = self._make_spec()
         result = spec.calculate_component_costs(
-            area=False, energy=False, throughput=False, leak=False
+            area=False, energy=False, throughput=False, latency=False, leak=False
         )
         self.assertIsInstance(result, Spec)
 
@@ -518,8 +518,8 @@ arch:
     area: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Container
     name: Array
     spatial:
@@ -529,7 +529,7 @@ arch:
     leak_power: 0.1
     area: 10
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 
 workload:
   rank_sizes: {M: 16}
@@ -568,7 +568,7 @@ class TestLatencyScale(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.latency_scale, 1)
 
@@ -582,16 +582,26 @@ class TestLatencyScale(unittest.TestCase):
         )
         self.assertEqual(c.throughput_scale, 0.5)
 
-    def test_component_total_latency_default(self):
+    def test_component_total_latency_removed(self):
         c = Compute(
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
-        # Default total_latency is an expression
-        self.assertIsInstance(c.total_latency, str)
-        self.assertIn("sum", c.total_latency)
+        # total_latency was removed: latency is the inverse-throughput-weighted
+        # sum of action counts, and setting the old attribute errors.
+        self.assertIsNone(c.total_latency)
+        with self.assertRaisesRegex(Exception, "total_latency was removed"):
+            Compute(
+                name="MAC",
+                leak_power=0,
+                area=0,
+                actions=[
+                    {"name": "compute", "energy": 1, "throughput": 1, "latency": 0}
+                ],
+                total_latency="sum(a.n_calls / a.throughput for a in actions)",
+            )
 
 
 # ============================================================================
@@ -609,8 +619,13 @@ class TestTensorHolderFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.bits_per_value, {})
@@ -623,8 +638,13 @@ class TestTensorHolderFields(unittest.TestCase):
             area=0,
             bits_per_value={"All": 16},
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.bits_per_value, {"All": 16})
@@ -637,8 +657,13 @@ class TestTensorHolderFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertIsNone(m.bits_per_action)
@@ -651,8 +676,13 @@ class TestTensorHolderFields(unittest.TestCase):
             area=0,
             bits_per_action=32,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.bits_per_action, 32)
@@ -818,7 +848,7 @@ class TestModelDumpNonNone(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         dump = c.model_dump_non_none()
         for k, v in dump.items():
@@ -829,7 +859,7 @@ class TestModelDumpNonNone(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         dump = c.model_dump_non_none()
         self.assertEqual(dump["name"], "MAC")
@@ -844,7 +874,7 @@ class TestShallowModelDump(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         dump = c.shallow_model_dump()
         self.assertIsInstance(dump, dict)
@@ -855,7 +885,7 @@ class TestShallowModelDump(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         dump = c.shallow_model_dump()
         for k, v in dump.items():
@@ -866,7 +896,7 @@ class TestShallowModelDump(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         dump = c.shallow_model_dump(include_None=True)
         # Should include fields that are None
@@ -997,7 +1027,7 @@ class TestComponentClass(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertIsNone(c.component_class)
 
@@ -1007,7 +1037,7 @@ class TestComponentClass(unittest.TestCase):
             leak_power=0,
             area=0,
             component_class="MyCustomMAC",
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.component_class, "MyCustomMAC")
 
@@ -1021,8 +1051,13 @@ class TestComponentClass(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         with self.assertRaises(EvaluationError):
@@ -1037,8 +1072,13 @@ class TestComponentClass(unittest.TestCase):
             area=0,
             component_class="smartbuffer_SRAM",
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         cc = m.get_component_class()

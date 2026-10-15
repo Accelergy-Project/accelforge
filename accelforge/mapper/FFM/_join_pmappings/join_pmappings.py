@@ -5,10 +5,11 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
     CompatibilityDiff,
 )
 from collections import defaultdict
+from dataclasses import dataclass, field
 import itertools
 import logging
 import time
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 from accelforge._accelerated_imports import pd, np
 from accelforge.frontend.spec import Spec
@@ -25,6 +26,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
+    PmappingDataframe,
     row2pmappings,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
@@ -53,7 +55,55 @@ from accelforge.util import (
     parallel,
 )
 
+# Small number for stability
+EPS = 1e-5
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class JoinStepStatistics:
+    """Statistics for joining one Einsum onto the partial mappings to its left."""
+
+    left_einsum: EinsumName
+    """The last Einsum in the partial mappings being joined from the left."""
+    right_einsum: EinsumName
+    """The Einsum being joined from the right."""
+    n_left_mappings: int
+    """Number of mappings on the left after grouping and pruning, before joining."""
+    n_right_mappings: int
+    """Number of mappings on the right after grouping and pruning, before joining."""
+    n_mappings_before_pruning: int
+    """Number of joined mappings before Pareto pruning (product of the sizes of
+    each pair of joined groups)."""
+    n_mappings: int
+    """Number of joined mappings after Pareto pruning."""
+    group_compatibilities: list[Compatibility]
+    """The compatibility of each group of joined mappings."""
+
+    @property
+    def n_groups(self) -> int:
+        return len(self.group_compatibilities)
+
+    @property
+    def mappings_per_group(self) -> float:
+        return self.n_mappings / self.n_groups
+
+
+@dataclass
+class JoinStatistics:
+    """Statistics for one call of join_pmappings."""
+
+    steps: list[JoinStepStatistics] = field(default_factory=list)
+    """Statistics for each Einsum joined, in joining order."""
+
+
+class JoinRunParameters(NamedTuple):
+    """Pruning parameters used for one call of join_pmappings."""
+
+    objective_tolerance: float
+    resource_usage_tolerance: float
+    coarseness: int = 1
 
 
 class JoiningTimer:
@@ -124,7 +174,7 @@ class OptimalityThresholder:
             print(f"Filtering out pmappings worse than the following:")
 
         for i in chosen_indices.astype(int):
-            self.compare_to.append({c: compare_to[c].iloc[i] for c in compare_cols})
+            self.compare_to.append({c: compare_to[c].iloc[i]*(1+EPS) for c in compare_cols})
             if print_progress:
                 print(
                     "\t"
@@ -174,15 +224,13 @@ class OptimalityThresholder:
                 edp_mapping[k] += offset
         edp_mapping = _apply_edp_columns(edp_mapping, self.metrics)
 
-        # A row survives if, for every reference, it is <= the reference in at least
-        # one column. A reference with a column the mapping lacks constrains nothing.
         refs = [c for c in self.compare_to if all(k in edp_mapping.columns for k in c)]
         if refs:
             keys = list(refs[0])
             values = edp_mapping[keys].to_numpy(dtype=float)
             thresholds = np.array([[c[k] for k in keys] for c in refs], dtype=float)
             # FP tolerance
-            thresholds = thresholds + np.abs(thresholds) * 1e-5
+            thresholds = thresholds + np.abs(thresholds) * EPS
             for start in range(0, len(values), 4096):
                 chunk = values[start : start + 4096]
                 nondominated_by_all[start : start + 4096] = (
@@ -327,6 +375,7 @@ def join_strategy_2(
     for_model: bool,
     _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray] | None = None,
     resource_usage_tolerance: float = 0,
+    statistics: dict[JoinRunParameters, JoinStatistics] | None = None,
 ):
     filter_func = _pmapping_row_filter_function
     _runtime_log_file = spec.mapper._runtime_log_file
@@ -380,7 +429,14 @@ def join_strategy_2(
                 _pmapping_row_filter_function=filter_func,
                 print_progress=print_progress,
                 metrics=metrics,
+                report_statistics=statistics is not None,
             )
+            if statistics is not None:
+                joined, run_statistics = joined
+                run = JoinRunParameters(
+                    objective_tolerance, resource_usage_tolerance, coarseness
+                )
+                statistics[run] = run_statistics
             if is_dirty:
                 filter_func = OptimalityThresholder(
                     joined,
@@ -405,6 +461,7 @@ def multi_strategy_join(
     metrics: Metrics,
     for_model: bool,
     _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray] | None = None,
+    statistics: dict[JoinRunParameters, JoinStatistics] | None = None,
 ):
     for _, p in compressed.items():
         for pg in p:
@@ -412,13 +469,17 @@ def multi_strategy_join(
 
     # If it's for the model, just join things directly
     if for_model:
-        return join_pmappings(
+        joined = join_pmappings(
             deepcopy(compressed),
             spec,
             print_progress=print_progress,
             metrics=metrics,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
+            report_statistics=statistics is not None,
         )
+        if statistics is not None:
+            joined, statistics[JoinRunParameters(0, 0)] = joined
+        return joined
 
     if metrics & Metrics.RESOURCE_USAGE:
         return join_strategy_2(
@@ -428,6 +489,7 @@ def multi_strategy_join(
             metrics,
             for_model,
             _pmapping_row_filter_function,
+            statistics=statistics,
         )
 
     resource_usage_thresholds = [
@@ -457,6 +519,7 @@ def multi_strategy_join(
             for_model,
             _pmapping_row_filter_function,
             resource_usage_tolerance=threshold,
+            statistics=statistics,
         )
         for c in joined.data.columns:
             if is_reservation_col(c):
@@ -482,7 +545,13 @@ def clean_compress_and_join_pmappings(
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
-) -> Mappings:
+    report_statistics: bool = False,
+) -> Mappings | tuple[Mappings, dict[JoinRunParameters, JoinStatistics]]:
+    """
+    If report_statistics is True, returns a tuple of (mappings, statistics), where
+    statistics maps the parameters of each call of join_pmappings to its
+    JoinStatistics.
+    """
     einsum2pmappings = pmappings.einsum2pmappings
     if not require_all_einsums:
         einsum2pmappings = {
@@ -496,6 +565,7 @@ def clean_compress_and_join_pmappings(
         einsum2pmappings, print_progress
     )
 
+    statistics = {} if report_statistics else None
     joined = multi_strategy_join(
         pmappings.spec,
         compressed,
@@ -503,6 +573,7 @@ def clean_compress_and_join_pmappings(
         metrics,
         for_model,
         _pmapping_row_filter_function,
+        statistics=statistics,
     )
 
     joined = decompress_pmappings(joined, decompress_data)
@@ -535,7 +606,7 @@ def clean_compress_and_join_pmappings(
     # Fill nans with 0. We might get missing columns for some mapping entries if there
     # are energy entries for some pmappings but not others (e.g., one pmapping accesses
     # DRAM while another doesn't.)
-    return Mappings(
+    mappings = Mappings(
         pmappings.spec,
         list(
             x
@@ -548,6 +619,9 @@ def clean_compress_and_join_pmappings(
         flattened_arches=pmappings.flattened_arches,
         evaluated_specs=pmappings.evaluated_specs,
     )
+    if report_statistics:
+        return mappings, statistics
+    return mappings
 
 
 class PmappingsOneEinsum:
@@ -574,7 +648,6 @@ def get_memories_to_track(
                     always_below.add(reservation_key.name)
 
     total_sizes = {}
-    ignored_resources = oset()
 
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
@@ -595,10 +668,6 @@ def get_memories_to_track(
                         always_below.remove(tensor.resource_name)
                 size = s.mappings.data[col].max()
                 max_sizes[name] = max(max_sizes.get(name, 0), size)
-
-                # nloops < 0 means that the reservation will live through all Einsums
-                if nloops < 0:
-                    ignored_resources.add(name)
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
@@ -656,8 +725,11 @@ def join_pmappings(
     metrics: Metrics = None,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
-):
+    report_statistics: bool = False,
+) -> PmappingDataframe | tuple[PmappingDataframe, JoinStatistics]:
     """
+    If report_statistics is True, returns a tuple of (mappings, JoinStatistics).
+
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
 
     - Reservations at a level include reservations at all levels above it.
@@ -713,6 +785,7 @@ def join_pmappings(
     aliased_tensors = spec.workload.get_tensor_copies()
 
     runtime = {}
+    statistics = JoinStatistics()
 
     pmapping_groups = list(pmapping_groups.items())
     translation = RankVariableTranslation(
@@ -920,6 +993,16 @@ def join_pmappings(
         PmappingGroup.remove_dead_tensors(
             [s for lr in [left, right] for v in lr.values() for s, _ in v], live_tensors
         )
+
+        if report_statistics:
+            # Groups may appear in multiple buckets (one per permutation), so dedupe
+            n_left_mappings, n_right_mappings = (
+                sum(
+                    len(s.mappings.data)
+                    for s in {id(s): s for v in lr.values() for s, _ in v}.values()
+                )
+                for lr in (left, right)
+            )
 
         DO_PRINT = False
         DELAY = True
@@ -1142,21 +1225,20 @@ def join_pmappings(
         #     f"\tCombining {sum(len(s) for s in left.values())}({len(left)}) x {sum(len(s) for s in right.values())}({len(right)}) -> {len(combined)}"
         # )
 
-        nmappings = sum(len(s.mappings.data) for s in combined)
-        for_einsum_text = f"for Einsum {right_einsum}"
-        # print(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
-        # for c in combined:
-        #     print(f"\t\t{c.compatibility}")
-        # print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
-        # print(
-        #     f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}"
-        # )
-        # logger.info(
-        #     f"\tLargest left: {max(len(s2.mappings.data) for s in left.values() for s2, _ in s)}"
-        # )
-        # logger.info(
-        #     f"\tLargest right: {max(len(s2.mappings.data) for s in right.values() for s2, _ in s)}"
-        # )
+        if report_statistics:
+            statistics.steps.append(
+                JoinStepStatistics(
+                    left_einsum=left_einsum,
+                    right_einsum=right_einsum,
+                    n_left_mappings=n_left_mappings,
+                    n_right_mappings=n_right_mappings,
+                    n_mappings_before_pruning=sum(
+                        s.n_pre_prune_mappings for s in combined
+                    ),
+                    n_mappings=sum(len(s.mappings.data) for s in combined),
+                    group_compatibilities=[s.compatibility for s in combined],
+                )
+            )
 
         # ======================================================================
         # Update left for the next iteration.
@@ -1179,6 +1261,14 @@ def join_pmappings(
     mappings = s_final[0].mappings
     mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
     mappings.free_to_loop_index(-2)
+    assert not mappings._make_latencies(), (
+        f"Component latency columns were not folded into the total latency: "
+        f"{mappings._make_latencies()}"
+    )
+    assert not any(mappings._make_commlatencies().values()), (
+        f"Descent/ascent latency columns were not folded into the total latency: "
+        f"{mappings._make_commlatencies()}"
+    )
     mappings.make_pareto()
 
     timer.log_total_time()
@@ -1189,6 +1279,8 @@ def join_pmappings(
     #     evaluations_tracker.n_mappings.update(n_mappings)
     #     evaluations_tracker.runtime.update(runtime)
 
+    if report_statistics:
+        return mappings, statistics
     return mappings
 
 

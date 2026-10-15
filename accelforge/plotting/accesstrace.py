@@ -50,6 +50,10 @@ _WRITE_MARKER = "s"
 # for attention.
 _TILE_COLOR = "#dcdcd4"
 
+# Gap between tile shading
+_TILE_GAP_X = 0.1
+_TILE_GAP_Y = 0.15
+
 
 def plot_access_trace(
     trace,
@@ -310,9 +314,9 @@ def _tile_blocks(
         runs = np.split(resident, np.flatnonzero(np.diff(resident) > 1) + 1)
         blocks.extend(
             Rectangle(
-                (live_start - 0.5, float(run[0]) - 0.5),
-                live_end - live_start,
-                float(run[-1] - run[0]) + 1,
+                (live_start - 0.5 + _TILE_GAP_X, float(run[0]) - 0.5 + _TILE_GAP_Y),
+                live_end - live_start - 2*_TILE_GAP_X,
+                float(run[-1] - run[0]) + 1 - 2*_TILE_GAP_Y,
             )
             for run in runs
         )
@@ -341,8 +345,7 @@ def _plot_one(
             PatchCollection(
                 blocks,
                 facecolor=level_color,
-                edgecolor=_darken(level_color),
-                linewidths=0.4,
+                linewidths=0.0,
                 zorder=0,
                 rasterized=len(blocks) > 2_000,
             )

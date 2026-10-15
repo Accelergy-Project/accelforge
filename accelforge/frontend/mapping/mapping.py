@@ -1687,6 +1687,12 @@ class Mapping(Nested):
     _connections: list[tuple[MappingNode, MappingNode, str | None]] = []
     """ Extra edges drawn when rendering. """
 
+    _pre_merged_pmappings: dict[EinsumName, Nested] = {}
+    """
+    The per-Einsum pmappings from which this mapping was merged, if any. Used by the
+    model to disambiguate between nodes that may be duplicated across Einsums.
+    """
+
     def add_connection(
         self, a: MappingNode, b: MappingNode, text: str | None = None
     ) -> None:
@@ -1919,6 +1925,9 @@ class Mapping(Nested):
         pmappings = list(copy.deepcopy(pmappings))
         for pmapping in pmappings:
             pmapping._beautify_loops(rank_variable_bounds)
+        pre_merged = {
+            p.get_nodes_of_type(Compute)[0].einsum: copy.deepcopy(p) for p in pmappings
+        }
 
         import os
 
@@ -1976,6 +1985,7 @@ class Mapping(Nested):
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
         # mapping._remove_reservations_for_tolls()
+        mapping._pre_merged_pmappings = pre_merged
         return mapping
 
         # import mermaid as md
