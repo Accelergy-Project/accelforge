@@ -34,6 +34,9 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_reservation_col,
     is_tensor_col,
 )
+from accelforge.mapper.FFM._join_pmappings.rank_variable_translation import (
+    RankVariableTranslation,
+)
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
@@ -712,6 +715,10 @@ def join_pmappings(
     runtime = {}
 
     pmapping_groups = list(pmapping_groups.items())
+    translation = RankVariableTranslation(
+        spec.workload, [name for name, _ in pmapping_groups]
+    )
+    einsum_index = {name: i for i, (name, _) in enumerate(pmapping_groups)}
 
     if not skip_invalid:
         lookahead_filter = False
@@ -947,6 +954,10 @@ def join_pmappings(
                 combined_ids.add(key_check)
                 found = True
 
+                if not translation.compatible(
+                    compatibility_a, einsum_index[right_einsum], compatibility_b
+                ):
+                    continue
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
