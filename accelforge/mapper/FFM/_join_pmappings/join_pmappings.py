@@ -186,6 +186,47 @@ def prune_with_tolerance(
 
     return result
 
+def _filter_coarse_fused_loops(compressed: PmappingGroup, coarseness: int):
+    keep = np.ones(len(compressed), dtype=bool)
+    for c in compressed.mappings.data.columns:
+        counts = sorted(compressed.mappings.data[c].astype(float).unique())
+        keep_shapes = counts[:1]
+        for c in counts[1:]:
+            if c >= keep_shapes[-1] * coarseness:
+                keep_shapes.append(c)
+        keep_shapes = set(keep_shapes) | set(counts[-1:])
+        keep &= compressed.mappings.data[c].astype(float).isin(keep_shapes).to_numpy()
+    return keep
+
+
+def _dirty_pmapping_groups(
+    compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
+) -> dict[EinsumName, list[PmappingGroup]] | None:
+    if isinstance(compressed, dict):
+        keep = {}
+        for k, v in compressed.items():
+            keep[k] = _dirty_pmapping_groups(v, coarseness)
+            if keep[k] is None:
+                return None
+        return keep
+
+    if isinstance(compressed, list):
+        return [_dirty_pmapping_groups(pg, coarseness) for pg in compressed]
+
+    if coarseness > 1:
+        keep = _filter_coarse_fused_loops(compressed, coarseness)
+
+    kept = {}
+    for einsum_name, groups in compressed.items():
+        kept[einsum_name] = [
+            PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
+            for pg in groups
+        ]
+        kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
+        if not kept[einsum_name]:
+            return None
+    return kept
+
 
 def join_strategy_2(
     spec: Spec,
@@ -196,35 +237,47 @@ def join_strategy_2(
     _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray] | None = None,
     resource_usage_tolerance: float = 0,
 ):
-    thresholds = [1, 0]
-    thresholds = [t for t in thresholds if t > spec.mapper.objective_tolerance]
-    thresholds.append(spec.mapper.objective_tolerance)
-
     filter_func = _pmapping_row_filter_function
     _runtime_log_file = spec.mapper._runtime_log_file
-    for i, threshold in enumerate(thresholds):
-        is_dirty = i < len(thresholds) - 1
+
+    # Coarse iteration counts reduce the number of fused loop tile shapes Coarseness = N
+    # ->  keep the lowest fused loop iteration count, then each next count at least N
+    # times the last one picked, and always the highest.
+    for coarseness, is_dirty in [(4, True), (1, False)]:
+        objective_tolerance = 1 if is_dirty else spec.mapper.objective_tolerance
+        
         if not for_model and print_progress:
             if is_dirty:
-                print(f"Dirty joining with objectives <= {1 + threshold}× optimal")
+                print(
+                    f"Dirty joining with fused loop iteration counts at least "
+                    f"{coarseness}× apart and objectives <= 2× optimal"
+                )
             else:
                 print("Final clean join.")
-        # Write round marker so the notebook can distinguish dirty vs clean
-        if _runtime_log_file and is_dirty:
-            import json
-
-            with open(_runtime_log_file, "a") as f:
-                f.write(json.dumps({"round": i, "threshold": threshold}) + "\n")
         try:
             cur_compressed = prune_with_tolerance(
                 compressed,
-                objective_tolerance=threshold,
+                objective_tolerance=objective_tolerance,
                 resource_usage_tolerance=resource_usage_tolerance,
                 print_progress=print_progress,
-                is_last=i == len(thresholds) - 1,
+                is_last=True,
             )
             if cur_compressed is None:
                 continue
+
+            if is_dirty:
+                cur_compressed = _dirty_pmapping_groups(cur_compressed, coarseness)
+                if cur_compressed is None:
+                    if print_progress:
+                        print("An Einsum has no pmappings for the dirty join")
+                    continue
+
+            if _runtime_log_file and is_dirty:
+                import json
+                with open(_runtime_log_file, "a") as f:
+                    f.write(
+                        json.dumps({"round": "dirty", "coarseness": coarseness}) + "\n"
+                    )
 
             joined = join_pmappings(
                 cur_compressed,
@@ -233,7 +286,7 @@ def join_strategy_2(
                 print_progress=print_progress,
                 metrics=metrics,
             )
-            if i < len(thresholds) - 1:
+            if is_dirty:
                 filter_func = OptimalityThresholder(
                     joined,
                     _pmapping_row_filter_function,
@@ -241,10 +294,10 @@ def join_strategy_2(
                     metrics,
                 )
         except Exception as e:
-            if i == len(thresholds) - 1:
+            if not is_dirty:
                 raise
             if print_progress:
-                print(f"Error with optimality threshold {threshold}: {e}")
+                print(f"Error with dirty join coarseness {coarseness}: {e}")
 
     return joined
 
@@ -766,25 +819,31 @@ def join_pmappings(
         combined: list[PmappingGroup] = []
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
+        def _make_permutations(groups: list[tuple[PmappingGroup, CompatibilityDiff]]):
+            return [(g, p.apply(g.compatibility)) for g, p in groups]
+
+        right_permuted = {k: _make_permutations(v) for k, v in right.items()}
         for k in left:
             found = False
             if DO_PRINT:
                 print(f"Left key {k}")
-            for (a, perm_a), (b, perm_b) in itertools.product(
-                left[k], right.get(k, [])
+
+            right_matches = right_permuted.get(k, [])
+            if not right_matches:
+                continue
+
+            l_permuted = [(a, perm_a.apply(a.compatibility)) for a, perm_a in left[k]]
+            for (a, compatibility_a), (b, compatibility_b) in itertools.product(
+                l_permuted, right_matches
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                perm_a: CompatibilityDiff
-                perm_b: CompatibilityDiff
                 key_check = (id(a), id(b))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
                 found = True
 
-                compatibility_a = perm_a.apply(a.compatibility)
-                compatibility_b = perm_b.apply(b.compatibility)
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
@@ -798,8 +857,6 @@ def join_pmappings(
                     # if DO_PRINT:
                     #     print(f"\tIncompatible: {e}")
                     continue
-
-                t0 = time.time()
 
                 combined.append(
                     a.merge_next(
@@ -925,6 +982,7 @@ def join_pmappings(
         # ======================================================================
         import copy
 
+        t_merge = time.time()
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
@@ -936,6 +994,7 @@ def join_pmappings(
             )
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping
+        merge_time = time.time() - t_merge
         timer.print_time("Pmapping merging")
 
         if not any(len(s.mappings.data) for s in combined):
@@ -949,17 +1008,23 @@ def join_pmappings(
         if _runtime_log_file:
             import json as _json
 
+            # The merge and less-fused prune are parts of the join phase
             with open(_runtime_log_file, "a") as _f:
-                _f.write(
-                    _json.dumps(
-                        {
-                            "step": f"{left_einsum} → {right_einsum}",
-                            "phase": "join",
-                            "time": step_time,
-                        }
+                for phase, t in [
+                    ("join", step_time),
+                    ("merge", merge_time),
+                ]:
+                    _f.write(
+                        _json.dumps(
+                            {
+                                "step": f"{left_einsum} → {right_einsum}",
+                                "phase": phase,
+                                "time": t,
+                                "n_pairs": len(combined),
+                            }
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
         # # ======================================================================
         # # Print statements
         # # ======================================================================
