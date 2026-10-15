@@ -52,7 +52,7 @@ def _cache_by_hash(method):
 
     @functools.wraps(method)
     def wrapper(self, *args):
-        key = (self._get_hash_tuple(), args)
+        key = (self._all_attrs_tuple(), args)
         try:
             return cache[key]
         except KeyError:
@@ -378,7 +378,10 @@ class CompatibilityDiff:
 class Compatibility(Updatable):
     tensors: fzs[TensorReservation]
     splits: fzs[Split] = fzs()
-    reservation_indices: fzs[int] = fzs()
+
+    # Note: The below are NOT in the cross Einsum hash tuple because they don't need to
+    # match across Einsums
+    splits: fzs[Split] = fzs()
     check_reservation_indices: bool = True
     is_copy: bool = False
 
@@ -397,16 +400,28 @@ class Compatibility(Updatable):
     def loops(self) -> tuple[Loop, ...]:
         return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
 
-    def _get_hash_tuple(self):
-        return self.n_loops, self.tensors, self.reservation_indices, self.is_copy
+    def _is_compatible_hash_tuple(self):
+        return self.n_loops, self.tensors, self.reservation_indices
+
+    def _all_attrs_tuple(self):
+        return (
+            self._is_compatible_hash_tuple(),
+            self.splits,
+            self.check_reservation_indices,
+            self.is_copy,
+        )
 
     def __hash__(self):
-        return hash(self._get_hash_tuple())
+        return hash(self._is_compatible_hash_tuple())
 
     def __eq__(self, other):
+        """
+        CHECKS FOR COMPATIBLITY ACROSS EINSUMS. Not sufficient to determine equality of
+        two compatibilities.
+        """
         if self is other:
             return True
-        return self._get_hash_tuple() == other._get_hash_tuple()
+        return self._is_compatible_hash_tuple() == other._is_compatible_hash_tuple()
 
     def __post_init__(self):
         assert isinstance(self.tensors, fzs)
@@ -520,7 +535,7 @@ class Compatibility(Updatable):
         )
 
     def __lt__(self, other):
-        return self._get_hash_tuple() < other._get_hash_tuple()
+        return self._is_compatible_hash_tuple() < other._is_compatible_hash_tuple()
 
     def __str__(self):
         return self.__repr__()
