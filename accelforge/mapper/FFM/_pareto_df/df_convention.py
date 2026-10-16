@@ -386,6 +386,17 @@ def col_used_in_pareto(c):
         or col2total_latency(c) is not None
         or is_objective_col(c)
     )
+    
+def uses_objective_tolerance(c):
+    # NOTE: Objective tolerance works with anything that's additive. If things are going
+    # to be multiplied repeatedly, don't put em here. We make an exception for EDP since
+    # it's multiplied exactly once.
+    return (
+        col2complatency(c) is not None
+        or col2commlatency(c) is not None
+        or col2total_latency(c) is not None
+        or is_objective_col(c)
+    )
 
 
 def col_used_in_joining(c):
