@@ -206,6 +206,20 @@ class FFM(EvalableModel):
     but slows down the mapper. On for optimization levels <= 1.
     """
 
+    greedy_prune_simplified_objectives: bool = False
+    """
+    If EDP is an objective, then instead of having energy & latency separately, prunes
+    pmappings by (energy * latency). This may miss an optimal mapping if other pmappings
+    contribute significantly to either energy or latency but not both, making the
+    tradeoff between energy and latency asymmetric across Einsums.
+
+    If latency is an objective or a part of objectives, then takes the total latency at
+    any given point and prunes pmappings by that rather than taking per-component
+    latencies. This may miss an optimal mapping if the per-component latencies may be
+    shared across later Einsums (e.g, Einsum A's long DRAM latency masked by Einsum C's
+    long compute latency).
+    """
+
     _count_option_for_mapsapce_size_evaluation: tuple[
         Literal[
             "redundant_loop_orders",
@@ -257,11 +271,11 @@ class FFM(EvalableModel):
     measurements.
     """
 
-    def set_optimization_level(self, level: int=3) -> None:
+    def set_optimization_level(self, level: int = 3) -> None:
         """
         Sets the optimization level for the mapper. The higher the level, the slower the
         mapper and the better the mapping.
-        
+
         O3, the default, returns the optimal mapping for a perfectly-factorized
         mapspace. O4 explores perfect and imperfect mapspaces. O0, O1, and O2 explore
         the perfect mapspace with heuristics to speed up the mapper.
@@ -275,9 +289,10 @@ class FFM(EvalableModel):
 
         if level <= 1:
             self.max_fused_loops = 2
-        
+
         self.drop_more_fused_pmappings_that_are_worse = level <= 2
+        self.greedy_prune_simplified_objectives = level <= 2
         self.prioritize_reuse_of_unfused_tensors = level <= 1
-        
+
         self.explore_imperfect_spatial_loops = level >= 4
         self.explore_imperfect_temporal_loops = level >= 4
