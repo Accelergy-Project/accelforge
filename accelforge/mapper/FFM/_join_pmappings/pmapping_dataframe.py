@@ -121,8 +121,8 @@ def get_reservation_or_parent(
 
 class PmappingDataframe:
     use_simplified_objectives: Metrics | None = None
-    
-    # BAD CODE SMELL BELOW. Used in _simplify_objectives to not have to pass in the
+
+    # BAD CODE SMELL BELOW. Used in _clean_objectives to not have to pass in the
     # compatibility there.
     compatibility: Compatibility | None = None
 
@@ -318,9 +318,11 @@ class PmappingDataframe:
                 assert key.nloops >= -1
         return l_levels, r_levels
 
-    def _n_loops(self) -> int:
+    def _n_loops(self, include_reservations: bool = True) -> int:
         l_total, r_total = self._make_total_latency()
-        l_reservations, r_reservations = self._make_reservations()
+        l_reservations, r_reservations = (
+            self._make_reservations() if include_reservations else ({}, {})
+        )
         levels = itertools.chain(
             l_total,
             r_total,
@@ -457,6 +459,7 @@ class PmappingDataframe:
         loop_index: int,
         per_loop_calculated_n_iterations: tuple = (),
         levels_with_sequential_splits: fzs = fzs(),
+        free_reservations: bool = True,
     ) -> bool:
         """
         In the following, "timestep" as a loop index means that the timestep is shared
@@ -631,7 +634,9 @@ class PmappingDataframe:
             cols_to_add_into_right=windups_to_add,
         )
 
-        l_reservations, r_reservations = self._make_reservations()
+        l_reservations, r_reservations = (
+            self._make_reservations() if free_reservations else ({}, {})
+        )
         for resource in oset(l_reservations) | oset(r_reservations):
             drop_cols += self.free_tree(
                 loop_index,
@@ -651,11 +656,13 @@ class PmappingDataframe:
             )
 
         self._data = self.data.drop(columns=drop_cols)
-        assert self._n_loops() <= loop_index + 1
+        assert self._n_loops(include_reservations=free_reservations) <= loop_index + 1
         return len(drop_cols) != 0
 
     @error_check_wrapper
-    def sequential_fence_to_level(self, loop_index: int):
+    def sequential_fence_to_level(
+        self, loop_index: int, free_reservations: bool = True
+    ):
         """
         Put a fence at level loop_index. Everything with above_loop_index >= loop_index
         + 1 stops being shared with future Einsums.
@@ -677,7 +684,9 @@ class PmappingDataframe:
         """
         bottom = loop_index + 1
         assert self._prev_free_to_loop_index == loop_index, "free_to_loop_index first"
-        assert self._n_loops() <= bottom, "columns below the bottom"
+        assert (
+            self._n_loops(include_reservations=free_reservations) <= bottom
+        ), "columns below the bottom"
         total = total_latency2col(bottom)
         drop_cols = []
 
@@ -688,21 +697,29 @@ class PmappingDataframe:
                 max_to_col(self.data, total, col)
                 drop_cols.append(col)
 
-        drop_cols += self._free_dead_reservations(bottom)
+        if free_reservations:
+            drop_cols += self._free_dead_reservations(bottom)
         if total in self.data:
             add_to_col(self.data, total_latency2col(bottom, left=True), total)
             drop_cols.append(total)
 
         self._data = self.data.drop(columns=drop_cols)
 
-    def finish(self):
+    def _clean_objectives(self, metrics: Metrics, finished: bool):
         # Next shared = -1 -> no shared loops in the future
-        self.limit_capacity(next_shared_loop_index=-1, finished=True)
+        if finished:
+            self.limit_capacity(next_shared_loop_index=-1, finished=True)
 
         # We do an additional bump to -2 because globally-shared tensors (persistent
         # tensors) are reserved at above_loop_index -1
-        self.free_to_loop_index(-2)
-        self.sequential_fence_to_level(-2)
+        iterations, sequential_splits = (), fzs()
+        if self.compatibility is not None:
+            iterations = self.compatibility.per_loop_calculated_n_iterations
+            sequential_splits = self.compatibility.levels_with_sequential_splits
+        self.free_to_loop_index(
+            -2, iterations, sequential_splits, free_reservations=finished
+        )
+        self.sequential_fence_to_level(-2, free_reservations=finished)
 
         # Make total latency column from the windups and steady states
         assert not self._make_per_component_latencies(), "unfenced component latencies"
@@ -721,11 +738,26 @@ class PmappingDataframe:
                 if c in self.data:
                     self.data[c] += leak * self.data["Total<SEP>latency"]
 
-        # No more fused loops to worry about
-        self._data.drop(
-            columns=[c for c in self.data if is_fused_loop_col(c)],
+        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
+            self.data["Total<SEP>energy_delay_product"] = (
+                self.data["Total<SEP>energy"].astype(float)
+                * self.data["Total<SEP>latency"]
+            ).to_numpy()
+
+        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
+        self.data.drop(
+            columns=[
+                c
+                for c in self.data
+                if (is_objective_col(c) and c not in objectives)
+                or (finished and is_fused_loop_col(c))
+            ],
             inplace=True,
         )
+
+    def finish(self, metrics: Metrics):
+        self._clean_objectives(metrics, finished=True)
+        self.use_simplified_objectives = None
         self.make_pareto()
 
     def _free_dead_reservations(
@@ -1361,62 +1393,10 @@ class PmappingDataframe:
 
         self._data = self.data.drop(columns=dropcols)
 
-    def _simplify_objectives(self) -> pd.DataFrame:
-        metrics = self.use_simplified_objectives
-        new_df = self.data.copy()
-        latencies_to_add = [
-            c
-            for c in self.data
-            if col2total_latency(c) is not None
-            or col2complatency(c) is not None
-            or col2commlatency(c) is not None
-        ]
-
-        # Pack all of the per-component and communication latencies into total latency
-        if metrics.includes_latency() or (
-            metrics.includes_leak_energy() and "Total<SEP>leak_power" in self.data
-        ):
-            if "Total<SEP>latency" in self.data:
-                latency = self.data["Total<SEP>latency"]
-            else:
-                latency_df = self.update(
-                    data=self.data[
-                        latencies_to_add
-                        + [c for c in self.data if is_fused_loop_col(c)]
-                    ].copy(),
-                    skip_pareto=True,
-                    use_simplified_objectives=None,
-                )
-                latency_df.free_to_loop_index(
-                    -2,
-                    self.compatibility.per_loop_calculated_n_iterations,
-                    self.compatibility.levels_with_sequential_splits,
-                )
-                latency_df.sequential_fence_to_level(-2)
-                latency = latency_df.data[total_latency2col(-1, left=True)]
-            new_df["Total<SEP>latency"] = latency.to_numpy()
-        new_df.drop(columns=latencies_to_add, inplace=True)
-
-        if metrics.includes_leak_energy() and "Total<SEP>leak_power" in new_df:
-            leak_energy = new_df["Total<SEP>leak_power"] * new_df["Total<SEP>latency"]
-            if metrics & Metrics.LEAK_ENERGY:
-                add_to_col(new_df, "Total<SEP>leak_energy", leak_energy)
-            if metrics.includes_energy():
-                add_to_col(new_df, "Total<SEP>energy", leak_energy)
-            new_df.drop(columns=["Total<SEP>leak_power"], inplace=True)
-
-        # If we're doing EDP, combine those too
-        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
-            new_df["Total<SEP>energy_delay_product"] = (
-                new_df["Total<SEP>energy"].astype(float) * new_df["Total<SEP>latency"]
-            ).to_numpy()
-
-        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
-        new_df.drop(
-            columns=[c for c in new_df if is_objective_col(c) and c not in objectives],
-            inplace=True,
-        )
-        return new_df.reset_index(drop=True)
+    def _simplify_objectives_for_prune(self, metrics: Metrics) -> pd.DataFrame:
+        simplified = self.copy()
+        simplified._clean_objectives(metrics, finished=False)
+        return simplified.data.reset_index(drop=True)
 
     def make_pareto(
         self,
@@ -1433,7 +1413,9 @@ class PmappingDataframe:
             resource_usage_tolerance = objective_tolerance
 
         if self.use_simplified_objectives is not None:
-            simplified = self._simplify_objectives()
+            simplified = self._simplify_objectives_for_prune(
+                self.use_simplified_objectives
+            )
         else:
             simplified = self.data
         new_data = makepareto(

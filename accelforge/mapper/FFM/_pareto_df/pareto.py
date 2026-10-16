@@ -17,8 +17,6 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
-    col2total_latency,
-    is_objective_col,
     uses_objective_tolerance,
 )
 

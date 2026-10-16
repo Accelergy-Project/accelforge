@@ -97,7 +97,10 @@ def test_greedy_product_folds_shared_busy_time_and_both_windups():
         }
     )
     original = mapping.data.copy()
-    np.testing.assert_allclose(mapping._simplify_objectives()[EDP], [15e-6, 12e-6])
+    np.testing.assert_allclose(
+        mapping._simplify_objectives_for_prune(Metrics.ENERGY_DELAY_PRODUCT)[EDP],
+        [15e-6, 12e-6],
+    )
     pd.testing.assert_frame_equal(mapping.data, original)
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[1]])
@@ -125,7 +128,7 @@ def test_simplified_objectives_respect_requested_metrics(metrics, positions):
         columns[ENERGY] = [1.0, 2.0]
     mapping = pmapping(columns, metrics=metrics)
     original = mapping.data.copy()
-    simplified = mapping._simplify_objectives()
+    simplified = mapping._simplify_objectives_for_prune(metrics)
     expected = set()
     if metrics & Metrics.LATENCY:
         expected.add(LATENCY)
@@ -150,7 +153,10 @@ def test_greedy_product_energy_already_includes_leakage():
         }
     )
     original = mapping.data.copy()
-    np.testing.assert_array_equal(mapping._simplify_objectives()[EDP], [5.0, 6.0])
+    np.testing.assert_array_equal(
+        mapping._simplify_objectives_for_prune(Metrics.ENERGY_DELAY_PRODUCT)[EDP],
+        [5.0, 6.0],
+    )
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[0]])
 
@@ -168,16 +174,20 @@ def test_partial_leakage_contributes_to_requested_goal(metrics):
     original = mapping.data.copy()
     column = EDP if metrics & Metrics.ENERGY_DELAY_PRODUCT else ENERGY
     expected = [11.0, 8.0] if column == EDP else [11.0, 4.0]
-    simplified = mapping._simplify_objectives()
+    simplified = mapping._simplify_objectives_for_prune(metrics)
     assert set(simplified) == {column}
     np.testing.assert_array_equal(simplified[column], expected)
     pd.testing.assert_frame_equal(mapping.data, original)
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[1]])
-    mapping.finish()
+    mapping.finish(metrics)
     assert "Total<SEP>leak_power" not in mapping.data
-    assert mapping.data[ENERGY].tolist() == [4.0]
-    assert mapping._simplify_objectives()[column].tolist() == [expected[1]]
+    assert set(mapping.data) == {column}
+    assert mapping.data[column].tolist() == [expected[1]]
+    assert mapping.use_simplified_objectives is None
+    finished = mapping.data.copy()
+    mapping.make_pareto()
+    pd.testing.assert_frame_equal(mapping.data, finished)
 
 
 @pytest.mark.parametrize("sequential", [False, True])
@@ -215,7 +225,9 @@ def test_symbolic_windup_context_survives_renamed_concat_and_rebinding(sequentia
     assert combined.mappings.compatibility == combined.compatibility
     assert combined.mappings.data[ENERGY].tolist() == [1.0]
     expected = 11.0 if sequential else 5.0
-    assert combined.mappings._simplify_objectives()[EDP].tolist() == [expected]
+    assert combined.mappings._simplify_objectives_for_prune(
+        Metrics.ENERGY_DELAY_PRODUCT
+    )[EDP].tolist() == [expected]
     rebound = PmappingGroup(
         combined.compatibility.update(
             levels_with_sequential_splits=fzs() if sequential else fzs([1])
@@ -223,9 +235,32 @@ def test_symbolic_windup_context_survives_renamed_concat_and_rebinding(sequentia
         combined.mappings.copy(),
     )
     assert rebound.mappings.compatibility == rebound.compatibility
-    assert rebound.mappings._simplify_objectives()[EDP].tolist() == [
-        5.0 if sequential else 11.0
-    ]
+    assert rebound.mappings._simplify_objectives_for_prune(
+        Metrics.ENERGY_DELAY_PRODUCT
+    )[EDP].tolist() == [5.0 if sequential else 11.0]
+
+
+def test_prune_projection_preserves_unfinished_reservations_and_rows():
+    data = pd.DataFrame(
+        {
+            ENERGY: [1.0, 2.0],
+            LATENCY: [1e-6, 1e-6],
+            reservation2col("GB", 0): [0.5, 1.25],
+            reservation2col("GB", 1): [0.25, 0.5],
+            make_fused_loop_col("tile_shape"): [16, 16],
+            make_fused_loop_col("n_iterations"): [4, 4],
+        },
+        index=[7, 7],
+    )
+    mapping = PmappingDataframe(data, 2, 2, fzs(), True, skip_pareto=True)
+    original = mapping.data.copy()
+    simplified = mapping._simplify_objectives_for_prune(
+        Metrics.ENERGY_DELAY_PRODUCT | Metrics.RESOURCE_USAGE
+    )
+    expected = original.drop(columns=[ENERGY, LATENCY]).reset_index(drop=True)
+    expected[EDP] = (original[ENERGY].astype(float) * original[LATENCY]).to_numpy()
+    pd.testing.assert_frame_equal(simplified, expected)
+    pd.testing.assert_frame_equal(mapping.data, original)
 
 
 def test_greedy_product_survives_dataframe_operations_and_merge():
