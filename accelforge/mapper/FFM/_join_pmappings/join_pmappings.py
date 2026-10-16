@@ -1261,17 +1261,7 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-    mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
-    mappings.free_to_loop_index(-2)
-    assert not mappings._make_latencies(), (
-        f"Component latency columns were not folded into the total latency: "
-        f"{mappings._make_latencies()}"
-    )
-    assert not any(mappings._make_commlatencies().values()), (
-        f"Descent/ascent latency columns were not folded into the total latency: "
-        f"{mappings._make_commlatencies()}"
-    )
-    mappings.make_pareto()
+    mappings.finish()
 
     timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:

@@ -413,6 +413,21 @@ class PmappingDataframe:
 
         return len(drop_columns) != 0
 
+    def finish(self):
+        # Next shared = -1 -> no shared loops in the future
+        self.limit_capacity(next_shared_loop_index=-1, finished=True)
+
+        # We do an additional bump to -2 because globally-shared tensors (persistent
+        # tensors) are reserved at above_loop_index -1
+        self.free_to_loop_index(-2)
+
+        # No more fused loops to worry about
+        self._data.drop(
+            columns=[c for c in self.data if is_fused_loop_col(c)],
+            inplace=True,
+        )
+        self.make_pareto()
+
     @error_check_wrapper
     def shift_bottom_reservation_left(self, bottom_loop_index: int):
         """
