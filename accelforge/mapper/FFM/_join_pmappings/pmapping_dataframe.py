@@ -711,6 +711,11 @@ class PmappingDataframe:
                 if c in self.data:
                     self.data[c] += leak * self.data["Total<SEP>latency"]
 
+        # No more fused loops to worry about
+        self._data.drop(
+            columns=[c for c in self.data if is_fused_loop_col(c)],
+            inplace=True,
+        )
         self.make_pareto()
 
     def _free_dead_reservations(
@@ -1494,10 +1499,10 @@ class PmappingDataframe:
     def clear_irrelevant_columns(
         self, compatibility: Compatibility
     ) -> "PmappingDataframe":
-        return self.update(
-            data=compatibility.clear_unrelated_columns(self._data),
-            skip_pareto=True,
-        )
+        data = compatibility.clear_unrelated_columns(self._data)
+        if data is self._data:
+            return self
+        return self.update(data=data, skip_pareto=True)
 
 
 def row2pmappings(

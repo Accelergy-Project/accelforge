@@ -1,5 +1,5 @@
 from numbers import Number
-from sympy import Symbol
+from sympy import Symbol, ceiling
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import Loop, TensorHolder, Toll
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
@@ -110,9 +110,11 @@ def run_model(
     spatial_usage = {}
     spatial_usage_df = {}
     memory_to_size = {}
+    memory_to_page_size = {}
     for node in job.flattened_arch:
         if isinstance(node, arch.Memory):
             memory_to_size[node.name] = node.size
+            memory_to_page_size[node.name] = node.page_size
 
         if isinstance(node, arch.Spatialable):
             for s in node.spatial:
@@ -183,6 +185,9 @@ def run_model(
 
         if occupancy == 0:
             continue
+        page_size = memory_to_page_size.get(buffet.level)
+        if page_size is not None:
+            occupancy = ceiling(occupancy / page_size) * page_size
         if stats.persistent:
             occupancy *= n_instances
 

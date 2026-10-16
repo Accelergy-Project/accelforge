@@ -34,6 +34,7 @@ from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
+from accelforge.frontend.workload import RankVariable, TensorName, Workload
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
@@ -445,11 +446,14 @@ class Loop(MappingNode):
         other_rv = (
             other_rv if isinstance(other_rv, (set, frozenset)) else oset((other_rv,))
         )
-        return type(self)(
+        new = type(self)(
             rank_variable=my_rv | other_rv,
-            tile_pattern=self.tile_pattern,
+            tile_shape=self.tile_shape,
+            initial_tile_shape=self.initial_tile_shape,
             **kwargs,
         )
+        new.calculated_n_iterations = self.calculated_n_iterations
+        return new
 
     @property
     def tile_pattern(self) -> TilePattern:
@@ -644,8 +648,8 @@ class TensorHolder(MappingNode):
             tensors=self.tensors + other.tensors,
             component=self.component,
             component_object=self.component_object,
-            _lower=self._lower,
         )
+        new._lower = self._lower
         return new
 
 
@@ -1338,6 +1342,7 @@ class Nested(MappingNodeWithChildren):
         tensor_name: TensorName,
         flattened_arch: FlattenedArch,
         tensor_rank_variables: set[str],
+        workload: Workload
     ) -> Self:
         """
         Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION
@@ -1412,9 +1417,9 @@ class Nested(MappingNodeWithChildren):
         that affect one another.
 
         I haven't thought through how this will work with more complex rank variable
-        expressions, so to be safe, will say that there can not be a temporal and
-        spatial loop that affect the same indexing expression or each others' loop
-        bounds.
+        expressions, so to be safe, I'll say that for non-simple rank variables, there
+        cannot be a temporal and spatial loop that affect the same indexing expression
+        or each others' loop bounds.
 
         These problems also aren't necessarily impossible to solve; I just haven't
         thought it through. If we do think it through, a good place to start would be to
@@ -1464,6 +1469,9 @@ class Nested(MappingNodeWithChildren):
 
         mapping.extend(spatials)
 
+        einsum_name = mapping[-1].einsum
+        simple_rank_variables = workload.einsums[einsum_name]._simple_rank_variables
+
         # Check that spatials are always above their respective fanouts
         for i, node in enumerate(mapping):
             if not isinstance(node, (TensorHolder, Compute)):
@@ -1490,9 +1498,6 @@ class Nested(MappingNodeWithChildren):
         groups = [sorted(g, key=lambda x: id2idx[id(x)]) for g in groups]
         mapping = [x for g in groups for x in g]
 
-        # Check that all storage-temporal relations are held from before.
-        # Precomputed id-sets avoid pydantic __instancecheck__ in the O(N²)
-        # combinations loops.
         node2idx = {id(node): i for i, node in enumerate(mapping)}
         prev_node2idx = {id(node): i for i, node in enumerate(self.nodes)}
         th_ids = {id(n) for n in mapping if isinstance(n, TensorHolder)}
@@ -1501,9 +1506,18 @@ class Nested(MappingNodeWithChildren):
         for n1, n2 in itertools.combinations(mapping, 2):
             i1, i2 = id(n1), id(n2)
             if (i1 in th_ids and i2 in th_ids) or (i1 in sp_ids and i2 in sp_ids):
-                assert (node2idx[i1] > node2idx[i2]) == (
-                    prev_node2idx[i1] > prev_node2idx[i2]
-                ), "BUG"
+                new_gt = node2idx[i1] > node2idx[i2]
+                prev_gt = prev_node2idx[i1] > prev_node2idx[i2]
+                if new_gt == prev_gt:
+                    continue
+                
+                prev_compact = Nested(nodes=mapping).compact_str()
+                new_compact = Nested(nodes=self.nodes).compact_str()
+                raise ValueError(
+                    f"BUG: Storage/Spatial order changed for {n1} and {n2}.\n"
+                    f"Previous order: {prev_compact}\n"
+                    f"New order: {new_compact}"
+                )
 
         # Check for spatial/temporal loops that have been reordered for the
         # same rank variable. These can't co-exist because the tiling is
@@ -1517,6 +1531,8 @@ class Nested(MappingNodeWithChildren):
             if node1.rank_variable not in tensor_rank_variables:
                 continue
             if node1.rank_variable != node2.rank_variable:
+                continue
+            if node1.rank_variable in simple_rank_variables:
                 continue
             s = """
             In the given mapping, there exists (potentially with other nodes in
@@ -1670,6 +1686,12 @@ class Mapping(Nested):
 
     _connections: list[tuple[MappingNode, MappingNode, str | None]] = []
     """ Extra edges drawn when rendering. """
+
+    _pre_merged_pmappings: dict[EinsumName, Nested] = {}
+    """
+    The per-Einsum pmappings from which this mapping was merged, if any. Used by the
+    model to disambiguate between nodes that may be duplicated across Einsums.
+    """
 
     def add_connection(
         self, a: MappingNode, b: MappingNode, text: str | None = None
@@ -1903,6 +1925,9 @@ class Mapping(Nested):
         pmappings = list(copy.deepcopy(pmappings))
         for pmapping in pmappings:
             pmapping._beautify_loops(rank_variable_bounds)
+        pre_merged = {
+            p.get_nodes_of_type(Compute)[0].einsum: copy.deepcopy(p) for p in pmappings
+        }
 
         import os
 
@@ -1960,6 +1985,7 @@ class Mapping(Nested):
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
         # mapping._remove_reservations_for_tolls()
+        mapping._pre_merged_pmappings = pre_merged
         return mapping
 
         # import mermaid as md

@@ -160,6 +160,8 @@ class FFM(EvalableModel):
     
     See tiling_coarseness for how to reduce the number of tile shapes explored when this
     is set.
+    
+    On for optimization levels >= 4.
     """
 
     explore_imperfect_temporal_loops: bool = False
@@ -178,9 +180,11 @@ class FFM(EvalableModel):
     
     See tiling_coarseness for how to reduce the number of tile shapes explored when this
     is set.
+    
+    On for optimization levels >= 4.
     """
 
-    drop_less_fused_pmappings_that_are_worse: bool = False
+    drop_more_fused_pmappings_that_are_worse: bool = False
     """
     If set to True, drop pmappings that are worse, in all objective metrics and
     reservations, than a less-fused pmapping. A pmapping is less-fused than another if
@@ -189,7 +193,7 @@ class FFM(EvalableModel):
     reservation indices up to the number of compared loops and, for every tensor with
     the same backing storage in both, the loops and tile shapes above that tensor's
     backing storage match; if they differ, the pmappings cannot be compared. This
-    pruning is disabled for copy Einsums.
+    pruning is disabled for copy Einsums. On for optimization levels <= 2.
     """
 
     prioritize_reuse_of_unfused_tensors: bool = False
@@ -199,7 +203,7 @@ class FFM(EvalableModel):
     tensor_order_options specified for a memory level. The result of this is that the
     mapper will avoid mappings that repeatedly fetch unfused tensors in order to allow
     for smaller tiles of fused tensors. This may lead to better mappings,
-    but slows down the mapper.
+    but slows down the mapper. On for optimization levels <= 1.
     """
 
     _count_option_for_mapsapce_size_evaluation: tuple[
@@ -252,3 +256,28 @@ class FFM(EvalableModel):
     If set, append per-step runtime as JSON lines to this file. Used for ablation study
     measurements.
     """
+
+    def set_optimization_level(self, level: int=3) -> None:
+        """
+        Sets the optimization level for the mapper. The higher the level, the slower the
+        mapper and the better the mapping.
+        
+        O3, the default, returns the optimal mapping for a perfectly-factorized
+        mapspace. O4 explores perfect and imperfect mapspaces. O0, O1, and O2 explore
+        the perfect mapspace with heuristics to speed up the mapper.
+        """
+
+        if level <= 0:
+            self.max_fused_loops = 0
+            self.tiling_coarseness = 4
+            self.objective_tolerance = 1
+            self.resource_usage_tolerance = 0.2
+
+        if level <= 1:
+            self.max_fused_loops = 2
+        
+        self.drop_more_fused_pmappings_that_are_worse = level <= 2
+        self.prioritize_reuse_of_unfused_tensors = level <= 1
+        
+        self.explore_imperfect_spatial_loops = level >= 4
+        self.explore_imperfect_temporal_loops = level >= 4

@@ -362,13 +362,13 @@ def insert_spatial_loops(
 
     for node in nodes_with_fanout:
         # Insert spatials below the lowest storage node whose component is
-        # above the fanout in the arch, and below any temporal loops in the
+        # above the fanout in the arch, and below any loops already in the
         # same block.
         insertion_point = _idx_below_lowest_tensor_holder_with_component_above_fanout(
             node, mapping, flattened_arch
         )
         while insertion_point < len(mapping) and isinstance(
-            mapping[insertion_point], Temporal
+            mapping[insertion_point], Loop
         ):
             insertion_point += 1
 
@@ -388,10 +388,8 @@ def insert_spatial_loops(
                     component_object=node,
                     component=node.name,
                 )
-                if insertion_point == len(mapping):
-                    mapping.append(s)
-                else:
-                    mapping.insert(insertion_point, s)
+                mapping.insert(insertion_point, s)
+                insertion_point += 1
 
 
 def _tensors_seen_above_point(idx, mapping):

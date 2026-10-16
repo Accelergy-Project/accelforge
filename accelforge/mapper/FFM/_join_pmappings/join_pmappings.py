@@ -1,4 +1,5 @@
 from copy import deepcopy
+import copy
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     CompatibilityDiff,
@@ -35,6 +36,9 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_reservation_col,
     is_tensor_col,
 )
+from accelforge.mapper.FFM._join_pmappings.rank_variable_translation import (
+    RankVariableTranslation,
+)
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
@@ -43,6 +47,7 @@ from accelforge.frontend.arch.arch import _spatial2resource
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     col2reservation,
     col2total_latency,
+    is_fused_loop_col,
 )
 from accelforge.util import (
     _fillna_and__numeric_cast,
@@ -96,10 +101,11 @@ class JoinStatistics:
 
 
 class JoinRunParameters(NamedTuple):
-    """Pruning tolerances used for one call of join_pmappings."""
+    """Pruning parameters used for one call of join_pmappings."""
 
     objective_tolerance: float
     resource_usage_tolerance: float
+    coarseness: int = 1
 
 
 class JoiningTimer:
@@ -153,8 +159,14 @@ class OptimalityThresholder:
         _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray],
         print_progress: bool,
         metrics: Metrics,
+        minima: dict[EinsumName, dict[str, dict]] | None = None,
     ):
+        """
+        Filters out rows that can not beat `prev_solutions`. Used to filter clean rounds
+        when we've already done a dirty join
+        """
         self.metrics = metrics
+        self.minima = minima or {}
         compare_to = _apply_edp_columns(prev_solutions.data.copy(), metrics)
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
         self._pmapping_row_filter_function = _pmapping_row_filter_function
@@ -171,7 +183,9 @@ class OptimalityThresholder:
             print(f"Filtering out pmappings worse than the following:")
 
         for i in chosen_indices.astype(int):
-            self.compare_to.append({c: compare_to[c].iloc[i]*(1+EPS) for c in compare_cols})
+            self.compare_to.append(
+                {c: compare_to[c].iloc[i] * (1 + EPS) for c in compare_cols}
+            )
             if print_progress:
                 print(
                     "\t"
@@ -180,16 +194,54 @@ class OptimalityThresholder:
                     )
                 )
 
+        # Set by make_for_one_join
+        self.joined_einsums = None
+        self.compatibility = None
+
+    def make_for_one_join(
+        self,
+        joined_einsums: frozenset[EinsumName],
+        compatibility: Compatibility,
+    ) -> "OptimalityThresholder":
+        new = copy.copy(self)
+        new.joined_einsums = joined_einsums
+        new.compatibility = compatibility
+        return new
+
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
 
-        edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
+        pareto_cols = [c for c in mapping.columns if col_used_in_pareto(c)]
+        edp_mapping = mapping[pareto_cols].copy()
+
+        backings = (
+            [(t.name, t.resource_name) for t in self.compatibility.tensors]
+            if self.compatibility
+            else []
+        )
+
+        if self.joined_einsums is not None:
+            # Other Einsums will contribute at least the minimum objective values over
+            # all pmappings compatible with the current compatibility.
+            offsets = defaultdict(float)
+            for einsum, einsum_minima in self.minima.items():
+                if einsum not in self.joined_einsums:
+                    for k, by_backing in einsum_minima.items():
+                        offsets[k] += max(
+                            by_backing.get(b, by_backing[None])
+                            for b in [None, *backings]
+                        )
+            for k, offset in offsets.items():
+                edp_mapping[k] += offset
+        edp_mapping = _apply_edp_columns(edp_mapping, self.metrics)
 
         refs = [c for c in self.compare_to if all(k in edp_mapping.columns for k in c)]
         if refs:
             keys = list(refs[0])
             values = edp_mapping[keys].to_numpy(dtype=float)
-            thresholds = np.array([[c[k] for k in keys] for c in refs]) * (1 + 1e-5)
+            thresholds = np.array([[c[k] for k in keys] for c in refs], dtype=float)
+            # FP tolerance
+            thresholds = thresholds + np.abs(thresholds) * EPS
             for start in range(0, len(values), 4096):
                 chunk = values[start : start + 4096]
                 nondominated_by_all[start : start + 4096] = (
@@ -202,6 +254,35 @@ class OptimalityThresholder:
             nondominated_by_all &= self._pmapping_row_filter_function(mapping)
 
         return nondominated_by_all
+
+
+def _einsum_objective_minima(
+    compressed: dict[EinsumName, list[PmappingGroup]],
+) -> dict[EinsumName, dict[str, dict]]:
+    """
+    Returns a dict {einsum name: {objective: {(per-tensor backing storage): minimum
+    value}}}.
+
+    When another Einsum joins with a given Einsum, the total objectives must increase by
+    at least the minimum of the other Einsum's objectives. We further match this by
+    saying that they must increase by the minimum of compatible Einsums objectives,
+    using a simple filter that just checks backing storage.
+    """
+    minima = {}
+    for einsum_name, groups in compressed.items():
+        values = defaultdict(lambda: defaultdict(list))
+        for pg in groups:
+            for col in pg.mappings.data.columns:
+                if is_objective_col(col):
+                    lowest = pg.mappings.data[col].min()
+                    values[col][None].append(lowest)
+                    for t in pg.compatibility.tensors:
+                        values[col][t.name, t.resource_name].append(lowest)
+        minima[einsum_name] = {
+            col: {k: min(v) for k, v in by_backing.items()}
+            for col, by_backing in values.items()
+        }
+    return minima
 
 
 def prune_with_tolerance(
@@ -245,6 +326,58 @@ def prune_with_tolerance(
     return result
 
 
+def _filter_coarse_fused_loops(
+    compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
+) -> Callable[[pd.DataFrame], np.ndarray]:
+    """
+    Uses the same logic as tile shape coarseness in the tile shape generation, except
+    that it looks at the iteration counts for every pmapping before picking coarse
+    shapes to make sure we get matches across Einsums. Otherwise we'd have weird cases
+    like: coarseness 4, one Einsum has only one rank that can be mapped to a fanout-2
+    min_usage 1 spatial, now that Einsum only has 2,8,32 and the others have 4,16,64...
+    """
+    counts = defaultdict(set)
+    for groups in compressed.values():
+        for pg in groups:
+            for c in pg.mappings.data.columns:
+                if is_fused_loop_col(c):
+                    counts[c] |= set(pg.mappings.data[c].astype(float).unique())
+    keep_shapes = {}
+    for c, values in counts.items():
+        values = sorted(values)
+        picked = values[:1]
+        for v in values[1:]:
+            if v >= picked[-1] * coarseness:
+                picked.append(v)
+        keep_shapes[c] = set(picked) | set(values[-1:])
+
+    def keep(df: pd.DataFrame) -> np.ndarray:
+        kept = np.ones(len(df), dtype=bool)
+        for c in df.columns:
+            if is_fused_loop_col(c):
+                cur_keep_shapes = keep_shapes[c] | set([df[c].max(), df[c].min()])
+                kept &= df[c].astype(float).isin(cur_keep_shapes).to_numpy()
+        return kept
+
+    return keep
+
+
+def _filter_pmappings_for_dirty_join(
+    compressed: dict[EinsumName, list[PmappingGroup]], coarseness: int
+) -> dict[EinsumName, list[PmappingGroup]] | None:
+    keep = _filter_coarse_fused_loops(compressed, coarseness)
+    kept = {}
+    for einsum_name, groups in compressed.items():
+        kept[einsum_name] = [
+            PmappingGroup(pg.compatibility, pg.mappings.filter_rows(keep))
+            for pg in groups
+        ]
+        kept[einsum_name] = [pg for pg in kept[einsum_name] if len(pg.mappings)]
+        if not kept[einsum_name]:
+            return None
+    return kept
+
+
 def join_strategy_2(
     spec: Spec,
     compressed: dict[EinsumName, list[PmappingGroup]],
@@ -255,35 +388,51 @@ def join_strategy_2(
     resource_usage_tolerance: float = 0,
     statistics: dict[JoinRunParameters, JoinStatistics] | None = None,
 ):
-    thresholds = [1, 0]
-    thresholds = [t for t in thresholds if t > spec.mapper.objective_tolerance]
-    thresholds.append(spec.mapper.objective_tolerance)
-
     filter_func = _pmapping_row_filter_function
     _runtime_log_file = spec.mapper._runtime_log_file
-    for i, threshold in enumerate(thresholds):
-        is_dirty = i < len(thresholds) - 1
+    minima = _einsum_objective_minima(compressed)
+
+    # Coarse iteration counts reduce the number of fused loop tile shapes Coarseness = N
+    # ->  keep the lowest fused loop iteration count, then each next count at least N
+    # times the last one picked, and always the highest.
+    for coarseness, is_dirty in [(32, True), (4, True), (1, False)]:
+        objective_tolernace = max(spec.mapper.objective_tolerance, 1 if is_dirty else 0)
+
         if not for_model and print_progress:
             if is_dirty:
-                print(f"Dirty joining with objectives <= {1 + threshold}× optimal")
+                print(
+                    f"Dirty joining with fused loop iteration counts at least "
+                    f"{coarseness}× apart and objectives <= 2× optimal"
+                )
             else:
                 print("Final clean join.")
-        # Write round marker so the notebook can distinguish dirty vs clean
-        if _runtime_log_file and is_dirty:
-            import json
-
-            with open(_runtime_log_file, "a") as f:
-                f.write(json.dumps({"round": i, "threshold": threshold}) + "\n")
         try:
             cur_compressed = prune_with_tolerance(
                 compressed,
-                objective_tolerance=threshold,
+                objective_tolerance=objective_tolerance,
                 resource_usage_tolerance=resource_usage_tolerance,
                 print_progress=print_progress,
-                is_last=i == len(thresholds) - 1,
+                is_last=True,
             )
             if cur_compressed is None:
                 continue
+
+            if is_dirty:
+                cur_compressed = _filter_pmappings_for_dirty_join(
+                    cur_compressed, coarseness
+                )
+                if cur_compressed is None:
+                    if print_progress:
+                        print("An Einsum has no pmappings for the dirty join")
+                    continue
+
+            if _runtime_log_file and is_dirty:
+                import json
+
+                with open(_runtime_log_file, "a") as f:
+                    f.write(
+                        json.dumps({"round": "dirty", "coarseness": coarseness}) + "\n"
+                    )
 
             joined = join_pmappings(
                 cur_compressed,
@@ -295,20 +444,23 @@ def join_strategy_2(
             )
             if statistics is not None:
                 joined, run_statistics = joined
-                run = JoinRunParameters(threshold, resource_usage_tolerance)
+                run = JoinRunParameters(
+                    objective_tolerance, resource_usage_tolerance, coarseness
+                )
                 statistics[run] = run_statistics
-            if i < len(thresholds) - 1:
+            if is_dirty:
                 filter_func = OptimalityThresholder(
                     joined,
                     _pmapping_row_filter_function,
                     print_progress,
                     metrics,
+                    minima,
                 )
         except Exception as e:
-            if i == len(thresholds) - 1:
+            if not is_dirty:
                 raise
             if print_progress:
-                print(f"Error with optimality threshold {threshold}: {e}")
+                print(f"Error with dirty join coarseness {coarseness}: {e}")
 
     return joined
 
@@ -642,13 +794,19 @@ def join_pmappings(
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = oset()
 
+    def row_filter(joined_einsums: set[EinsumName], compatibility: Compatibility):
+        f = _pmapping_row_filter_function
+        if isinstance(f, OptimalityThresholder):
+            return f.make_for_one_join(frozenset(joined_einsums), compatibility)
+        return f
+
     if _pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
         pmapping_groups = {
             e: [
                 PmappingGroup(
                     s.compatibility,
-                    s.mappings.filter_rows(_pmapping_row_filter_function),
+                    s.mappings.filter_rows(row_filter({e}, s.compatibility)),
                 )
                 for s in pmapping_groups[e]
             ]
@@ -677,6 +835,10 @@ def join_pmappings(
     statistics = JoinStatistics()
 
     pmapping_groups = list(pmapping_groups.items())
+    translation = RankVariableTranslation(
+        spec.workload, [name for name, _ in pmapping_groups]
+    )
+    einsum_index = {name: i for i, (name, _) in enumerate(pmapping_groups)}
 
     if not skip_invalid:
         lookahead_filter = False
@@ -795,6 +957,7 @@ def join_pmappings(
 
     if pmgroups:
         left, left_einsum, left_tensors = grab_einsum_pmappings()
+        joined_einsums = {left_einsum}
 
     partial_mapping_size = 1
     while pmgroups:
@@ -817,6 +980,7 @@ def join_pmappings(
         # tensors that will be live after this Einsum.
         # ======================================================================
         right, right_einsum, right_tensors = grab_einsum_pmappings()
+        joined_einsums.add(right_einsum)
         logger.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
         partial_mapping_size += 1
@@ -831,6 +995,7 @@ def join_pmappings(
         # ======================================================================
         # print_time(f"Consolidating")
 
+        t_combine = time.time()
         left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
@@ -841,6 +1006,7 @@ def join_pmappings(
         # print_time(f"Combining")
         # Group left and right into buckets
         left = PmappingGroup.group(left, right_tensors)
+        combine_time = time.time() - t_combine
         # print_time("Grouping")
 
         # =============================================================================
@@ -893,26 +1059,35 @@ def join_pmappings(
         combined: list[PmappingGroup] = []
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
+        def _make_permutations(groups: list[tuple[PmappingGroup, CompatibilityDiff]]):
+            return [(g, p.apply(g.compatibility)) for g, p in groups]
+
+        right_permuted = {k: _make_permutations(v) for k, v in right.items()}
         for k in left:
             found = False
             if DO_PRINT:
                 print(f"Left key {k}")
-            for (a, perm_a), (b, perm_b) in itertools.product(
-                left[k], right.get(k, [])
+
+            right_matches = right_permuted.get(k, [])
+            if not right_matches:
+                continue
+
+            l_permuted = [(a, perm_a.apply(a.compatibility)) for a, perm_a in left[k]]
+            for (a, compatibility_a), (b, compatibility_b) in itertools.product(
+                l_permuted, right_matches
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                perm_a: CompatibilityDiff
-                perm_b: CompatibilityDiff
                 key_check = (id(a), id(b))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
                 found = True
 
-                compatibility_a = perm_a.apply(a.compatibility)
-                compatibility_b = perm_b.apply(b.compatibility)
-                t0 = time.time()
+                if not translation.compatible(
+                    compatibility_a, einsum_index[right_einsum], compatibility_b
+                ):
+                    continue
 
                 for sequential in [False, True] if parallel_spatial else [True]:
                     try:
@@ -935,7 +1110,9 @@ def join_pmappings(
                             sequential=sequential,
                             shared_across_parallel=shared_across_parallel,
                             delay=DELAY,
-                            _pmapping_row_filter_function=_pmapping_row_filter_function,
+                            _pmapping_row_filter_function=row_filter(
+                                joined_einsums, compatibility_joined
+                            ),
                             ignored_resources=ignored_resources,
                         )
                     )
@@ -1004,38 +1181,31 @@ def join_pmappings(
                 next_right_tensors = next_pmapping_groups.tensor_names
                 if not next_right_tensors & cur_tensors:
                     continue
-                prev_combined = combined
-                combined = PmappingGroup.group(combined, next_right_tensors)
                 next_keys = oset(
                     c.clear_dead_tensors(
                         cur_tensors
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 )
-                for k in list[Compatibility](combined):
-                    perms = k.make_equivalent_compatibilities()
-                    perms = [
-                        p[0]
-                        .clear_dead_tensors(next_right_tensors)
-                        .clear_tile_patterns_and_reservation_indices()
-                        for p in perms
-                    ]
-                    if not any(p in next_keys for p in perms):
-                        if DO_PRINT:
-                            for b, _ in combined[k]:
-                                print(
-                                    f"\tLOOKAHEAD to {next_pmapping_groups.einsum_name}: No match for {b.compatibility}"
-                                )
-                        del combined[k]
-                if not combined:
-                    PmappingGroup.group(prev_combined, next_right_tensors)
-                    no_match_lookahead_error(prev_combined, next_keys)
-
-                combined = list(itertools.chain.from_iterable(combined.values()))
-                combined = [c[0] for c in combined]
-                # Remove duplicates
-                id2combined = {id(c): c for c in combined}
-                combined = list(id2combined.values())
+                # A group can follow if some permutation of its compatibility, cleared
+                # to the next Einsum's tensors, is one of the next Einsum's keys. Groups
+                # sharing that cleared compatibility share the answer.
+                can_follow = {}
+                kept = []
+                for c in combined:
+                    key = c.compatibility.clear_dead_tensors(
+                        next_right_tensors
+                    ).clear_tile_patterns_and_reservation_indices()
+                    if key not in can_follow:
+                        can_follow[key] = any(
+                            p.clear_tile_patterns_and_reservation_indices() in next_keys
+                            for p, _ in key.make_equivalent_compatibilities()
+                        )
+                    if can_follow[key]:
+                        kept.append(c)
+                if not kept:
+                    no_match_lookahead_error(combined, next_keys)
+                combined = kept
                 # print(
                 #     f"Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)"
                 # )
@@ -1049,6 +1219,7 @@ def join_pmappings(
         # ======================================================================
         import copy
 
+        t_merge = time.time()
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
@@ -1060,6 +1231,7 @@ def join_pmappings(
             )
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping
+        merge_time = time.time() - t_merge
         timer.print_time("Pmapping merging")
 
         if not any(len(s.mappings.data) for s in combined):
@@ -1073,17 +1245,24 @@ def join_pmappings(
         if _runtime_log_file:
             import json as _json
 
+            # The combine and merge are parts of the join phase
             with open(_runtime_log_file, "a") as _f:
-                _f.write(
-                    _json.dumps(
-                        {
-                            "step": f"{left_einsum} → {right_einsum}",
-                            "phase": "join",
-                            "time": step_time,
-                        }
+                for phase, t in [
+                    ("join", step_time),
+                    ("combine", combine_time),
+                    ("merge", merge_time),
+                ]:
+                    _f.write(
+                        _json.dumps(
+                            {
+                                "step": f"{left_einsum} → {right_einsum}",
+                                "phase": phase,
+                                "time": t,
+                                "n_pairs": len(combined),
+                            }
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
         # # ======================================================================
         # # Print statements
         # # ======================================================================
@@ -1125,7 +1304,6 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-
     mappings.finish()
     timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:

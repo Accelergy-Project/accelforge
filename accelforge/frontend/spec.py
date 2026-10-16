@@ -372,6 +372,22 @@ class Spec(EvalableModel):
 
         return evaluate_mapping(self)
 
+    def rearrange_workload_to_increase_fusion_opportunity(self):
+        """
+        Rearranges the workload to increase fusion opportunity. Minimizes the sum (size
+        of tensor * distance between Einsums that use the tensor) across all tensors in
+        the workload. Note that this is a heuristic and is not guaranteed to find the
+        optimal ordering.
+        """
+        from copy import deepcopy
+        from accelforge.util._basetypes import EvalableList
+
+        evaluated = deepcopy(self)._spec_eval_expressions(eval_arch=False)
+        order = evaluated.workload._rearrange_to_increase_fusion_opportunity()
+        self.workload.einsums = EvalableList(
+            sorted(self.workload.einsums, key=lambda e: order.index(e.name))
+        )
+
     def map_workload_to_arch(
         self,
         einsum_names: list[EinsumName] | None = None,
