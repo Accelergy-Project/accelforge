@@ -17,7 +17,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
-    is_objective_col,
+    uses_objective_tolerance,
 )
 
 from .fast_pareto import fast_pareto_mask
@@ -246,7 +246,7 @@ def makepareto(
         if len(arr) <= 1 or (arr == arr[0]).all():
             continue
 
-        if c in columns_set and is_objective_col(c):
+        if c in columns_set and uses_objective_tolerance(c):
             to_pareto.append(logscale_to_tolerance(series, objective_tolerance))
             goals.append("min")
         elif c in split_by_cols_set:
