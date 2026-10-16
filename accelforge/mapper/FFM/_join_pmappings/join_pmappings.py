@@ -387,7 +387,7 @@ def join_strategy_2(
     # ->  keep the lowest fused loop iteration count, then each next count at least N
     # times the last one picked, and always the highest.
     for coarseness, is_dirty in [(32, True), (4, True), (1, False)]:
-        objective_tolernace = max(spec.mapper.objective_tolerance, 1 if is_dirty else 0)
+        objective_tolerance = max(spec.mapper.objective_tolerance, 1 if is_dirty else 0)
 
         if not for_model and print_progress:
             if is_dirty:
