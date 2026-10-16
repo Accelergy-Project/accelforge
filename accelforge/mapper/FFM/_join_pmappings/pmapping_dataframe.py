@@ -8,6 +8,7 @@ from typing import Any, Callable, Iterable
 import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
+from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.frontend.mapping import Loop as MappingLoop
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
@@ -119,6 +120,8 @@ def get_reservation_or_parent(
 
 
 class PmappingDataframe:
+    use_simplified_objectives: Metrics | None = None
+
     def __init__(
         self,
         data: pd.DataFrame,
@@ -132,6 +135,7 @@ class PmappingDataframe:
         max_right_to_left: bool = False,
         next_shared_loop_index: int = None,
         excess_resource_tolerance: float = 0,
+        use_simplified_objectives: Metrics | None = None,
     ):
         self._data: pd.DataFrame = reduce_precision(data)
         self._prev_free_to_loop_index = None
@@ -139,6 +143,8 @@ class PmappingDataframe:
         self.n_valid_pmappings: float = n_valid_pmappings
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
+        self.use_simplified_objectives = use_simplified_objectives
+        self.ignored_resources = ignored_resources
 
         if next_shared_loop_index is not None:
             assert (
@@ -164,8 +170,6 @@ class PmappingDataframe:
 
         if check_above_subset_below:
             self.check_above_subset_below()
-
-        self.ignored_resources = ignored_resources
 
         assert len(self.data.columns) == len(
             oset(self.data.columns)
@@ -1030,6 +1034,7 @@ class PmappingDataframe:
             n_valid_pmappings=n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            use_simplified_objectives=self.use_simplified_objectives,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -1223,6 +1228,7 @@ class PmappingDataframe:
             n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
             ignored_resources=next(iter(paretos)).ignored_resources,
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
+            use_simplified_objectives=paretos[0].use_simplified_objectives,
         )
         return p
 
@@ -1239,6 +1245,7 @@ class PmappingDataframe:
             n_valid_pmappings=self.n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            use_simplified_objectives=self.use_simplified_objectives,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
@@ -1345,9 +1352,43 @@ class PmappingDataframe:
 
         self._data = self.data.drop(columns=dropcols)
 
+    def _simplify_objectives(self) -> pd.DataFrame:
+        metrics = self.use_simplified_objectives
+        new_df = self.data.copy()
+        latencies_to_add = [
+            c
+            for c in self.data
+            if col2complatency(c) is not None or col2commlatency(c) is not None
+        ]
+
+        # Pack all of the per-component and communication latencies into total latency
+        if metrics.includes_latency():
+            latency = self.data["Total<SEP>latency"]
+            if latencies_to_add:
+                latency_df = self.update(
+                    data=self.data[["Total<SEP>latency", *latencies_to_add]].copy(),
+                    skip_pareto=True,
+                )
+                latency_df.free_to_loop_index(-2)
+                latency = latency_df.data["Total<SEP>latency"]
+            new_df["Total<SEP>latency"] = latency.to_numpy()
+        new_df.drop(columns=latencies_to_add, inplace=True)
+
+        # If we're doing EDP, combine those too
+        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
+            new_df["Total<SEP>energy_delay_product"] = (
+                self.data["Total<SEP>energy"].astype(float) * latency
+            ).to_numpy()
+
+        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
+        new_df.drop(
+            columns=[c for c in new_df if is_objective_col(c) and c not in objectives],
+            inplace=True,
+        )
+        return new_df.reset_index(drop=True)
+
     def make_pareto(
         self,
-        columns: list[str] = None,
         objective_tolerance: float = 0,
         resource_usage_tolerance: float = 0,
         absolute_resource_usage_tolerance: float = 0,
@@ -1360,13 +1401,18 @@ class PmappingDataframe:
         if self.drop_valid_reservations:
             resource_usage_tolerance = objective_tolerance
 
+        if self.use_simplified_objectives is not None:
+            simplified = self._simplify_objectives()
+        else:
+            simplified = self.data
         new_data = makepareto(
-            self.data,
-            columns,
+            simplified,
             resource_usage_tolerance=resource_usage_tolerance,
             absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
             objective_tolerance=objective_tolerance,
         )
+        if self.use_simplified_objectives is not None:
+            new_data = self.data.iloc[new_data.index]
         if inplace:
             self._data = new_data
             return self

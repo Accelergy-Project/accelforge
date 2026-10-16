@@ -292,7 +292,15 @@ def prune_with_tolerance(
     print_progress: bool = True,
     is_last: bool = False,
 ):
-    if objective_tolerance == 0 and resource_usage_tolerance == 0:
+    if (
+        objective_tolerance == 0
+        and resource_usage_tolerance == 0
+        and not any(
+            pg.mappings.use_simplified_objectives is not None
+            for groups in pmappings.values()
+            for pg in groups
+        )
+    ):
         return pmappings
 
     prev_n = sum(len(pg.mappings) for p in pmappings.values() for pg in p)
@@ -575,6 +583,14 @@ def clean_compress_and_join_pmappings(
     compressed, decompress_data = compress_einsum2pmappings(
         einsum2pmappings, print_progress
     )
+    use_simplified_objectives = (
+        metrics
+        if not for_model and pmappings.spec.mapper.greedy_prune_simplified_objectives
+        else None
+    )
+    for groups in compressed.values():
+        for group in groups:
+            group.mappings.use_simplified_objectives = use_simplified_objectives
 
     statistics = {} if report_statistics else None
     joined = multi_strategy_join(
@@ -600,6 +616,7 @@ def clean_compress_and_join_pmappings(
         columns=[c for c in joined.data.columns if is_tensor_col(c)], inplace=True
     )
 
+    joined.use_simplified_objectives = None
     _apply_edp_columns(joined.data, metrics)
     # Pareto prune again in case the EDP column application reduced number of
     # objectives.

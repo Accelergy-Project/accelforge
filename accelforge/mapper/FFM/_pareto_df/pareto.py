@@ -220,15 +220,12 @@ def multi_round(
 
 def makepareto(
     mappings: pd.DataFrame,
-    columns: list[str] = None,
     split_by_cols: list[str] = (),
     resource_usage_tolerance: float = 0,
     objective_tolerance: float = 0,
     absolute_resource_usage_tolerance: float = 0,
 ) -> pd.DataFrame:
-    # return makepareto_time_compare(mappings)
-    if columns is None:
-        columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
 
     # Number of iterations is derived from the tile shapes, so we don't need to use it,
     # since any row with the same tile shapes will have the same number of iterations.
