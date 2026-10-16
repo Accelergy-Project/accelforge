@@ -311,7 +311,9 @@ class PmappingDataframe:
         self.make_pareto()
 
     @error_check_wrapper
-    def free_to_loop_index(self, loop_index: int) -> bool:
+    def free_to_loop_index(
+        self, loop_index: int, free_reservations: bool = True
+    ) -> bool:
         """
         Reservations follow:
            A  B
@@ -355,7 +357,9 @@ class PmappingDataframe:
         self._prev_free_to_loop_index = loop_index
 
         drop_columns = []
-        l_reservations, r_reservations = self._make_reservations()
+        l_reservations, r_reservations = (
+            self._make_reservations() if free_reservations else ({}, {})
+        )
         for resource in oset(l_reservations) | oset(r_reservations):
             max_columns = []
             cur_l_reservations = l_reservations.get(resource, oset())
@@ -417,19 +421,34 @@ class PmappingDataframe:
 
         return len(drop_columns) != 0
 
-    def finish(self):
+    def _clean_objectives(self, metrics: Metrics, finished: bool):
         # Next shared = -1 -> no shared loops in the future
-        self.limit_capacity(next_shared_loop_index=-1, finished=True)
-
+        if finished:
+            self.limit_capacity(next_shared_loop_index=-1, finished=True)
         # We do an additional bump to -2 because globally-shared tensors (persistent
         # tensors) are reserved at above_loop_index -1
-        self.free_to_loop_index(-2)
+        self.free_to_loop_index(-2, free_reservations=finished)
 
-        # No more fused loops to worry about
-        self._data.drop(
-            columns=[c for c in self.data if is_fused_loop_col(c)],
+        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
+            self.data["Total<SEP>energy_delay_product"] = (
+                self.data["Total<SEP>energy"].astype(float)
+                * self.data["Total<SEP>latency"]
+            ).to_numpy()
+
+        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
+        self.data.drop(
+            columns=[
+                c
+                for c in self.data
+                if (is_objective_col(c) and c not in objectives)
+                or (finished and is_fused_loop_col(c)) # Finished -> no fused loops
+            ],
             inplace=True,
         )
+
+    def finish(self, metrics: Metrics):
+        self._clean_objectives(metrics, finished=True)
+        self.use_simplified_objectives = None
         self.make_pareto()
 
     @error_check_wrapper
@@ -1061,40 +1080,10 @@ class PmappingDataframe:
 
         self._data = self.data.drop(columns=dropcols)
 
-    def _simplify_objectives(self) -> pd.DataFrame:
-        metrics = self.use_simplified_objectives
-        new_df = self.data.copy()
-        latencies_to_add = [
-            c
-            for c in self.data
-            if col2complatency(c) is not None or col2commlatency(c) is not None
-        ]
-
-        # Pack all of the per-component and communication latencies into total latency
-        if metrics.includes_latency():
-            latency = self.data["Total<SEP>latency"]
-            if latencies_to_add:
-                latency_df = self.update(
-                    data=self.data[["Total<SEP>latency", *latencies_to_add]].copy(),
-                    skip_pareto=True,
-                )
-                latency_df.free_to_loop_index(-2)
-                latency = latency_df.data["Total<SEP>latency"]
-            new_df["Total<SEP>latency"] = latency.to_numpy()
-        new_df.drop(columns=latencies_to_add, inplace=True)
-
-        # If we're doing EDP, combine those too
-        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
-            new_df["Total<SEP>energy_delay_product"] = (
-                self.data["Total<SEP>energy"].astype(float) * latency
-            ).to_numpy()
-
-        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
-        new_df.drop(
-            columns=[c for c in new_df if is_objective_col(c) and c not in objectives],
-            inplace=True,
-        )
-        return new_df.reset_index(drop=True)
+    def _simplify_objectives_for_prune(self, metrics: Metrics) -> pd.DataFrame:
+        simplified = self.copy()
+        simplified._clean_objectives(metrics, finished=False)
+        return simplified.data.reset_index(drop=True)
 
     def make_pareto(
         self,
@@ -1111,7 +1100,9 @@ class PmappingDataframe:
             resource_usage_tolerance = objective_tolerance
 
         if self.use_simplified_objectives is not None:
-            simplified = self._simplify_objectives()
+            simplified = self._simplify_objectives_for_prune(
+                self.use_simplified_objectives
+            )
         else:
             simplified = self.data
         new_data = makepareto(

@@ -84,7 +84,10 @@ def test_greedy_product_folds_shared_busy_time_and_both_windups():
         }
     )
     original = mapping.data.copy()
-    np.testing.assert_allclose(mapping._simplify_objectives()[EDP], [15e-6, 12e-6])
+    np.testing.assert_allclose(
+        mapping._simplify_objectives_for_prune(Metrics.ENERGY_DELAY_PRODUCT)[EDP],
+        [15e-6, 12e-6],
+    )
     pd.testing.assert_frame_equal(mapping.data, original)
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[1]])
@@ -112,7 +115,7 @@ def test_simplified_objectives_respect_requested_metrics(metrics, positions):
         columns[ENERGY] = [1.0, 2.0]
     mapping = pmapping(columns, metrics=metrics)
     original = mapping.data.copy()
-    simplified = mapping._simplify_objectives()
+    simplified = mapping._simplify_objectives_for_prune(metrics)
     expected = set()
     if metrics & Metrics.LATENCY:
         expected.add(LATENCY)
@@ -137,9 +140,35 @@ def test_greedy_product_energy_already_includes_leakage():
         }
     )
     original = mapping.data.copy()
-    np.testing.assert_array_equal(mapping._simplify_objectives()[EDP], [5.0, 6.0])
+    np.testing.assert_array_equal(
+        mapping._simplify_objectives_for_prune(Metrics.ENERGY_DELAY_PRODUCT)[EDP],
+        [5.0, 6.0],
+    )
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[0]])
+
+
+def test_prune_projection_preserves_unfinished_reservations_and_rows():
+    data = pd.DataFrame(
+        {
+            ENERGY: [1.0, 2.0],
+            LATENCY: [1e-6, 1e-6],
+            reservation2col("GB", 0): [0.5, 1.25],
+            reservation2col("GB", 1): [0.25, 0.5],
+            make_fused_loop_col("tile_shape"): [16, 16],
+            make_fused_loop_col("n_iterations"): [4, 4],
+        },
+        index=[7, 7],
+    )
+    mapping = PmappingDataframe(data, 2, 2, fzs(), True, skip_pareto=True)
+    original = mapping.data.copy()
+    simplified = mapping._simplify_objectives_for_prune(
+        Metrics.ENERGY_DELAY_PRODUCT | Metrics.RESOURCE_USAGE
+    )
+    expected = original.drop(columns=[ENERGY, LATENCY]).reset_index(drop=True)
+    expected[EDP] = (original[ENERGY].astype(float) * original[LATENCY]).to_numpy()
+    pd.testing.assert_frame_equal(simplified, expected)
+    pd.testing.assert_frame_equal(mapping.data, original)
 
 
 def test_greedy_product_survives_dataframe_operations_and_merge():

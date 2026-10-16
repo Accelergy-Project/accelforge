@@ -158,7 +158,7 @@ class OptimalityThresholder:
         """
         self.metrics = metrics
         self.minima = minima or {}
-        compare_to = _apply_edp_columns(prev_solutions.data.copy(), metrics)
+        compare_to = prev_solutions.data.copy()
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
         self._pmapping_row_filter_function = _pmapping_row_filter_function
 
@@ -601,12 +601,6 @@ def clean_compress_and_join_pmappings(
     joined.data.drop(
         columns=[c for c in joined.data.columns if is_tensor_col(c)], inplace=True
     )
-
-    joined.use_simplified_objectives = None
-    _apply_edp_columns(joined.data, metrics)
-    # Pareto prune again in case the EDP column application reduced number of
-    # objectives.
-    joined.make_pareto()
 
     for einsum_name in einsum2pmappings:
         col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
@@ -1278,7 +1272,7 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-    mappings.finish()
+    mappings.finish(metrics)
 
     timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:
