@@ -121,6 +121,10 @@ def get_reservation_or_parent(
 
 class PmappingDataframe:
     use_simplified_objectives: Metrics | None = None
+    
+    # BAD CODE SMELL BELOW. Used in _simplify_objectives to not have to pass in the
+    # compatibility there.
+    compatibility: Compatibility | None = None
 
     def __init__(
         self,
@@ -136,6 +140,7 @@ class PmappingDataframe:
         next_shared_loop_index: int = None,
         excess_resource_tolerance: float = 0,
         use_simplified_objectives: Metrics | None = None,
+        compatibility: Compatibility | None = None,
     ):
         self._data: pd.DataFrame = reduce_precision(data)
         self._prev_free_to_loop_index = None
@@ -144,6 +149,7 @@ class PmappingDataframe:
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
         self.use_simplified_objectives = use_simplified_objectives
+        self.compatibility = compatibility
         self.ignored_resources = ignored_resources
 
         if next_shared_loop_index is not None:
@@ -1035,6 +1041,7 @@ class PmappingDataframe:
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
             use_simplified_objectives=self.use_simplified_objectives,
+            compatibility=compatibility_joined,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -1229,6 +1236,7 @@ class PmappingDataframe:
             ignored_resources=next(iter(paretos)).ignored_resources,
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
             use_simplified_objectives=paretos[0].use_simplified_objectives,
+            compatibility=paretos[0].compatibility,
         )
         return p
 
@@ -1246,6 +1254,7 @@ class PmappingDataframe:
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
             use_simplified_objectives=self.use_simplified_objectives,
+            compatibility=self.compatibility,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
@@ -1358,26 +1367,48 @@ class PmappingDataframe:
         latencies_to_add = [
             c
             for c in self.data
-            if col2complatency(c) is not None or col2commlatency(c) is not None
+            if col2total_latency(c) is not None
+            or col2complatency(c) is not None
+            or col2commlatency(c) is not None
         ]
 
         # Pack all of the per-component and communication latencies into total latency
-        if metrics.includes_latency():
-            latency = self.data["Total<SEP>latency"]
-            if latencies_to_add:
+        if metrics.includes_latency() or (
+            metrics.includes_leak_energy() and "Total<SEP>leak_power" in self.data
+        ):
+            if "Total<SEP>latency" in self.data:
+                latency = self.data["Total<SEP>latency"]
+            else:
                 latency_df = self.update(
-                    data=self.data[["Total<SEP>latency", *latencies_to_add]].copy(),
+                    data=self.data[
+                        latencies_to_add
+                        + [c for c in self.data if is_fused_loop_col(c)]
+                    ].copy(),
                     skip_pareto=True,
+                    use_simplified_objectives=None,
                 )
-                latency_df.free_to_loop_index(-2)
-                latency = latency_df.data["Total<SEP>latency"]
+                latency_df.free_to_loop_index(
+                    -2,
+                    self.compatibility.per_loop_calculated_n_iterations,
+                    self.compatibility.levels_with_sequential_splits,
+                )
+                latency_df.sequential_fence_to_level(-2)
+                latency = latency_df.data[total_latency2col(-1, left=True)]
             new_df["Total<SEP>latency"] = latency.to_numpy()
         new_df.drop(columns=latencies_to_add, inplace=True)
+
+        if metrics.includes_leak_energy() and "Total<SEP>leak_power" in new_df:
+            leak_energy = new_df["Total<SEP>leak_power"] * new_df["Total<SEP>latency"]
+            if metrics & Metrics.LEAK_ENERGY:
+                add_to_col(new_df, "Total<SEP>leak_energy", leak_energy)
+            if metrics.includes_energy():
+                add_to_col(new_df, "Total<SEP>energy", leak_energy)
+            new_df.drop(columns=["Total<SEP>leak_power"], inplace=True)
 
         # If we're doing EDP, combine those too
         if metrics & Metrics.ENERGY_DELAY_PRODUCT:
             new_df["Total<SEP>energy_delay_product"] = (
-                self.data["Total<SEP>energy"].astype(float) * latency
+                new_df["Total<SEP>energy"].astype(float) * new_df["Total<SEP>latency"]
             ).to_numpy()
 
         objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}

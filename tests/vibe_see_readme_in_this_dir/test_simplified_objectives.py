@@ -4,7 +4,13 @@ import pytest
 
 from accelforge.frontend.mapper.ffm import FFM
 from accelforge.frontend.mapper.metrics import Metrics
-from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.frontend.mapping import TilePattern
+from accelforge.frontend.renames import Rank
+from accelforge.mapper.FFM._join_pmappings.compatibility import (
+    Compatibility,
+    Loop,
+    TensorReservation,
+)
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import prune_with_tolerance
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
@@ -13,6 +19,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     complatency2col,
     make_fused_loop_col,
     reservation2col,
+    total_latency2col,
 )
 from accelforge.util import fzs
 
@@ -22,7 +29,12 @@ LATENCY = "Total<SEP>latency"
 EDP = "Total<SEP>energy_delay_product"
 
 
-def pmapping(columns, enabled=True, metrics=Metrics.ENERGY_DELAY_PRODUCT):
+def pmapping(
+    columns,
+    enabled=True,
+    metrics=Metrics.ENERGY_DELAY_PRODUCT,
+    compatibility=Compatibility(tensors=fzs()),
+):
     data = pd.DataFrame(columns)
     return PmappingDataframe(
         data,
@@ -32,6 +44,7 @@ def pmapping(columns, enabled=True, metrics=Metrics.ENERGY_DELAY_PRODUCT):
         False,
         skip_pareto=True,
         use_simplified_objectives=metrics if enabled else None,
+        compatibility=compatibility,
     )
 
 
@@ -77,7 +90,7 @@ def test_greedy_product_folds_shared_busy_time_and_both_windups():
     mapping = pmapping(
         {
             ENERGY: [1.0, 2.0],
-            LATENCY: [1e-6, 4e-6],
+            total_latency2col(0): [1e-6, 4e-6],
             complatency2col("Compute", 0): [10e-6, 4e-6],
             commlatency2col("descent", 0): [3e-6, 1e-6],
             commlatency2col("ascent", 0): [2e-6, 1e-6],
@@ -103,7 +116,7 @@ def test_simplified_objectives_respect_requested_metrics(metrics, positions):
     columns = {}
     if metrics.includes_latency():
         columns = {
-            LATENCY: [1e-6, 4e-6],
+            total_latency2col(0): [1e-6, 4e-6],
             complatency2col("Compute", 0): [10e-6, 4e-6],
             commlatency2col("descent", 0): [3e-6, 1e-6],
             commlatency2col("ascent", 0): [2e-6, 1e-6],
@@ -140,6 +153,79 @@ def test_greedy_product_energy_already_includes_leakage():
     np.testing.assert_array_equal(mapping._simplify_objectives()[EDP], [5.0, 6.0])
     mapping.make_pareto()
     pd.testing.assert_frame_equal(mapping.data, original.iloc[[0]])
+
+
+@pytest.mark.parametrize("metrics", [Metrics.ENERGY, Metrics.ENERGY_DELAY_PRODUCT])
+def test_partial_leakage_contributes_to_requested_goal(metrics):
+    mapping = pmapping(
+        {
+            ENERGY: [1.0, 2.0],
+            total_latency2col(0): [1.0, 2.0],
+            "Total<SEP>leak_power": [10.0, 1.0],
+        },
+        metrics=metrics,
+    )
+    original = mapping.data.copy()
+    column = EDP if metrics & Metrics.ENERGY_DELAY_PRODUCT else ENERGY
+    expected = [11.0, 8.0] if column == EDP else [11.0, 4.0]
+    simplified = mapping._simplify_objectives()
+    assert set(simplified) == {column}
+    np.testing.assert_array_equal(simplified[column], expected)
+    pd.testing.assert_frame_equal(mapping.data, original)
+    mapping.make_pareto()
+    pd.testing.assert_frame_equal(mapping.data, original.iloc[[1]])
+    mapping.finish()
+    assert "Total<SEP>leak_power" not in mapping.data
+    assert mapping.data[ENERGY].tolist() == [4.0]
+    assert mapping._simplify_objectives()[column].tolist() == [expected[1]]
+
+
+@pytest.mark.parametrize("sequential", [False, True])
+def test_symbolic_windup_context_survives_renamed_concat_and_rebinding(sequential):
+    groups = []
+    for name, energy in [("left", 2.0), ("right", 1.0)]:
+        iterations = make_fused_loop_col(name)
+        loop = Loop(
+            Rank("m"),
+            TilePattern(
+                initial_tile_shape=64,
+                tile_shape=16,
+                calculated_n_iterations=iterations,
+            ),
+            False,
+        )
+        compatibility = Compatibility(
+            tensors=fzs([TensorReservation((loop,), "T", "GB")]),
+            reservation_indices=fzs([1]),
+            levels_with_sequential_splits=fzs([1]) if sequential else fzs(),
+        )
+        mapping = pmapping(
+            {
+                ENERGY: [energy],
+                total_latency2col(1): [3.0],
+                commlatency2col("descent", 1): [2.0],
+                iterations: [4.0],
+            },
+            compatibility=compatibility,
+        )
+        assert mapping.copy().compatibility == compatibility
+        assert mapping.update(skip_pareto=True).compatibility == compatibility
+        groups.append(PmappingGroup(compatibility, mapping))
+    combined = PmappingGroup.concat(groups)
+    assert combined.mappings.compatibility == combined.compatibility
+    assert combined.mappings.data[ENERGY].tolist() == [1.0]
+    expected = 11.0 if sequential else 5.0
+    assert combined.mappings._simplify_objectives()[EDP].tolist() == [expected]
+    rebound = PmappingGroup(
+        combined.compatibility.update(
+            levels_with_sequential_splits=fzs() if sequential else fzs([1])
+        ),
+        combined.mappings.copy(),
+    )
+    assert rebound.mappings.compatibility == rebound.compatibility
+    assert rebound.mappings._simplify_objectives()[EDP].tolist() == [
+        5.0 if sequential else 11.0
+    ]
 
 
 def test_greedy_product_survives_dataframe_operations_and_merge():

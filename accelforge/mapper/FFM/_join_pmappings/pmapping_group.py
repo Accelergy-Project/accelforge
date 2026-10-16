@@ -24,6 +24,7 @@ class PmappingGroup:
         self.n_pre_prune_mappings = 0
 
         if isinstance(self.mappings, PmappingDataframe):
+            self.mappings.compatibility = compatibility
             checked = oset()
             for s in self.compatibility.symbols():
                 checked.add(s)

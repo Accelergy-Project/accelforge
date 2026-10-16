@@ -218,6 +218,9 @@ class FFM(EvalableModel):
     latencies. This may miss an optimal mapping if the per-component latencies may be
     shared across later Einsums (e.g, Einsum A's long DRAM latency masked by Einsum C's
     long compute latency).
+
+    If leak power contributes to energy and it's not an objective, calculates leak
+    energy based on the latency so far and the components utilized so far.
     """
 
     _count_option_for_mapsapce_size_evaluation: tuple[
