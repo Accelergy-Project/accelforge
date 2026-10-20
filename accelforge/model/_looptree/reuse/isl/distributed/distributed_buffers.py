@@ -585,3 +585,129 @@ class StarMulticastModel(MulticastModel):
             )
         ).card()
         return ingress, egress
+
+
+# Directed ring-link vocabulary, declared once and shared with
+# `RingMulticastModel.EDGE_TYPES`.
+_RING_EDGE_TYPES: tuple[str, str] = ("ring_cw", "ring_ccw")
+
+
+class RingMulticastModel(MulticastModel):
+    """
+    Multicast cost model for a bidirectional ring of `n` nodes with
+    shortest-path routing.
+
+    Node `g` has two outgoing links: clockwise `ring_cw[g]` (`g -> g+1 mod n`)
+    and counter-clockwise `ring_ccw[g]` (`g -> g-1 mod n`). A destination at
+    clockwise distance `d = (dst - src) mod n` is reached clockwise when
+    `d <= n // 2` and counter-clockwise otherwise, so the antipodal tie of an
+    even ring (`d = n / 2`) goes clockwise. A multicast tree `(data, src)`
+    therefore covers two arcs that start at the source: clockwise out to its
+    farthest clockwise destination and counter-clockwise out to its farthest
+    counter-clockwise one. Each link on an arc is crossed once per tree,
+    however many destinations lie beyond it, and a self-delivery crosses no
+    link.
+
+    The per-link load is reported as an `EdgePressure` over
+    `EDGE_TYPES = ("ring_cw", "ring_ccw")`, so `hops` is the total number of
+    links the trees cross. `ring_dist_fn` builds the matching shortest-path
+    `dist_fn` for `identify_mesh_casts`' nearest-source matching.
+
+    Preconditions
+    -------------
+    The node tuple is 1-D with coordinates in `[0, n)`; `apply` raises
+    `ValueError` for any other dimensionality. As with the other distributed
+    models, the cost is a parameter-free constant.
+    """
+
+    EDGE_TYPES = _RING_EDGE_TYPES
+
+    def __init__(self, dist_fn: isl.Map, n: int):
+        """
+        Parameters
+        ----------
+        dist_fn:
+            Distance function { [dst -> src] -> hops[h] }, as for
+            `MulticastModel`; normally `RingMulticastModel.ring_dist_fn(n)`.
+        n:
+            Number of nodes on the ring. Routing depends on it (it is the
+            wrap-around), and `mcs` only carries the nodes that take part in
+            a transfer, so it cannot be read off the transfer.
+        """
+        super().__init__(dist_fn)
+        if n < 2:
+            raise ValueError(f"RingMulticastModel needs n >= 2, got {n}")
+        self.n = n
+
+    @staticmethod
+    def ring_dist_fn(n: int, name: str = "noc") -> isl.Map:
+        """
+        Shortest-path hop count on an `n`-node bidirectional ring:
+        `min((gd - gs) mod n, (gs - gd) mod n)`.
+
+        Parameters
+        ----------
+        n:
+            Number of nodes on the ring.
+        name:
+            The node tuple's name; must match `fills`/`occs`.
+
+        Returns
+        -------
+        { [name[gd] -> name[gs]] -> hops[h] } over `0 <= gd, gs < n`.
+        """
+        return isl.Map.read_from_str(
+            isl.DEFAULT_CONTEXT,
+            "{ [%(m)s[gd] -> %(m)s[gs]] -> hops[(gd - gs) mod %(n)d] : "
+            "0 <= gd < %(n)d and 0 <= gs < %(n)d and 2 * ((gd - gs) mod %(n)d) <= %(n)d; "
+            "[%(m)s[gd] -> %(m)s[gs]] -> hops[%(n)d - ((gd - gs) mod %(n)d)] : "
+            "0 <= gd < %(n)d and 0 <= gs < %(n)d and 2 * ((gd - gs) mod %(n)d) > %(n)d }"
+            % dict(m=name, n=n),
+        )
+
+    def _transfer_cost(self, mcs: isl.Map) -> EdgePressure:
+        return _edge_pressure_from_links(self._directed_ring_links(mcs))
+
+    def _directed_ring_links(self, mcns: isl.Map) -> list[isl.Map]:
+        """
+        Decompose every multicast tree in `mcns` onto the directed ring links
+        it crosses.
+
+        Parameters
+        ----------
+        mcns:
+            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`.
+
+        Returns
+        -------
+        `[ring_cw, ring_ccw]` maps, each { [data -> src] -> edge[e] }:
+        `ring_cw[e]` is the link `e -> e+1 mod n` and `ring_ccw[e]` the link
+        `e -> e-1 mod n`.
+        """
+        name, dims = _mesh_node_tuple(mcns)
+        if dims != 1:
+            raise ValueError(
+                "RingMulticastModel requires a 1-D node tuple; got tuple "
+                f"'{name}' with {dims} dimensions."
+            )
+        per_src, keymap = _per_src(mcns)  # { [data->src] -> dst }, { [data->src] -> src }
+        # { [data -> src] -> [dst -> src] }: each delivery next to its tree's source.
+        deliveries: isl.Map = per_src.range_product(keymap)
+        # A delivery at clockwise distance d (1 <= d <= n/2) crosses the clockwise
+        # links src+k for 0 <= k < d; one at d > n/2 crosses the n-d
+        # counter-clockwise links src-k. The union over a tree's deliveries keeps
+        # each link once, which is the arc out to the farthest destination.
+        # d = 0 (self-delivery) matches neither.
+        cw = isl.Map.read_from_str(
+            isl.DEFAULT_CONTEXT,
+            "{ [%(m)s[t] -> %(m)s[s]] -> %(e)s[l] : 2 * ((t - s) mod %(n)d) <= %(n)d and "
+            "exists (k : 0 <= k < (t - s) mod %(n)d and l = (s + k) mod %(n)d) }"
+            % dict(m=name, e=self.EDGE_TYPES[0], n=self.n),
+        )
+        ccw = isl.Map.read_from_str(
+            isl.DEFAULT_CONTEXT,
+            "{ [%(m)s[t] -> %(m)s[s]] -> %(e)s[l] : 2 * ((t - s) mod %(n)d) > %(n)d and "
+            "exists (k : 0 <= k < %(n)d - ((t - s) mod %(n)d) and l = (s - k) mod %(n)d) }"
+            % dict(m=name, e=self.EDGE_TYPES[1], n=self.n),
+        )
+        return [deliveries.apply_range(cw), deliveries.apply_range(ccw)]

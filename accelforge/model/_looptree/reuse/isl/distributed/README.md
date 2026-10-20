@@ -22,6 +22,7 @@ implementations:
 | `FullyConnectedMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Fully-connected fabric; 1 hop per fabric crossing (see §6) |
 | `XYRoutingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | XY / dimension-order routing on a 2-D mesh; X-then-Y multicast tree; per-link `EdgePressure` (see §7–§8) |
 | `StarMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Star / central-switch — the spokes realization of a fully-connected fabric; per-spoke `EdgePressure` (see §8). Parameter-free constant regime only, like XY |
+| `RingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Bidirectional ring of `n` nodes, shortest-path routing, antipodal tie clockwise; takes `dist_fn` and `n`; per-link `EdgePressure` (see §8) |
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
@@ -449,7 +450,8 @@ exactly the quantity the production symbolic path calls `max_traffic` and feeds 
 latency formula `max(max_hops·latency, max_link_traffic / throughput)`
 ([`frontend/arch/components.py`](../../../../frontend/arch/components.py)). It is exposed as the
 `TransferInfo.edge_pressure` field: `model.apply(buff, fills, occs).edge_pressure`, an
-`Optional[EdgePressure]` populated by `XYRoutingMulticastModel` and `StarMulticastModel` inside
+`Optional[EdgePressure]` populated by `XYRoutingMulticastModel`, `StarMulticastModel` and
+`RingMulticastModel` inside
 `apply()` (from the same `identify_mesh_casts` result as `hops`, so the two are always consistent)
 and `None` for `HypercubeMulticastModel` / `FullyConnectedMulticastModel` (see §2). There is no
 standalone `edge_pressure(fills, occs)` method.
@@ -498,6 +500,22 @@ the **ingress spokes are hottest at `N−1`** — this is where bandwidth actual
 **`Σ_nodes ingress == FullyConnected crossing count`** (every crossing delivery is one node's
 ingress; e.g. 8-GPU all-to-all: `56`). The star scalar `hops` = `Σ egress + Σ ingress` (injections +
 deliveries).
+
+### Ring → directed ring links
+
+`RingMulticastModel` (constructed as `RingMulticastModel(dist_fn, n)`, with
+`RingMulticastModel.ring_dist_fn(n)` as the matching shortest-path `dist_fn`) routes a destination at
+clockwise distance `d = (dst − src) mod n` clockwise when `d ≤ n/2` (so the antipodal tie of an even
+ring goes clockwise) and counter-clockwise otherwise. `_directed_ring_links` maps each tree onto
+`ring_cw[e]` (`e → e+1`) and `ring_ccw[e]` (`e → e−1`); the union over a tree's destinations keeps
+each link once, so a tree covers a clockwise arc out to its farthest clockwise destination and a
+counter-clockwise arc out to its farthest counter-clockwise one. `n` is a constructor argument
+because the wrap-around cannot be read off `mcs`. With one datum per flow on 8 nodes, a personalised
+all-to-all loads every clockwise link with `1+2+3+4 = 10` flows and every counter-clockwise link with
+`1+2+3 = 6` (`hops = 128`), and an incast from 1..7 to 0 has bottleneck `4` (the star's is `7`).
+Tested in [`tests/isl/distributed/test_ring.py`](../../../../../../tests/isl/distributed/test_ring.py)
+with hand-derived cases in
+[`tests/isl/distributed/ring/test_cases.yaml`](../../../../../../tests/isl/distributed/ring/test_cases.yaml).
 
 ### Tested
 
