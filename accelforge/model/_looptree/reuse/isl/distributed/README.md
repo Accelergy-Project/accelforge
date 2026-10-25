@@ -24,6 +24,7 @@ implementations:
 | `StarMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Star / central-switch — the spokes realization of a fully-connected fabric; per-spoke `EdgePressure` (see §8). Parameter-free constant regime only, like XY |
 | `RingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Bidirectional ring of `n` nodes, shortest-path routing, antipodal tie clockwise; takes `dist_fn` and `n`; per-link `EdgePressure` (see §8) |
 | `DonutMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Donut: `k` rings of `n` nodes with complete bipartite lanes between consecutive rings; a composition of the ring and star models; takes `dist_fn`, `n` and `k`; per-link `EdgePressure` (see §8) |
+| `DirectedDonutMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Forward-only donut (subclass of `DonutMulticastModel`): ring `l` sends to ring `l+1` only, no backward lanes; `EDGE_TYPES = (ring_cw, ring_ccw, bip_fwd)`; `donut_dist_fn(n, k, directed=True)` is its `dist_fn` |
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
@@ -544,6 +545,16 @@ layer step at `k = 9`, `n = 8` with one token per class, the unicast variant loa
 [`tests/isl/distributed/test_donut.py`](../../../../../../tests/isl/distributed/test_donut.py) with
 hand-derived cases in
 [`tests/isl/distributed/donut/test_cases.yaml`](../../../../../../tests/isl/distributed/donut/test_cases.yaml).
+
+`DirectedDonutMulticastModel(dist_fn, n, k)` is the forward-only variant: ring `l` sends to ring
+`l+1 mod k` only and the backward star is not built, so each GPU has two ring links and `n` forward
+lanes. It subclasses `DonutMulticastModel` (shared `_transfer_cost`, a class flag drops the backward
+family) with `EDGE_TYPES = ("ring_cw", "ring_ccw", "bip_fwd")`, so `bip_bwd` is not an edge name. A
+delivery from ring `l` to ring `l-1 mod k`, or to any non-adjacent ring, raises `ValueError`. Its
+matching distance is `donut_dist_fn(n, k, directed=True)`, which prices a cross-ring delivery as
+`(ld - ls) mod k` forward lane hops (the wrap-around is the only way round) and same-ring deliveries
+as before. The forward-only MoE step loads the same links as the bidirectional model (cw 77, ccw 56,
+`bip_fwd` 15, `hops = 17136` at `k = 9`, `n = 8`, `m = 5`).
 
 ### Tested
 

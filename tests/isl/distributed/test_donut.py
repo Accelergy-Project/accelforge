@@ -12,6 +12,10 @@ and star models.
   primitives give on the equivalent 1-D flows.
 - ``TestDonutContract``: the unsupported cases, constructor guards, and
   ``donut_dist_fn``.
+- ``TestDirectedDonut``: the forward-only ``DirectedDonutMulticastModel`` (no
+  backward lanes): same loads on the forward-only MoE step, backward deliveries
+  rejected, the directed ``donut_dist_fn``, and the ``donut_directed_hops``
+  yaml cases.
 
 See accelforge/model/_looptree/reuse/isl/distributed/README.md.
 """
@@ -28,13 +32,16 @@ from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     SpatialTag,
 )
 from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
+    DirectedDonutMulticastModel,
     DonutMulticastModel,
     RingMulticastModel,
     StarMulticastModel,
 )
 from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import _eval_const
 
-from .helpers import run_hops_gamut
+from tests.isl.util import load_solutions
+
+from .helpers import construct_spacetime, run_hops_gamut
 
 _CTX = isl.DEFAULT_CONTEXT
 _TAGS = [SpatialTag(0, 0), SpatialTag(1, 0)]
@@ -277,6 +284,114 @@ class TestDonutContract(unittest.TestCase):
                         pair = isl.Set.read_from_str(_CTX, f"{{ [noc[{ld}, {gd}] -> noc[{ls}, {gs}]] }}")
                         got = dist.intersect_domain(pair).range()
                         assert got.is_equal(isl.Set.read_from_str(_CTX, f"{{ hops[{want}] }}")), (ld, gd, ls, gs)
+
+
+def _directed(K: int, R: int) -> DirectedDonutMulticastModel:
+    return DirectedDonutMulticastModel(
+        DonutMulticastModel.donut_dist_fn(R, K, directed=True), R, K)
+
+
+def _check_directed(K, R, variant, m, cw, ccw, fwd, total):
+    """The MoE step on the directed donut: same loads as `_check`, no bip_bwd family."""
+    fill, occ = _moe_step(K, R, m, 1, variant)
+    info = _directed(K, R).apply(0, fill, occ)
+    ep = info.edge_pressure
+    for l in range(K):
+        for e in range(R):
+            assert ep.eval_edge("ring_cw", [l, e]) == cw, ("cw", l, e)
+            assert ep.eval_edge("ring_ccw", [l, e]) == ccw, ("ccw", l, e)
+        for g in range(R):
+            for h in range(R):
+                assert ep.eval_edge("bip_fwd", [l, g, h]) == (fwd if h != g else 0), ("fwd", l, g, h)
+    assert ep.bottleneck() == max(cw, ccw, fwd)
+    assert _eval_const(info.hops) == ep.total() == total, ep.total()
+    assert info.unfulfilled_fill.map_.is_empty()
+
+
+class TestDirectedDonut(unittest.TestCase):
+    """Forward-only donut: ring l sends to ring l+1 only."""
+
+    def test_edge_types(self):
+        assert DirectedDonutMulticastModel.EDGE_TYPES == ("ring_cw", "ring_ccw", "bip_fwd")
+        assert DonutMulticastModel.EDGE_TYPES[-1] == "bip_bwd"
+
+    def test_multicast_matches_bidirectional(self):
+        """The MoE step never used backward lanes: cw 77, ccw 56, forward lane 15."""
+        _check_directed(9, 8, "multicast", 5, 77, 56, 15, 17136)
+
+    def test_small_donut_multicast(self):
+        _check_directed(3, 4, "multicast", 2, 5, 2, 2, 156)
+
+    def test_apply_time(self):
+        fill, occ = _moe_step(9, 8, 5, 1, "multicast")
+        start = time.perf_counter()
+        _directed(9, 8).apply(0, fill, occ)
+        elapsed = time.perf_counter() - start
+        print(f"directed donut K=9 R=8 multicast apply: {elapsed:.2f} s")
+        assert elapsed < 20.0, elapsed
+
+    def test_backward_delivery(self):
+        """(1, 0) -> (0, 5): raises on the directed donut, loads bip_bwd[1, 0, 5] on the bidirectional one."""
+        fill, occ = _flows(9, 8, [((1, 0), (0, 5))])
+        with self.assertRaisesRegex(ValueError, "non-adjacent rings"):
+            _directed(9, 8).apply(0, fill, occ)
+        ep = _donut(9, 8).apply(0, fill, occ).edge_pressure
+        assert ep.eval_edge("bip_bwd", [1, 0, 5]) == 1
+        assert ep.total() == 1
+
+    def test_rejects_non_adjacent_rings(self):
+        fill, occ = _flows(9, 8, [((0, 0), (2, 0))])
+        with self.assertRaisesRegex(ValueError, "non-adjacent rings"):
+            _directed(9, 8).apply(0, fill, occ)
+
+    def test_wrap_forward_lane(self):
+        fill, occ = _flows(9, 8, [((8, 1), (0, 2))])
+        ep = _directed(9, 8).apply(0, fill, occ).edge_pressure
+        assert ep.eval_edge("bip_fwd", [8, 1, 2]) == 1
+        assert ep.total() == 1
+
+    def test_dist_fn(self):
+        """Cross-ring pairs cost (ld - ls) mod k; same-ring pairs are as before; every pair, single-valued."""
+        for n, k in ((4, 3), (8, 9)):
+            dist = DonutMulticastModel.donut_dist_fn(n, k, directed=True)
+            assert dist.is_single_valued()
+            assert int(str(dist.domain().count_val())) == (k * n) ** 2
+        n, k = 4, 3
+        dist = DonutMulticastModel.donut_dist_fn(n, k, directed=True)
+        for ld in range(k):
+            for gd in range(n):
+                for ls in range(k):
+                    for gs in range(n):
+                        d = (gd - gs) % n
+                        want = min(d, n - d) if ld == ls else (ld - ls) % k
+                        pair = isl.Set.read_from_str(_CTX, f"{{ [noc[{ld}, {gd}] -> noc[{ls}, {gs}]] }}")
+                        got = dist.intersect_domain(pair).range()
+                        assert got.is_equal(isl.Set.read_from_str(_CTX, f"{{ hops[{want}] }}")), (ld, gd, ls, gs)
+        big = DonutMulticastModel.donut_dist_fn(8, 9, directed=True)
+        for src, dst, want in (((0, 0), (8, 3), 8), ((8, 1), (0, 2), 1)):
+            pair = isl.Set.read_from_str(
+                _CTX, f"{{ [noc[{dst[0]}, {dst[1]}] -> noc[{src[0]}, {src[1]}]] }}")
+            # NOTE: arguments are (destination, source) in the map's domain.
+            got = big.intersect_domain(pair).range()
+            assert got.is_equal(isl.Set.read_from_str(_CTX, f"{{ hops[{want}] }}")), (src, dst)
+        # The bidirectional default is unchanged.
+        assert DonutMulticastModel.donut_dist_fn(8, 9).is_equal(
+            DonutMulticastModel.donut_dist_fn(8, 9, directed=False))
+
+    def test_gamut(self):
+        """Yaml cases carrying `donut_directed_hops` (case E, a backward lane, has none)."""
+        cases = load_solutions(TestDonutMulticastModel.TEST_CASES_FILE)
+        ran = 0
+        for test in cases:
+            expected = test["expected"].get("donut_directed_hops")
+            if expected is None:
+                continue
+            tags = construct_spacetime(test["dims"])
+            model = _directed(9, 8)
+            info = model.apply(0, Fill(tags, test["fill"]), Occupancy(tags, test["occ"]))
+            assert _eval_const(info.hops) == expected, (test["fill"], _eval_const(info.hops), expected)
+            ran += 1
+        assert ran == 11, ran
 
 
 if __name__ == "__main__":

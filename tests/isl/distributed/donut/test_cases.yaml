@@ -11,6 +11,11 @@
 #                                                  #
 # Expected donut_hops are HAND-DERIVED; each case  #
 # lists the links so the number can be re-checked. #
+#                                                  #
+# donut_directed_hops is the forward-only          #
+# (DirectedDonutMulticastModel) count. Case E has  #
+# none: a backward delivery raises ValueError      #
+# there (tested in test_donut.py).                 #
 ###################################################
 
 # A. Unicast (0,0) -> (0,3): same ring, d = 3, clockwise over links 0,1,2 -> 3.
@@ -40,6 +45,7 @@
         }
     expected:
         donut_hops: 3
+        donut_directed_hops: 3
 
 # B. Antipodal unicast (0,0) -> (0,4): d = 4, the tie goes clockwise -> 4.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -48,6 +54,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 4
+        donut_directed_hops: 4
 
 # C. Unicast (0,0) -> (0,5): d = 5 > 4, counter-clockwise over links 0,7,6 -> 3.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -56,6 +63,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 3
+        donut_directed_hops: 3
 
 # D. Lane (0,0) -> (1,5): next ring, one forward lane -> 1.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -64,6 +72,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 1
+        donut_directed_hops: 1
 
 # E. Backward lane (1,0) -> (0,5): previous ring, one backward lane -> 1.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 1 and g = 0 }"
@@ -80,6 +89,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 1
+        donut_directed_hops: 1
 
 # G. Ring multicast (0,0) -> {(0,1),(0,2),(0,3)}: one clockwise arc of 3 -> 3.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -88,6 +98,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 3
+        donut_directed_hops: 3
 
 # H. Ring multicast (0,0) -> {(0,2),(0,6)}: cw arc 2 plus ccw arc 2 -> 4.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -96,6 +107,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 4
+        donut_directed_hops: 4
 
 # I. Hub multicast (0,0) -> {(1,0),(1,3),(1,7)}: three separate lanes -> 3.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 0 and g = 0 }"
@@ -104,6 +116,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 3
+        donut_directed_hops: 3
 
 # J. Replicated source: datum at (0,0) and (0,4), wanted at (0,1) and (0,5). Each
 #    destination takes its nearest copy (1 hop each) -> 2.
@@ -113,6 +126,7 @@
     dist_fn: *donut98
     expected:
         donut_hops: 2
+        donut_directed_hops: 2
 
 # K. Self-delivery: datum at (2,3) wanted at (2,3) -> 0.
 -   occ: "{ noc[l, g] -> data[c] : c = 0 and l = 2 and g = 3 }"
@@ -121,3 +135,16 @@
     dist_fn: *donut98
     expected:
         donut_hops: 0
+        donut_directed_hops: 0
+
+# L. Wrap with two sources: datum at (8,1) and (1,1), wanted at (0,2). (8,1) is
+#    one forward lane away. (1,1) reaches ring 0 only over a backward lane, so on
+#    the directed donut it costs 8 forward hops and (8,1) is the unique nearest
+#    source; the bidirectional donut ties them at 1. Either way one lane -> 1.
+-   occ: "{ noc[l, g] -> data[c] : c = 0 and ((l = 8 and g = 1) or (l = 1 and g = 1)) }"
+    fill: "{ noc[l, g] -> data[c] : c = 0 and ((l = 0 and g = 2)) }"
+    dims: *2d_spatial
+    dist_fn: *donut98
+    expected:
+        donut_hops: 1
+        donut_directed_hops: 1

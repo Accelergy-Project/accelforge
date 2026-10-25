@@ -796,6 +796,11 @@ class DonutMulticastModel(MulticastModel):
 
     EDGE_TYPES = (*_RING_EDGE_TYPES, "bip_fwd", "bip_bwd")
 
+    # Design: one switch instead of a duplicated composite. The directed variant
+    # (`DirectedDonutMulticastModel`) flips this flag and narrows `EDGE_TYPES`;
+    # `__init__` and `_transfer_cost` read the flag, everything else is shared.
+    _BACKWARD_LANES: bool = True
+
     def __init__(self, dist_fn: isl.Map, n: int, k: int):
         """
         Parameters
@@ -836,17 +841,23 @@ class DonutMulticastModel(MulticastModel):
             "xd = xs }" % dict(h=_HUB_TUPLE, n=n, k=k),
         )
         self.fwd = _FwdStar(hub_dist)
-        self.bwd = _BwdStar(hub_dist)
+        # The backward star exists only on the bidirectional donut.
+        self.bwd = _BwdStar(hub_dist) if self._BACKWARD_LANES else None
 
     @staticmethod
-    def donut_dist_fn(n: int, k: int, name: str = "noc") -> isl.Map:
+    def donut_dist_fn(
+        n: int, k: int, name: str = "noc", directed: bool = False
+    ) -> isl.Map:
         """
         Hop count between two GPUs of the donut under the routing policy.
 
         Inside one ring it is the ring distance (`RingMulticastModel` rule).
         Between different rings it is the ring-index distance along the
         shorter direction, `min((ld - ls) mod k, (ls - ld) mod k)`, i.e. the
-        lane hops along the ring of rings; it is 1 for adjacent rings.
+        lane hops along the ring of rings; it is 1 for adjacent rings. With
+        `directed=True` there are no backward lanes, so a cross-ring pair costs
+        `(ld - ls) mod k` forward lane hops (the wrap-around is the only way
+        round); same-ring pairs are unchanged.
 
         Parameters
         ----------
@@ -856,12 +867,29 @@ class DonutMulticastModel(MulticastModel):
             Number of rings.
         name:
             The node tuple's name; must match `fills`/`occs`.
+        directed:
+            Price cross-ring pairs for forward-only lanes. Default `False`.
 
         Returns
         -------
         { [name[ld, gd] -> name[ls, gs]] -> hops[h] } over every pair of the
         `k * n` nodes; single-valued.
         """
+        if directed:
+            # Same-ring pieces as below; one forward-distance piece replaces
+            # the two shorter-direction pieces.
+            return isl.Map.read_from_str(
+                isl.DEFAULT_CONTEXT,
+                "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[(gd - gs) mod %(n)d] : "
+                "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+                "0 <= gs < %(n)d and ld = ls and 2 * ((gd - gs) mod %(n)d) <= %(n)d; "
+                "[%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[%(n)d - ((gd - gs) mod %(n)d)] : "
+                "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+                "0 <= gs < %(n)d and ld = ls and 2 * ((gd - gs) mod %(n)d) > %(n)d; "
+                "[%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[(ld - ls) mod %(k)d] : "
+                "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+                "0 <= gs < %(n)d and ld != ls }" % dict(m=name, n=n, k=k),
+            )
         return isl.Map.read_from_str(
             isl.DEFAULT_CONTEXT,
             "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[(gd - gs) mod %(n)d] : "
@@ -913,16 +941,18 @@ class DonutMulticastModel(MulticastModel):
         # Phase 1: unsupported deliveries. Every supported delivery is in the
         # same ring or in an adjacent one (the two families are disjoint at
         # k >= 3); anything else would need multi-hop lane routing.
+        backward_ok = "or (ls - ld - 1) mod %(k)d = 0 " % subs if self._BACKWARD_LANES else ""
         supported = isl.Set.read_from_str(
             ctx,
             "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] : ld = ls or "
-            "(ld - ls - 1) mod %(k)d = 0 or (ls - ld - 1) mod %(k)d = 0 }" % subs,
+            "(ld - ls - 1) mod %(k)d = 0 " % subs + backward_ok + "}",
         )
         unsupported = mcs.subtract(mcs.intersect_range(supported))
         if not unsupported.is_empty():
             raise ValueError(
-                "DonutMulticastModel: deliveries between non-adjacent rings are "
-                f"not supported: {unsupported}"
+                f"{type(self).__name__}: deliveries between non-adjacent rings"
+                + ("" if self._BACKWARD_LANES else " (or backward, ring l to l-1)")
+                + f" are not supported: {unsupported}"
             )
 
         # Phase 2: same-ring family through the ring primitive. The ring index
@@ -959,14 +989,43 @@ class DonutMulticastModel(MulticastModel):
             "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [%(h)s[ls, gs, gd] -> %(h)s[ls, gs, %(n)d]] "
             ": (ld - ls - 1) mod %(k)d = 0 }" % subs,
         )
-        bwd_proj = isl.Map.read_from_str(
-            ctx,
-            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [%(h)s[ls, gs, gd] -> %(h)s[ls, gs, %(n)d]] "
-            ": (ls - ld - 1) mod %(k)d = 0 }" % subs,
-        )
         fwd_ingress, _ = self.fwd._spoke_loads(mcs.apply_range(fwd_proj))
-        bwd_ingress, _ = self.bwd._spoke_loads(mcs.apply_range(bwd_proj))
+        lane_loads = [fwd_ingress]
+        if self._BACKWARD_LANES:
+            bwd_proj = isl.Map.read_from_str(
+                ctx,
+                "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [%(h)s[ls, gs, gd] -> %(h)s[ls, gs, %(n)d]] "
+                ": (ls - ld - 1) mod %(k)d = 0 }" % subs,
+            )
+            bwd_ingress, _ = self.bwd._spoke_loads(mcs.apply_range(bwd_proj))
+            lane_loads.append(bwd_ingress)
 
         # Phase 4: union. `ring_load` is already a union; the lane loads join it.
-        lanes = _union_pwqs([fwd_ingress, bwd_ingress])
+        lanes = _union_pwqs(lane_loads)
         return EdgePressure(ring_load.add(lanes))
+
+
+class DirectedDonutMulticastModel(DonutMulticastModel):
+    """
+    Forward-only donut: ring `l`'s GPUs send to ring `l+1 mod k` and there are
+    no backward lanes. Each GPU has two ring links (cw, ccw) and `n` forward
+    lanes.
+
+    Same composition as `DonutMulticastModel` (it shares `__init__` and
+    `_transfer_cost`; only the backward star is left out). The `EdgePressure`
+    has `EDGE_TYPES = ("ring_cw", "ring_ccw", "bip_fwd")`, with no `bip_bwd`
+    family at all, so `eval_edge("bip_bwd", ...)` is an unknown edge name.
+
+    A delivery from ring `l` to ring `l-1 mod k`, or between non-adjacent
+    rings, is not supported and raises `ValueError`. Use
+    `DonutMulticastModel.donut_dist_fn(n, k, name, directed=True)` as `dist_fn`
+    so source selection prices a cross-ring delivery as `(ld - ls) mod k`
+    forward hops.
+
+    Design: a subclass with its own `EDGE_TYPES` (rather than a constructor
+    flag) keeps the edge vocabulary correct per class, which is what
+    `EdgePressure` and `eval_edge` read.
+    """
+
+    EDGE_TYPES = (*_RING_EDGE_TYPES, "bip_fwd")
+    _BACKWARD_LANES = False
