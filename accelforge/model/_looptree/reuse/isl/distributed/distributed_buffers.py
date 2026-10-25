@@ -711,3 +711,262 @@ class RingMulticastModel(MulticastModel):
             % dict(m=name, e=self.EDGE_TYPES[1], n=self.n),
         )
         return [deliveries.apply_range(cw), deliveries.apply_range(ccw)]
+
+
+class _FwdStar(StarMulticastModel):
+    """
+    `StarMulticastModel` with the spoke vocabulary renamed for the forward
+    lanes of the donut. Only `EDGE_TYPES` differs: `_spoke_loads` builds its
+    spoke tuples from `EDGE_TYPES` and one index per node dimension, so a 3-D
+    projected hub space yields lane edges `bip_fwd[l, g, h]` with no change to
+    the primitive.
+    """
+
+    EDGE_TYPES = ("bip_fwd", "hub_fwd")
+
+
+class _BwdStar(StarMulticastModel):
+    """
+    `StarMulticastModel` with the spoke vocabulary renamed for the backward
+    lanes of the donut (`bip_bwd[l, g, h]`); see `_FwdStar`.
+    """
+
+    EDGE_TYPES = ("bip_bwd", "hub_bwd")
+
+
+# Node-tuple name of the per-hub star spaces `DonutMulticastModel` projects
+# deliveries into. Internal only: it never appears in an edge name.
+_HUB_TUPLE: str = "hub"
+
+
+class DonutMulticastModel(MulticastModel):
+    """
+    Multicast cost model for the donut: `k` rings of `n` GPUs, joined by
+    complete bipartite lanes between consecutive rings.
+
+    GPU `(l, g)` is position `g` on ring `l`. Inside a ring, GPU `(l, g)` has
+    a clockwise link to `(l, g+1 mod n)` and a counter-clockwise link to
+    `(l, g-1 mod n)`. Between ring `l` and ring `l+1 mod k` every GPU of one
+    ring has its own lane to every GPU of the other, a forward lane
+    `(l, g) -> (l+1, h)` and a backward lane `(l, g) -> (l-1, h)` per pair.
+    The node tuple is 2-D, `noc[l, g]`.
+
+    The model is a composition of two existing models used as primitives, not a
+    new routing kernel. One `RingMulticastModel` stands for the ring links of
+    every ring: the deliveries inside ring `l` are projected onto the 1-D ring
+    tuple with `l` carried in the tree key, the primitive's link decomposition
+    is called on them, and the edge coordinates are re-embedded as
+    `ring_cw[l, e]` and `ring_ccw[l, e]`. `StarMulticastModel` instances stand
+    for the lanes: GPU `(l, g)` is the hub, the `n` GPUs of the next ring are
+    its leaves, and the lane `(l, g) -> (l+1, h)` is that star's ingress spoke
+    `h`. The backward lanes are a second star per GPU on the previous ring.
+    The composite only projects deliveries into the primitives' node spaces,
+    calls them and re-embeds the edge coordinates.
+
+    Routing policy:
+
+    - A delivery inside one ring never leaves it: it takes the shortest arc
+      and the antipode goes clockwise (the `RingMulticastModel` rule).
+    - A delivery to an adjacent ring takes one direct lane (forward if the
+      destination ring is `l+1 mod k`, backward if it is `l-1 mod k`).
+    - A delivery between non-adjacent rings is not supported:
+      `_transfer_cost` raises `ValueError`. `donut_dist_fn` still prices it, so
+      source selection works for any pair.
+
+    The `EdgePressure` has `EDGE_TYPES = ("ring_cw", "ring_ccw", "bip_fwd",
+    "bip_bwd")` with these coordinates: `ring_cw[l, e]` is the link
+    `(l, e) -> (l, e+1 mod n)`, `ring_ccw[l, e]` is `(l, e) -> (l, e-1 mod n)`,
+    `bip_fwd[l, g, h]` is the lane `(l, g) -> (l+1 mod k, h)` and
+    `bip_bwd[l, g, h]` is the lane `(l, g) -> (l-1 mod k, h)`. `hops` is the
+    total number of physical link crossings, `edge_pressure.total()`.
+
+    The egress spoke of each hub star is dropped. In the star primitive the
+    egress spoke is the source's shared uplink to the switch, but here every
+    lane is a separate physical link and a GPU has no shared egress port, so
+    keeping it would count each lane crossing twice.
+
+    Preconditions
+    -------------
+    The node tuple is 2-D with `0 <= l < k` and `0 <= g < n`; `_transfer_cost`
+    raises `ValueError` for any other dimensionality. `n` and `k` are
+    constructor arguments because `mcs` only carries the nodes that take part
+    in a transfer, so the wrap-arounds cannot be read off the transfer.
+    Parameter-free constant regime only, like the other edge-pressure models.
+    """
+
+    EDGE_TYPES = (*_RING_EDGE_TYPES, "bip_fwd", "bip_bwd")
+
+    def __init__(self, dist_fn: isl.Map, n: int, k: int):
+        """
+        Parameters
+        ----------
+        dist_fn:
+            Distance function { [dst -> src] -> hops[h] } as for
+            `MulticastModel`, normally `DonutMulticastModel.donut_dist_fn(n, k)`.
+            Only used to select each destination's nearest source.
+        n:
+            GPUs per ring (`R`). Must be >= 2.
+        k:
+            Number of rings (`K`). Must be >= 3: at `k = 2` the forward and
+            backward lane families coincide.
+
+        Raises
+        ------
+        ValueError
+            If `k < 3` or `n < 2`.
+        """
+        super().__init__(dist_fn)
+        if k < 3:
+            raise ValueError(f"DonutMulticastModel needs k >= 3, got {k}")
+        if n < 2:
+            raise ValueError(f"DonutMulticastModel needs n >= 2, got {n}")
+        self.n = n
+        self.k = k
+        # Design: the hub stars' dist_fn is a star distance over the projected
+        # tuple hub[l, g, x] (x = leaf index, n = the hub sentinel). It is only
+        # read by `_fabric_crossing`, which needs "every leaf -> hub pair is a
+        # crossing"; the hop magnitude never enters a spoke load.
+        hub_dist = isl.Map.read_from_str(
+            isl.DEFAULT_CONTEXT,
+            "{ [%(h)s[l, g, xd] -> %(h)s[l, g, xs]] -> hops[1] : "
+            "0 <= l < %(k)d and 0 <= g < %(n)d and 0 <= xd <= %(n)d and "
+            "0 <= xs <= %(n)d and xd != xs; "
+            "[%(h)s[l, g, xd] -> %(h)s[l, g, xs]] -> hops[0] : "
+            "0 <= l < %(k)d and 0 <= g < %(n)d and 0 <= xd <= %(n)d and "
+            "xd = xs }" % dict(h=_HUB_TUPLE, n=n, k=k),
+        )
+        self.fwd = _FwdStar(hub_dist)
+        self.bwd = _BwdStar(hub_dist)
+
+    @staticmethod
+    def donut_dist_fn(n: int, k: int, name: str = "noc") -> isl.Map:
+        """
+        Hop count between two GPUs of the donut under the routing policy.
+
+        Inside one ring it is the ring distance (`RingMulticastModel` rule).
+        Between different rings it is the ring-index distance along the
+        shorter direction, `min((ld - ls) mod k, (ls - ld) mod k)`, i.e. the
+        lane hops along the ring of rings; it is 1 for adjacent rings.
+
+        Parameters
+        ----------
+        n:
+            GPUs per ring.
+        k:
+            Number of rings.
+        name:
+            The node tuple's name; must match `fills`/`occs`.
+
+        Returns
+        -------
+        { [name[ld, gd] -> name[ls, gs]] -> hops[h] } over every pair of the
+        `k * n` nodes; single-valued.
+        """
+        return isl.Map.read_from_str(
+            isl.DEFAULT_CONTEXT,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[(gd - gs) mod %(n)d] : "
+            "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+            "0 <= gs < %(n)d and ld = ls and 2 * ((gd - gs) mod %(n)d) <= %(n)d; "
+            "[%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[%(n)d - ((gd - gs) mod %(n)d)] : "
+            "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+            "0 <= gs < %(n)d and ld = ls and 2 * ((gd - gs) mod %(n)d) > %(n)d; "
+            "[%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[(ld - ls) mod %(k)d] : "
+            "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+            "0 <= gs < %(n)d and ld != ls and 2 * ((ld - ls) mod %(k)d) <= %(k)d; "
+            "[%(m)s[ld, gd] -> %(m)s[ls, gs]] -> hops[%(k)d - ((ld - ls) mod %(k)d)] : "
+            "0 <= ld < %(k)d and 0 <= ls < %(k)d and 0 <= gd < %(n)d and "
+            "0 <= gs < %(n)d and ld != ls and 2 * ((ld - ls) mod %(k)d) > %(k)d }"
+            % dict(m=name, n=n, k=k),
+        )
+
+    def _transfer_cost(self, mcs: isl.Map) -> EdgePressure:
+        """
+        Project the deliveries into the ring and lane primitives and union
+        their link loads.
+
+        Parameters
+        ----------
+        mcs:
+            Multicast networks { [data] -> [noc[ld, gd] -> noc[ls, gs]] }
+            from `identify_mesh_casts`.
+
+        Returns
+        -------
+        `EdgePressure` over `EDGE_TYPES`.
+
+        Raises
+        ------
+        ValueError
+            If the node tuple is not 2-D, or if a delivery goes between
+            non-adjacent rings.
+        """
+        ctx = isl.DEFAULT_CONTEXT
+        name, dims = _mesh_node_tuple(mcs)
+        if dims != 2:
+            raise ValueError(
+                "DonutMulticastModel requires a 2-D node tuple noc[l, g]; got "
+                f"tuple '{name}' with {dims} dimensions."
+            )
+        n, k = self.n, self.k
+        subs = dict(m=name, h=_HUB_TUPLE, n=n, k=k)
+
+        # Phase 1: unsupported deliveries. Every supported delivery is in the
+        # same ring or in an adjacent one (the two families are disjoint at
+        # k >= 3); anything else would need multi-hop lane routing.
+        supported = isl.Set.read_from_str(
+            ctx,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] : ld = ls or "
+            "(ld - ls - 1) mod %(k)d = 0 or (ls - ld - 1) mod %(k)d = 0 }" % subs,
+        )
+        unsupported = mcs.subtract(mcs.intersect_range(supported))
+        if not unsupported.is_empty():
+            raise ValueError(
+                "DonutMulticastModel: deliveries between non-adjacent rings are "
+                f"not supported: {unsupported}"
+            )
+
+        # Phase 2: same-ring family through the ring primitive. The ring index
+        # rides in the tree key, so the primitive's 1-D tuple check passes.
+        to_ring = isl.Map.read_from_str(
+            ctx,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [ring[l] -> [%(m)s[gd] -> %(m)s[gs]]] "
+            ": l = ld and ld = ls }" % subs,
+        )
+        # { [data -> ring[l]] -> [M[gd] -> M[gs]] }
+        ring_mcs = mcs.apply_range(to_ring).uncurry()
+        # Design: the primitive is built here (not in __init__) because its
+        # tuple name comes from `mcs`; its dist_fn is unused by the direct
+        # link decomposition call below.
+        ring = RingMulticastModel(RingMulticastModel.ring_dist_fn(n, name), n)
+        cw_edge, ccw_edge = RingMulticastModel.EDGE_TYPES
+        ring_links: list[isl.Map] = []
+        for links, edge in zip(ring._directed_ring_links(ring_mcs), (cw_edge, ccw_edge)):
+            # { [[data -> ring[l]] -> M[gs]] -> edge[e] } -> { key -> edge[l, e] }
+            key_to_ring: isl.Map = (
+                links.domain().unwrap().domain_map().range_factor_range()
+            )
+            embed = isl.Map.read_from_str(
+                ctx, "{ [%(e)s[e] -> ring[l]] -> %(e)s[l, e] }" % dict(e=edge)
+            )
+            ring_links.append(links.range_product(key_to_ring).apply_range(embed))
+        ring_load = _edge_pressure_from_links(ring_links).load
+
+        # Phase 3: lane families through the star primitives. Leaf x = h is the
+        # destination position, the hub sentinel x = n the source GPU; only
+        # the ingress spokes are kept (see the class docstring).
+        fwd_proj = isl.Map.read_from_str(
+            ctx,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [%(h)s[ls, gs, gd] -> %(h)s[ls, gs, %(n)d]] "
+            ": (ld - ls - 1) mod %(k)d = 0 }" % subs,
+        )
+        bwd_proj = isl.Map.read_from_str(
+            ctx,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [%(h)s[ls, gs, gd] -> %(h)s[ls, gs, %(n)d]] "
+            ": (ls - ld - 1) mod %(k)d = 0 }" % subs,
+        )
+        fwd_ingress, _ = self.fwd._spoke_loads(mcs.apply_range(fwd_proj))
+        bwd_ingress, _ = self.bwd._spoke_loads(mcs.apply_range(bwd_proj))
+
+        # Phase 4: union. `ring_load` is already a union; the lane loads join it.
+        lanes = _union_pwqs([fwd_ingress, bwd_ingress])
+        return EdgePressure(ring_load.add(lanes))

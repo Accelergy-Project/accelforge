@@ -23,6 +23,7 @@ implementations:
 | `XYRoutingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | XY / dimension-order routing on a 2-D mesh; X-then-Y multicast tree; per-link `EdgePressure` (see §7–§8) |
 | `StarMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Star / central-switch — the spokes realization of a fully-connected fabric; per-spoke `EdgePressure` (see §8). Parameter-free constant regime only, like XY |
 | `RingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Bidirectional ring of `n` nodes, shortest-path routing, antipodal tie clockwise; takes `dist_fn` and `n`; per-link `EdgePressure` (see §8) |
+| `DonutMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Donut: `k` rings of `n` nodes with complete bipartite lanes between consecutive rings; a composition of the ring and star models; takes `dist_fn`, `n` and `k`; per-link `EdgePressure` (see §8) |
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
@@ -516,6 +517,33 @@ all-to-all loads every clockwise link with `1+2+3+4 = 10` flows and every counte
 Tested in [`tests/isl/distributed/test_ring.py`](../../../../../../tests/isl/distributed/test_ring.py)
 with hand-derived cases in
 [`tests/isl/distributed/ring/test_cases.yaml`](../../../../../../tests/isl/distributed/ring/test_cases.yaml).
+
+### Donut -> ring links plus lanes
+
+`DonutMulticastModel` (constructed as `DonutMulticastModel(dist_fn, n, k)`, with
+`DonutMulticastModel.donut_dist_fn(n, k)` as the matching `dist_fn`) models `k` rings of `n` GPUs
+(node `noc[l, g]`) with a lane from every GPU of ring `l` to every GPU of ring `l+1 mod k` and one
+back. It is a composition of the primitives above, not a new routing kernel. One `RingMulticastModel`
+stands for the ring links of every ring: the deliveries inside ring `l` are projected onto the 1-D
+ring tuple with `l` in the tree key, `_directed_ring_links` is called on them, and the edges are
+re-embedded as `ring_cw[l, e]` and `ring_ccw[l, e]`. A star stands for the lanes of each GPU (the GPU
+is the hub, the `n` GPUs of the next ring are its leaves, and the lane `(l, g) -> (l+1, h)` is the
+star's ingress spoke `h`); a second star covers the previous ring. Two private subclasses only
+rename the spoke vocabulary, so the lane edges are `bip_fwd[l, g, h]` and `bip_bwd[l, g, h]`. The
+hub egress spoke is dropped: each lane is its own physical link and there is no shared egress port,
+so keeping it would count every crossing twice. `hops == edge_pressure.total()` is the number of
+physical link crossings.
+
+Routing: in-ring traffic never leaves its ring (Ring rule, antipode clockwise); an adjacent ring is
+one direct lane; deliveries between non-adjacent rings raise `ValueError` (`donut_dist_fn` still
+prices them). `k >= 3` is required (at `k = 2` the forward and backward lanes coincide), and `n`, `k`
+are constructor arguments because `mcs` only carries the nodes that take part. For the study's MoE
+layer step at `k = 9`, `n = 8` with one token per class, the unicast variant loads every
+`ring_cw[l, e]` with 10, every `ring_ccw[l, e]` with 6 and every `bip_fwd[l, g, h]`, `h != g`, with 1
+(`hops = 1656`). Tested in
+[`tests/isl/distributed/test_donut.py`](../../../../../../tests/isl/distributed/test_donut.py) with
+hand-derived cases in
+[`tests/isl/distributed/donut/test_cases.yaml`](../../../../../../tests/isl/distributed/donut/test_cases.yaml).
 
 ### Tested
 

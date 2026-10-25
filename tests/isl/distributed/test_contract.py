@@ -42,10 +42,16 @@ from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import
     FullyConnectedMulticastModel,
     XYRoutingMulticastModel,
     StarMulticastModel,
+    DonutMulticastModel,
 )
 from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import _eval_const
 
 _CTX = isl.DEFAULT_CONTEXT
+
+
+def Donut33(dist_fn: isl.Map) -> DonutMulticastModel:
+    """3 rings of 3 GPUs, built as `model_cls(dist_fn)` like the other models."""
+    return DonutMulticastModel(dist_fn, 3, 3)
 
 
 def _manhattan_2d(name: str) -> isl.Map:
@@ -289,6 +295,7 @@ class TestUnfulfilledPartition(unittest.TestCase):
             (FullyConnectedMulticastModel, False, 1),
             (StarMulticastModel, False, 2),
             (XYRoutingMulticastModel, True, 1),
+            (Donut33, True, 1),
         ]
         for model_cls, two_d, expected_hops in cases:
             with self.subTest(model=model_cls.__name__):
