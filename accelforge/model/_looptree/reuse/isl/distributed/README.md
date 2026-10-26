@@ -25,6 +25,7 @@ implementations:
 | `RingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Bidirectional ring of `n` nodes, shortest-path routing, antipodal tie clockwise; takes `dist_fn` and `n`; per-link `EdgePressure` (see §8) |
 | `DonutMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Donut: `k` rings of `n` nodes with complete bipartite lanes between consecutive rings; a composition of the ring and star models; takes `dist_fn`, `n` and `k`; per-link `EdgePressure` (see §8) |
 | `DirectedDonutMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Forward-only donut (subclass of `DonutMulticastModel`): ring `l` sends to ring `l+1` only, no backward lanes; `EDGE_TYPES = (ring_cw, ring_ccw, bip_fwd)`; `donut_dist_fn(n, k, directed=True)` is its `dist_fn` |
+| `TorusMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | 3-D torus (e.g. a TPU7x 4 x 4 x 4 cube), dimension-order routing x, y, z, each axis a shortest-arc ring; a composition of the XY model's dimension-order tree and the ring model; takes `dist_fn` and `dims`; per-link `EdgePressure` (see §8) |
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
@@ -555,6 +556,27 @@ matching distance is `donut_dist_fn(n, k, directed=True)`, which prices a cross-
 `(ld - ls) mod k` forward lane hops (the wrap-around is the only way round) and same-ring deliveries
 as before. The forward-only MoE step loads the same links as the bidirectional model (cw 77, ccw 56,
 `bip_fwd` 15, `hops = 17136` at `k = 9`, `n = 8`, `m = 5`).
+
+### Torus -> one ring per axis, in dimension order
+
+`TorusMulticastModel(dist_fn, dims)` (with `TorusMulticastModel.torus_dist_fn(dims)`, the sum of the
+three ring distances, as `dist_fn`) models a 3-D torus `noc[x, y, z]` of `dims = (nx, ny, nz)` nodes
+with a clockwise and a counter-clockwise link per axis. A multicast tree is the dimension-order tree
+of the XY model extended to three axes, with ring arcs in place of mesh spans: x arcs along the
+source's row out to every destination column, then in each such column y arcs from the source row,
+then in each such pillar z arcs from the source plane. It is a composition, not a new kernel: phase
+`k` projects every delivery onto the 1-D ring of axis `k`, with the line it runs on (earlier axes at
+the destination, later ones at the source) and the rest of the source in the tree key, calls
+`RingMulticastModel._directed_ring_links`, and re-embeds the edges as `x_cw[x, y, z]`,
+`x_ccw[x, y, z]`, ..., `z_ccw[x, y, z]` (coordinates = the link's source node). The XY model's
+`_span_links` is not reused: it decomposes open-mesh spans with no wrap-around. The key carries the
+whole source so trees of one datum from different sources stay distinct. `torus_dist_fn` is written
+as 4^3 affine pieces on the signed coordinate differences, with no `mod`, which keeps
+`identify_mesh_casts` about 3x faster than the `mod` form of the same map. Tested in
+[`tests/isl/distributed/test_torus.py`](../../../../../../tests/isl/distributed/test_torus.py): a
+hand-derived tree, the antipodal tie, a self-delivery, every link against a plain-Python
+dimension-order enumerator on seeded random multicasts (4 x 4 x 4 and 3 x 4 x 5), single-axis
+deliveries against `RingMulticastModel`, and the contract (dims guard, 3-D tuple, `torus_dist_fn`).
 
 ### Tested
 

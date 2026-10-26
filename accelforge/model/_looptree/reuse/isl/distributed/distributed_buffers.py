@@ -10,6 +10,7 @@ and the multicast-network construction (`identify_mesh_casts` and friends) --
 live in `edge_pressure.py` and `mesh_casts.py` respectively.
 """
 
+import itertools
 from abc import abstractmethod
 
 from typing import Optional
@@ -1029,3 +1030,224 @@ class DirectedDonutMulticastModel(DonutMulticastModel):
 
     EDGE_TYPES = (*_RING_EDGE_TYPES, "bip_fwd")
     _BACKWARD_LANES = False
+
+
+# Directed torus-link vocabulary: a cw and a ccw link per axis, declared once and
+# shared with `TorusMulticastModel.EDGE_TYPES`.
+_TORUS_AXES: tuple[str, str, str] = ("x", "y", "z")
+_TORUS_EDGE_TYPES: tuple[str, ...] = tuple(
+    f"{a}_{d}" for a in _TORUS_AXES for d in ("cw", "ccw")
+)
+
+
+class TorusMulticastModel(MulticastModel):
+    """
+    Multicast cost model for a 3-D torus (e.g. a TPU v4 / v5p / TPU7x cube) with
+    dimension-order routing: x first, then y, then z, each axis a bidirectional
+    ring with shortest-arc routing.
+
+    Node `(x, y, z)` has six outgoing links, a clockwise (`+1 mod n`) and a
+    counter-clockwise (`-1 mod n`) one per axis. A multicast tree `(data, src)`
+    from `s = (xs, ys, zs)` to the destination set `D` is the dimension-order
+    tree of `XYRoutingMulticastModel`, extended to three axes, with ring arcs in
+    place of the mesh's spans:
+
+    1. x arcs along the source's row `(*, ys, zs)`, out to every destination
+       column `xd`;
+    2. in each destination column `(xd, *, zs)`, y arcs from the source row `ys`
+       out to that column's destination rows `yd`;
+    3. in each destination pillar `(xd, yd, *)`, z arcs from the source plane
+       `zs` out to that pillar's destinations.
+
+    Each link of a tree is crossed once, however many destinations lie beyond
+    it; a self-delivery crosses nothing.
+
+    The model is a composition of two existing primitives, not a new routing
+    kernel. From the XY mesh model it takes the dimension-order tree structure
+    (each later phase restarts from the source coordinate inside every
+    destination column, keyed per tree via `_per_src`); from
+    `RingMulticastModel` it takes the per-axis link decomposition, wrap-around
+    and antipodal tie (clockwise) included. Each phase projects the deliveries
+    onto the 1-D ring tuple of its axis, with the fixed coordinates carried in
+    the tree key, calls the ring primitive's `_directed_ring_links`, and
+    re-embeds the edge coordinates. The XY model's own `_span_links` is not
+    called: it decomposes open-mesh spans, which have no wrap-around.
+
+    The key of every phase carries the whole source, not only the column or
+    pillar, so trees of the same datum from different sources stay distinct.
+
+    The `EdgePressure` has `EDGE_TYPES = ("x_cw", "x_ccw", "y_cw", "y_ccw",
+    "z_cw", "z_ccw")`; each edge's coordinates are its source node, e.g.
+    `x_cw[x, y, z]` is the link `(x, y, z) -> (x + 1 mod nx, y, z)` and
+    `z_ccw[x, y, z]` the link `(x, y, z) -> (x, y, z - 1 mod nz)`. `hops` is the
+    total number of link crossings, `edge_pressure.total()`.
+
+    Preconditions
+    -------------
+    The node tuple is 3-D with `0 <= x < nx`, `0 <= y < ny`, `0 <= z < nz`;
+    `_transfer_cost` raises `ValueError` otherwise. `dims` is a constructor
+    argument because `mcs` only carries the nodes that take part in a transfer,
+    so the wrap-arounds cannot be read off the transfer. Parameter-free constant
+    regime only, like the other edge-pressure models.
+    """
+
+    EDGE_TYPES = _TORUS_EDGE_TYPES
+
+    def __init__(self, dist_fn: isl.Map, dims: tuple[int, int, int]):
+        """
+        Parameters
+        ----------
+        dist_fn:
+            Distance function { [dst -> src] -> hops[h] } as for
+            `MulticastModel`, normally `TorusMulticastModel.torus_dist_fn(dims)`.
+            Only used to select each destination's nearest source.
+        dims:
+            `(nx, ny, nz)`, the ring size of each axis; each must be >= 2.
+
+        Raises
+        ------
+        ValueError
+            If `dims` does not have three entries or one is below 2.
+        """
+        super().__init__(dist_fn)
+        dims = tuple(dims)
+        if len(dims) != 3 or min(dims) < 2:
+            raise ValueError(
+                f"TorusMulticastModel needs three ring sizes >= 2, got {dims}"
+            )
+        self.dims = dims
+
+    @staticmethod
+    def torus_dist_fn(dims: tuple[int, int, int], name: str = "noc") -> isl.Map:
+        """
+        Hop count under dimension-order routing: the sum over the axes of the
+        ring distance `min((d - s) mod n, (s - d) mod n)`.
+
+        Parameters
+        ----------
+        dims:
+            `(nx, ny, nz)`.
+        name:
+            The node tuple's name; must match `fills`/`occs`.
+
+        Returns
+        -------
+        { [name[xd, yd, zd] -> name[xs, ys, zs]] -> hops[h] } over every pair of
+        the `nx * ny * nz` nodes; single-valued.
+
+        Design: each axis is split on the signed difference `t = d - s`
+        (`0 <= 2t <= n`: `t`; `-n < 2t < 0`: `-t`; `2t > n`: `n - t`;
+        `2t <= -n`: `n + t`), 4^3 affine pieces with no `mod` and so no
+        existential variables. The same map written with `(d - s) mod n` makes
+        `identify_mesh_casts` about 3x slower on the 64-node torus.
+        """
+        d = ("xd", "yd", "zd")
+        s = ("xs", "ys", "zs")
+        dom = " and ".join(
+            f"0 <= {d[k]} < {n} and 0 <= {s[k]} < {n}" for k, n in enumerate(dims)
+        )
+        pieces = []
+        for choice in itertools.product(range(4), repeat=3):
+            terms, conds = [], []
+            for k, (c, n) in enumerate(zip(choice, dims)):
+                t = f"({d[k]} - {s[k]})"
+                term, cond = [
+                    (t, f"0 <= {t} and 2 * {t} <= {n}"),
+                    (f"-{t}", f"{t} < 0 and -2 * {t} < {n}"),
+                    (f"{n} - {t}", f"2 * {t} > {n}"),
+                    (f"{n} + {t}", f"-2 * {t} >= {n}"),
+                ][c]
+                terms.append(term)
+                conds.append(cond)
+            pieces.append(
+                "[%(m)s[%(d)s] -> %(m)s[%(s)s]] -> hops[%(h)s] : %(dom)s and %(c)s"
+                % dict(
+                    m=name,
+                    d=", ".join(d),
+                    s=", ".join(s),
+                    h=" + ".join(terms),
+                    dom=dom,
+                    c=" and ".join(conds),
+                )
+            )
+        return isl.Map.read_from_str(isl.DEFAULT_CONTEXT, "{ " + "; ".join(pieces) + " }")
+
+    def _transfer_cost(self, mcs: isl.Map) -> EdgePressure:
+        """
+        Project the deliveries into one ring primitive per axis, in dimension
+        order, and union their link loads.
+
+        Parameters
+        ----------
+        mcs:
+            Multicast networks { [data] -> [noc[xd, yd, zd] -> noc[xs, ys, zs]] }
+            from `identify_mesh_casts`.
+
+        Returns
+        -------
+        `EdgePressure` over `EDGE_TYPES`.
+
+        Raises
+        ------
+        ValueError
+            If the node tuple is not 3-D.
+        """
+        name, dims = _mesh_node_tuple(mcs)
+        if dims != 3:
+            raise ValueError(
+                "TorusMulticastModel requires a 3-D node tuple noc[x, y, z]; got "
+                f"tuple '{name}' with {dims} dimensions."
+            )
+        links: list[isl.Map] = []
+        for k in range(3):
+            links += self._axis_links(mcs, name, k)
+        return _edge_pressure_from_links(links)
+
+    def _axis_links(self, mcs: isl.Map, name: str, k: int) -> list[isl.Map]:
+        """
+        Phase `k` of the dimension-order tree: the axis-`k` arcs of every tree,
+        as `[cw, ccw]` maps { tree key -> edge }.
+
+        In phase `k` a delivery `s -> d` runs along axis `k` from `s_k` to `d_k`
+        on the line whose earlier axes are already at the destination (`d_j`,
+        `j < k`) and whose later axes are still at the source (`s_j`, `j > k`).
+        The segment key is that line plus the rest of the source (`s_j`,
+        `j < k`); with the 1-D source `s_k` the ring primitive adds, it names
+        the tree and the line exactly, so the primitive's union over a key's
+        deliveries is the tree's arc on that line.
+        """
+        ctx = isl.DEFAULT_CONTEXT
+        n = self.dims[k]
+        d = [f"d{j}" for j in range(3)]
+        s = [f"s{j}" for j in range(3)]
+        line = [d[j] if j < k else s[j] for j in range(3) if j != k]
+        key = line + [s[j] for j in range(k)]
+        subs = dict(m=name, d=", ".join(d), s=", ".join(s), key=", ".join(key),
+                    dk=d[k], sk=s[k])
+        to_axis = isl.Map.read_from_str(
+            ctx,
+            "{ [%(m)s[%(d)s] -> %(m)s[%(s)s]] -> [seg[%(key)s] -> [%(m)s[%(dk)s] -> %(m)s[%(sk)s]]] }"
+            % subs,
+        )
+        # { [data -> seg[key]] -> [M[dk] -> M[sk]] }
+        axis_mcs = mcs.apply_range(to_axis).uncurry()
+        # Design: built here (not in __init__) because its tuple name comes
+        # from `mcs`; its dist_fn is unused by the direct link decomposition.
+        ring = RingMulticastModel(RingMulticastModel.ring_dist_fn(n, name), n)
+        out: list[isl.Map] = []
+        for ring_links, direction in zip(ring._directed_ring_links(axis_mcs), ("cw", "ccw")):
+            edge = f"{_TORUS_AXES[k]}_{direction}"
+            # { [[data -> seg[key]] -> M[sk]] -> seg[key] }
+            key_to_seg: isl.Map = (
+                ring_links.domain().unwrap().domain_map().range_factor_range()
+            )
+            coords = list(line)
+            coords.insert(k, "e")
+            embed = isl.Map.read_from_str(
+                ctx,
+                "{ [%(r)s[e] -> seg[%(key)s]] -> %(edge)s[%(c)s] }"
+                % dict(r=RingMulticastModel.EDGE_TYPES[direction == "ccw"],
+                       key=", ".join(key), edge=edge, c=", ".join(coords)),
+            )
+            out.append(ring_links.range_product(key_to_seg).apply_range(embed))
+        return out
