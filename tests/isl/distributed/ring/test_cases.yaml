@@ -1,0 +1,109 @@
+###################################################
+# Bidirectional ring test cases (n = 8).           #
+#                                                  #
+# A destination at clockwise distance              #
+#   d = (dst - src) mod 8                          #
+# is reached clockwise if d <= 4 (the antipodal    #
+# tie goes clockwise) and counter-clockwise over   #
+# 8 - d links otherwise. A multicast tree crosses  #
+# each link of its two arcs once, so              #
+#   cost = max cw distance + max ccw distance      #
+# over the tree's destinations.                    #
+#                                                  #
+# Expected ring_hops are HAND-DERIVED; each case   #
+# lists the arcs so the number can be re-checked.  #
+###################################################
+
+# A. Unicast 0 -> 3: d = 3, clockwise over links 0,1,2 -> 3.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and g = 3 }"
+    dims: &1d_spatial
+        -   type: Spatial
+            spatial_dim: 0
+            target: 0
+    dist_fn: &ring8 |
+        {
+            [noc[gd] -> noc[gs]] -> hops[(gd - gs) mod 8] :
+                0 <= gd < 8 and 0 <= gs < 8 and 2 * ((gd - gs) mod 8) <= 8;
+            [noc[gd] -> noc[gs]] -> hops[8 - ((gd - gs) mod 8)] :
+                0 <= gd < 8 and 0 <= gs < 8 and 2 * ((gd - gs) mod 8) > 8
+        }
+    expected:
+        ring_hops: 3
+
+# B. Unicast 0 -> 5: d = 5 > 4, counter-clockwise over links 0,7,6 -> 3.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and g = 5 }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 3
+
+# C. Antipodal unicast 0 -> 4: d = 4, the tie goes clockwise -> 4.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and g = 4 }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 4
+
+# D. Multicast 0 -> {1, 2, 3}: one clockwise arc out to 3 -> 3
+#    (three separate unicasts would cross 1 + 2 + 3 = 6).
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and 1 <= g <= 3 }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 3
+
+# E. Multicast 0 -> {2, 6}: clockwise arc of 2 plus counter-clockwise arc of 2 -> 4.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and (g = 2 or g = 6) }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 4
+
+# F. Broadcast 0 -> 1..7: clockwise out to 4 (4) plus counter-clockwise out to 5 (3) -> 7.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 0 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and 1 <= g <= 7 }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 7
+
+# G. Replicated source: datum at 0 and 4, wanted at 1 and 5. Each destination
+#    takes its nearest copy (1 hop each), two trees of 1 link -> 2.
+-   occ: "{ noc[g] -> data[c] : c = 0 and (g = 0 or g = 4) }"
+    fill: "{ noc[g] -> data[c] : c = 0 and (g = 1 or g = 5) }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 2
+
+# H. Self-delivery: datum at 3 wanted at 3 -> 0.
+-   occ: "{ noc[g] -> data[c] : c = 0 and g = 3 }"
+    fill: "{ noc[g] -> data[c] : c = 0 and g = 3 }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 0
+
+# I. Broadcast all-to-all: node g holds data[g], every other node wants it.
+#    8 broadcast trees of 7 links (case F) -> 56.
+-   occ: "{ noc[g] -> data[d] : 0 <= g < 8 and d = g }"
+    fill: "{ noc[g] -> data[d] : 0 <= g < 8 and 0 <= d < 8 and d != g }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 56
+
+# J. Personalised all-to-all: one datum data[s, t] per ordered pair s != t, so
+#    every flow is its own tree. Per source: clockwise 1 + 2 + 3 + 4 = 10,
+#    counter-clockwise 1 + 2 + 3 = 6; 8 sources -> 128.
+-   occ: "{ noc[g] -> data[s, t] : 0 <= g < 8 and s = g and 0 <= t < 8 and t != s }"
+    fill: "{ noc[g] -> data[s, t] : 0 <= g < 8 and t = g and 0 <= s < 8 and s != t }"
+    dims: *1d_spatial
+    dist_fn: *ring8
+    expected:
+        ring_hops: 128

@@ -1,6 +1,6 @@
 """Applies the binding layer into one that can be used for later analysis,"""
 
-from accelforge.frontend.binding import Binding
+from accelforge.frontend._binding import Binding
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.workload import Workload
 
