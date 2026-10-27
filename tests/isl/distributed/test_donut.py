@@ -394,5 +394,21 @@ class TestDirectedDonut(unittest.TestCase):
         assert ran == 11, ran
 
 
+class TestDonutRelayed(unittest.TestCase):
+    def test_ring_arcs_relay_and_lanes_do_not(self):
+        # K = 3, R = 8: (0,0) -> {(0,1), (0,2), (0,3)} relays on cw links 1 and 2 of ring 0;
+        # (0,0) -> (1,5) is one forward lane, never relayed.
+        K, R = 3, 8
+        fill, occ = _casts(K, R, [((0, 0), [(0, 1), (0, 2), (0, 3)]), ((0, 0), [(1, 5)])])
+        model = _directed(K, R)
+        info = model.apply(0, fill, occ)
+        rel = model.relayed_pressure(info.parent_reads.map_)
+        self.assertEqual(int(info.edge_pressure.total()), 4)
+        self.assertEqual(int(rel.total()), 2)
+        self.assertEqual(int(rel.eval_edge("ring_cw", [0, 1])), 1)
+        self.assertEqual(int(rel.eval_edge("ring_cw", [0, 2])), 1)
+        self.assertEqual(int(rel.eval_edge("ring_cw", [0, 0])), 0)
+        self.assertEqual(int(rel.eval_edge("bip_fwd", [0, 0, 5])), 0)
+
 if __name__ == "__main__":
     unittest.main()

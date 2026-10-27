@@ -669,6 +669,40 @@ class RingMulticastModel(MulticastModel):
     def _transfer_cost(self, mcs: isl.Map) -> EdgePressure:
         return _edge_pressure_from_links(self._directed_ring_links(mcs))
 
+    def relayed_pressure(self, mcs: isl.Map) -> EdgePressure:
+        """
+        The part of `_transfer_cost(mcs)` that is relayed: link crossings whose
+        link does not start at the tree's source (every hop of an arc but the
+        first). A GPU cannot forward in hardware, so a cost model may price
+        these hops differently; the loads themselves are unchanged
+        (`first + relayed = total` on every link).
+
+        Parameters
+        ----------
+        mcs:
+            Multicast networks, as for `_transfer_cost` (`TransferInfo.parent_reads.map_`
+            of an `apply`).
+        """
+        name, _ = _mesh_node_tuple(mcs)
+        links = self._directed_ring_links(mcs)
+        return _edge_pressure_from_links([m.subtract(f) for m, f in zip(links, self._first_hops(links, name))])
+
+    @staticmethod
+    def _first_hops(links: list[isl.Map], name: str) -> list[isl.Map]:
+        """
+        The first-hop part of `_directed_ring_links` maps: the crossings of the
+        link `ring_cw[s]` or `ring_ccw[s]` that leaves the tree's own source
+        `name[s]` (the key's last factor).
+        """
+        out = []
+        for m in links:
+            edge = m.get_tuple_name(isl.dim_type.out)
+            # { [K -> M[s]] -> M[s] } then M[s] -> edge[s]: the link leaving the source.
+            src = m.domain().unwrap().range_map()
+            leaves = isl.Map.read_from_str(isl.DEFAULT_CONTEXT, "{ %s[s] -> %s[s] }" % (name, edge))
+            out.append(m.intersect(src.apply_range(leaves)))
+        return out
+
     def _directed_ring_links(self, mcns: isl.Map) -> list[isl.Map]:
         """
         Decompose every multicast tree in `mcns` onto the directed ring links
@@ -1005,6 +1039,37 @@ class DonutMulticastModel(MulticastModel):
         lanes = _union_pwqs(lane_loads)
         return EdgePressure(ring_load.add(lanes))
 
+    def relayed_pressure(self, mcs: isl.Map) -> EdgePressure:
+        """
+        The relayed part of `_transfer_cost(mcs)`: ring-link crossings past the
+        first hop of an arc. A lane delivery is always one hop from the source,
+        so no lane is ever relayed. Same edge coordinates as `_transfer_cost`.
+        """
+        ctx = isl.DEFAULT_CONTEXT
+        name, dims = _mesh_node_tuple(mcs)
+        if dims != 2:
+            raise ValueError(
+                "DonutMulticastModel requires a 2-D node tuple noc[l, g]; got "
+                f"tuple '{name}' with {dims} dimensions."
+            )
+        n = self.n
+        to_ring = isl.Map.read_from_str(
+            ctx,
+            "{ [%(m)s[ld, gd] -> %(m)s[ls, gs]] -> [ring[l] -> [%(m)s[gd] -> %(m)s[gs]]] "
+            ": l = ld and ld = ls }" % dict(m=name),
+        )
+        ring_mcs = mcs.apply_range(to_ring).uncurry()
+        ring = RingMulticastModel(RingMulticastModel.ring_dist_fn(n, name), n)
+        all_links = ring._directed_ring_links(ring_mcs)
+        relayed: list[isl.Map] = []
+        for links, first, edge in zip(all_links, RingMulticastModel._first_hops(all_links, name),
+                                      RingMulticastModel.EDGE_TYPES):
+            links = links.subtract(first)
+            key_to_ring: isl.Map = links.domain().unwrap().domain_map().range_factor_range()
+            embed = isl.Map.read_from_str(ctx, "{ [%(e)s[e] -> ring[l]] -> %(e)s[l, e] }" % dict(e=edge))
+            relayed.append(links.range_product(key_to_ring).apply_range(embed))
+        return _edge_pressure_from_links(relayed)
+
 
 class DirectedDonutMulticastModel(DonutMulticastModel):
     """
@@ -1203,7 +1268,26 @@ class TorusMulticastModel(MulticastModel):
             links += self._axis_links(mcs, name, k)
         return _edge_pressure_from_links(links)
 
-    def _axis_links(self, mcs: isl.Map, name: str, k: int) -> list[isl.Map]:
+    def relayed_pressure(self, mcs: isl.Map) -> EdgePressure:
+        """
+        The relayed part of `_transfer_cost(mcs)`: link crossings whose link does
+        not start at the tree's source. Every hop of a later phase (y, z) leaves
+        a branch node, which is the source only when the tree has not moved on
+        the earlier axes; within a phase, every hop of an arc but the first is
+        relayed. Same edge coordinates as `_transfer_cost`.
+        """
+        name, dims = _mesh_node_tuple(mcs)
+        if dims != 3:
+            raise ValueError(
+                "TorusMulticastModel requires a 3-D node tuple noc[x, y, z]; got "
+                f"tuple '{name}' with {dims} dimensions."
+            )
+        links: list[isl.Map] = []
+        for k in range(3):
+            links += self._axis_links(mcs, name, k, relayed_only=True)
+        return _edge_pressure_from_links(links)
+
+    def _axis_links(self, mcs: isl.Map, name: str, k: int, relayed_only: bool = False) -> list[isl.Map]:
         """
         Phase `k` of the dimension-order tree: the axis-`k` arcs of every tree,
         as `[cw, ccw]` maps { tree key -> edge }.
@@ -1235,7 +1319,18 @@ class TorusMulticastModel(MulticastModel):
         # from `mcs`; its dist_fn is unused by the direct link decomposition.
         ring = RingMulticastModel(RingMulticastModel.ring_dist_fn(n, name), n)
         out: list[isl.Map] = []
-        for ring_links, direction in zip(ring._directed_ring_links(axis_mcs), ("cw", "ccw")):
+        ring_maps = ring._directed_ring_links(axis_mcs)
+        if relayed_only:
+            # A crossing is a first hop when its link leaves the ring source s_k
+            # and the line is the source's own (d_j = s_j for the earlier axes j).
+            cond = " and ".join(f"d{j} = s{j}" for j in range(k))
+            at_source = isl.Set.read_from_str(ctx, "{ seg[%s]%s }" % (", ".join(key), f" : {cond}" if cond else ""))
+            firsts = []
+            for m, f in zip(ring_maps, RingMulticastModel._first_hops(ring_maps, name)):
+                seg_of = f.domain().unwrap().domain_map().range_factor_range()
+                firsts.append(f.intersect_domain(seg_of.intersect_range(at_source).domain()))
+            ring_maps = [m.subtract(f) for m, f in zip(ring_maps, firsts)]
+        for ring_links, direction in zip(ring_maps, ("cw", "ccw")):
             edge = f"{_TORUS_AXES[k]}_{direction}"
             # { [[data -> seg[key]] -> M[sk]] -> seg[key] }
             key_to_seg: isl.Map = (

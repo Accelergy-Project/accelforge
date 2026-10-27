@@ -147,5 +147,27 @@ class TestRingContract(unittest.TestCase):
             RingMulticastModel(RingMulticastModel.ring_dist_fn(2), 1)
 
 
+class TestRingRelayed(unittest.TestCase):
+    def test_relayed_hops(self):
+        # 8-ring: 0 -> {1, 2, 3} is one cw arc 0->1->2->3 (hops 1->2, 2->3 relayed);
+        # 0 -> {6} is the ccw arc 0->7->6 (hop 7->6 relayed); 5 -> {6} is one hop.
+        n = 8
+        tags = [SpatialTag(0, 0)]
+        casts = [(0, [1, 2, 3, 6]), (5, [6])]
+        occ = " or ".join(f"(i = {i} and g = {s})" for i, (s, _) in enumerate(casts))
+        fill = " or ".join(f"(i = {i} and g = {t})" for i, (_, ts) in enumerate(casts) for t in ts)
+        model = RingMulticastModel(RingMulticastModel.ring_dist_fn(n), n)
+        info = model.apply(
+            0,
+            Fill(tags, isl.Map.read_from_str(isl.DEFAULT_CONTEXT, f"{{ noc[g] -> data[i] : 0 <= g < {n} and ({fill}) }}")),
+            Occupancy(tags, isl.Map.read_from_str(isl.DEFAULT_CONTEXT, f"{{ noc[g] -> data[i] : 0 <= g < {n} and ({occ}) }}")),
+        )
+        rel = model.relayed_pressure(info.parent_reads.map_)
+        want = {("ring_cw", 1): 1, ("ring_cw", 2): 1, ("ring_ccw", 7): 1}
+        for edge in ("ring_cw", "ring_ccw"):
+            for e in range(n):
+                self.assertEqual(int(rel.eval_edge(edge, [e])), want.get((edge, e), 0), (edge, e))
+        self.assertEqual(int(info.edge_pressure.total()), 6)
+
 if __name__ == "__main__":
     unittest.main()

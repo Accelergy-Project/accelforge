@@ -578,6 +578,18 @@ hand-derived tree, the antipodal tie, a self-delivery, every link against a plai
 dimension-order enumerator on seeded random multicasts (4 x 4 x 4 and 3 x 4 x 5), single-axis
 deliveries against `RingMulticastModel`, and the contract (dims guard, 3-D tuple, `torus_dist_fn`).
 
+### Relayed crossings: `relayed_pressure`
+
+`RingMulticastModel`, `DonutMulticastModel` (and the directed variant) and `TorusMulticastModel` also
+offer `relayed_pressure(mcs)` (with `mcs = apply(...).parent_reads.map_`): an `EdgePressure` over the same
+edges that counts only the crossings of links that do not start at the tree's source. A GPU cannot
+forward in hardware, so those hops are store-and-forward relays, which a cost model may price at a
+different rate; `edge_pressure - relayed_pressure` are the first hops. On a ring every hop of an arc but
+the first is relayed; on the donut only ring-link hops can be (a lane delivery is one hop from the
+source); on the torus also every hop of a later phase that leaves a branch node other than the source.
+Tested in `test_ring.py`, `test_donut.py` and `test_torus.py` (hand-derived trees and the torus
+enumerator).
+
 ### Tested
 
 [`tests/isl/distributed/test_edge_pressure.py`](../../../../../../tests/isl/distributed/test_edge_pressure.py)

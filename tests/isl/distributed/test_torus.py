@@ -12,6 +12,8 @@ tree and the ring model's link decomposition.
   ``RingMulticastModel`` gives on that axis.
 - ``TestTorusContract``: constructor guards, the 3-D tuple check and
   ``torus_dist_fn``.
+- ``TestTorusRelayed``: ``relayed_pressure`` (crossings whose link does not
+  leave the tree's source) against the enumerator.
 
 See accelforge/model/_looptree/reuse/isl/distributed/README.md.
 """
@@ -70,8 +72,11 @@ def _arc_links(n, s, dsts):
     return links
 
 
-def _brute_loads(dims, casts):
-    """{(edge name, (x, y, z)): trees crossing it}, by plain dimension-order enumeration."""
+def _brute_loads(dims, casts, relayed=False):
+    """{(edge name, (x, y, z)): trees crossing it}, by plain dimension-order enumeration.
+
+    With `relayed`, only the crossings of links that do not start at the tree's source.
+    """
     loads = Counter()
     for s, dsts in casts:
         for k in range(3):
@@ -84,6 +89,8 @@ def _brute_loads(dims, casts):
                 for e, step in _arc_links(dims[k], s[k], coords):
                     c = list(line)
                     c.insert(k, e)
+                    if relayed and tuple(c) == tuple(s):
+                        continue
                     loads[f"{_AXES[k]}_{'cw' if step == 1 else 'ccw'}", tuple(c)] += 1
     return loads
 
@@ -208,6 +215,37 @@ class TestTorusContract(unittest.TestCase):
             got = dist.intersect_domain(pt.domain()).range()
             self.assertTrue(got.is_equal(isl.Set.read_from_str(_CTX, f"{{ hops[{h}] }}")), (d, s, got))
         self.assertTrue(dist.is_single_valued())
+
+
+class TestTorusRelayed(unittest.TestCase):
+    def check(self, dims, seed):
+        rng = random.Random(seed)
+        nodes = [(x, y, z) for x in range(dims[0]) for y in range(dims[1]) for z in range(dims[2])]
+        casts = [(rng.choice(nodes), rng.sample(nodes, rng.randint(1, 9))) for _ in range(20)]
+        fill, occ = _casts(dims, casts)
+        model = _model(dims)
+        info = model.apply(0, fill, occ)
+        rel = model.relayed_pressure(info.parent_reads.map_)
+        want = _brute_loads(dims, casts, relayed=True)
+        for name, c in _all_edges(dims):
+            self.assertEqual(int(rel.eval_edge(name, list(c))), want.get((name, c), 0), (name, c))
+        self.assertLess(int(rel.total()), int(info.edge_pressure.total()))
+
+    def test_4x4x4(self):
+        self.check((4, 4, 4), seed=5)
+
+    def test_3x4x5(self):
+        self.check((3, 4, 5), seed=6)
+
+    def test_hand_derived_tree(self):
+        # (0,0,0) -> {(2,1,0), (2,3,1)}: of x_cw[0], x_cw[1], y_cw[2,0], y_ccw[2,0], z_cw[2,3,0]
+        # only x_cw[0,0,0] leaves the source.
+        fill, occ = _casts((4, 4, 4), [((0, 0, 0), [(2, 1, 0), (2, 3, 1)])])
+        model = _model((4, 4, 4))
+        info = model.apply(0, fill, occ)
+        rel = model.relayed_pressure(info.parent_reads.map_)
+        self.assertEqual(int(rel.total()), 4)
+        self.assertEqual(int(rel.eval_edge("x_cw", [0, 0, 0])), 0)
 
 
 if __name__ == "__main__":
