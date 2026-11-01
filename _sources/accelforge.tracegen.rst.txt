@@ -1,0 +1,29 @@
+accelforge.tracegen package
+===========================
+
+Submodules
+----------
+
+accelforge.tracegen.accesstrace module
+--------------------------------------
+
+.. automodule:: accelforge.tracegen.accesstrace
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.tracegen.tracemapping module
+---------------------------------------
+
+.. automodule:: accelforge.tracegen.tracemapping
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.tracegen
+   :members:
+   :show-inheritance:
+   :undoc-members:
