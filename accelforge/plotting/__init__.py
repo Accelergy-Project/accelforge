@@ -1,5 +1,6 @@
 from . import latency
 from . import mappings
+from . import roofline
 from . import specs
 from .accesstrace import plot_access_trace
 
