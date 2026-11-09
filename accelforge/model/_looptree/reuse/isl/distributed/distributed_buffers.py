@@ -18,7 +18,11 @@ from typing import Optional
 import islpy as isl
 
 from accelforge.frontend.mapping import MappingNode
-from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
+    TEMPORAL_TAGS,
+    Fill,
+    Occupancy,
+)
 from accelforge.model._looptree.reuse.isl.spatial import (
     Reads,
     Transfers,
@@ -113,7 +117,12 @@ class MulticastModel(TransferModel):
         """
         # `identify_mesh_casts` is called exactly once; every output below is
         # derived from this single `mcs`, so they cannot fall out of sync.
-        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
+        mcs: isl.Map = identify_mesh_casts(
+            occs.map_,
+            fills.map_,
+            self.dist_fn,
+            temporal_dims=[isinstance(t, TEMPORAL_TAGS) for t in fills.tags],
+        )
         cost: isl.PwQPolynomial | EdgePressure = self._transfer_cost(mcs)
         edge_pressure: Optional[EdgePressure]
         hops: isl.PwQPolynomial

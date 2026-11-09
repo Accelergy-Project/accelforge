@@ -11,6 +11,7 @@ in the import cycle those would otherwise risk.
 """
 
 import logging
+from typing import Optional, Sequence
 
 import islpy as isl
 
@@ -27,8 +28,18 @@ _CROSSING_HOPS: isl.Set = isl.Set.read_from_str(
 )
 
 
+class InvalidRoutingError(ValueError):
+    """
+    A fill would be routed over a `[dst -> src]` pair the distance function
+    does not define: the topology has no such route, so the routing is illegal.
+    """
+
+
 def identify_mesh_casts(
-    src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map
+    src_occupancy: isl.Map,
+    dst_fill: isl.Map,
+    dist_fn: isl.Map,
+    temporal_dims: Optional[Sequence[bool]] = None,
 ) -> isl.Map:
     """
     Given srcs with data, fills to destinations, and a distance function, identify per data
@@ -46,7 +57,9 @@ def identify_mesh_casts(
         A distance function { [dst -> src] -> [hops] } that accepts two points in
         space, corresponding to the `dst` and `src`, and returns the distance
         between the two points in terms of `hops`, a quantized atomic distance of
-        data transmission cost.
+        data transmission cost. A pair with no hops is a route the topology
+        does not have: every `[dst -> src]` pair where `dst` needs a datum that
+        `src` holds must be in its domain (a self-delivery needs `hops[0]`).
 
         Caller contract: the tuple names of `dst_fill`'s and `src_occupancy`'s
         domains (the spacetime/node tuple, e.g. `noc[x, y]`) must match the
@@ -55,6 +68,11 @@ def identify_mesh_casts(
         named `hops` (consumers such as `FullyConnectedMulticastModel` and
         `StarMulticastModel` filter on `{ hops[h] : h >= 1 }` to distinguish
         self-deliveries from fabric-crossing ones).
+    temporal_dims:
+        Optional per-dimension mask of the node tuple, `True` for a temporal
+        dimension. A source at another point in time is not a route: when given,
+        only `[dst -> src]` pairs that agree on every temporal dimension are
+        checked against `dist_fn`'s domain. `None` checks every pair.
 
     Returns
     -------
@@ -62,6 +80,12 @@ def identify_mesh_casts(
     `src_occupancy` and `dst_fill` respectively, and where `[dst -> src]` is the infimum of
     `dst_fn(src, dst), ∀ src, dst s.t. { [src] -> [data] } ∈ `src_occupancy` and
     `{ [dst] -> [data] }` ∈ `dst_fill`.
+
+    Raises
+    ------
+    InvalidRoutingError
+        If `dist_fn` has no hops for some `[dst -> src]` pair where `dst` needs
+        a datum that `src` holds: the specified routing is invalid.
     """
     # Makes { [dst -> data] -> [dst -> data] }
     fill_to_fill: isl.Map = dst_fill.wrap().identity()
@@ -80,6 +104,19 @@ def identify_mesh_casts(
     )  # { [[dst -> data] -> [dst -> src] }
     if DUMP_ISL_IR:
         logging.info(f"fills_to_matches: {fills_to_matches}")
+
+    # Every [dst -> src] pair the distance function is applied to must have a
+    # distance: a pair outside `dist_fn`'s domain is a route the topology does
+    # not have, and is an error rather than a silently dropped candidate.
+    # { [dst -> src] } candidate routings with no distance.
+    undefined: isl.Set = fills_to_matches.range().subtract(dist_fn.domain())
+    if temporal_dims is not None and any(temporal_dims):
+        undefined = undefined.intersect(_same_time(undefined, temporal_dims))
+    if not undefined.is_empty():
+        raise InvalidRoutingError(
+            "the specified routing is invalid: the distance function has no "
+            f"hops for these [dst -> src] pairs: {undefined}"
+        )
 
     # Calculates the distance of a fill to the nearest src satisfying the fill.
     # { [dst -> data] -> [dist] }
@@ -109,6 +146,26 @@ def identify_mesh_casts(
     multicast_networks = multicast_networks.uncurry().lexmin().curry()
 
     return multicast_networks
+
+
+def _same_time(pairs: isl.Set, temporal_dims: Sequence[bool]) -> isl.Set:
+    """
+    { [dst -> src] : dst and src agree on every temporal dimension } in the
+    space of `pairs` (a wrapped `[dst -> src]` set).
+    """
+    pair_map: isl.Map = pairs.unwrap()
+    name: str = pair_map.get_tuple_name(isl.dim_type.in_)
+    n: int = pair_map.dim(isl.dim_type.in_)
+    if len(temporal_dims) != n:
+        raise ValueError(
+            f"temporal_dims has {len(temporal_dims)} entries for {n} node dims"
+        )
+    dst = ", ".join(f"d{k}" for k in range(n))
+    src = ", ".join(f"s{k}" for k in range(n))
+    eq = " and ".join(f"d{k} = s{k}" for k, t in enumerate(temporal_dims) if t)
+    return isl.Map.read_from_str(
+        pairs.get_ctx(), f"{{ {name}[{dst}] -> {name}[{src}] : {eq} }}"
+    ).wrap()
 
 
 def _covered_fills(mcs: isl.Map) -> isl.Map:
