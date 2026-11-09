@@ -1,0 +1,149 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Kimi Delta Attention (KDA) is the linear-attention module of Kimi Linear. It extends
+# the gated delta rule with a *channel-wise* forget gate: instead of one scalar decay per
+# head per step, the gate is a vector over the key channels, so the recurrent state
+# S[e, f] decays per row. Memory is a fixed-size state, not a growing KV cache, so cost
+# per token is independent of context length; N_CACHED_TOKENS sizes no rank below.
+#
+# Recurrence, per batch, head, and token t (S is the [E, F] state):
+#     S_t = Diag(g_t) S_{t-1} + k_t (beta_t (v_t - S_{t-1}^T k_t))^T
+#     o_t = S_t^T q_t
+# This is sequential over tokens, so real kernels evaluate it chunkwise: tokens are cut
+# into chunks of CHUNK_SIZE, the delta rule is solved in parallel *within* a chunk via
+# the UT transform, and only the [E, F] state is carried *between* chunks. That is the
+# form modeled here, matching fla's chunk_kda. Decode (one token per chunk) collapses to
+# the recurrent equations above, which is fla's fused_recurrent_kda; the intra-chunk
+# Einsums are dropped in that case.
+#
+# APPROXIMATION: chunks are modeled as independent -- every chunk reads the incoming
+# state S_cache and writes the outgoing state S. The work and the data movement per chunk
+# are exact, but the sequential chunk-to-chunk dependence is not expressed, so chunks
+# appear parallel. Chunks are also assumed equal-size (see grouped_query_chunked.yaml).
+#
+# Omits positional encoding (KDA is NoPE), bias, residual, and normalization. Folds the
+# cumulative within-chunk decay products into the elementwise gate applications KG/QG.
+# Models the UT transform (a triangular inverse of the intra-chunk key Gram matrix) as an
+# elementwise pass over that matrix, the way softmax is handled elsewhere here. Omits the
+# depthwise short convolution (kernel 4, silu) applied to Q, K, and V after projection,
+# and its conv-state cache: it is ~0.05% of the MACs of the projections that feed it.
+#
+# Used by: Kimi Linear, Kimi K3 (the linear-attention layers).
+#
+# References:
+#   Kimi Linear: An Expressive, Efficient Attention Architecture
+#     https://arxiv.org/abs/2510.26692
+#   Gated Delta Networks: Improving Mamba2 with Delta Rule
+#     https://arxiv.org/abs/2412.06464
+
+{{include_text("_max_tokens_assert.yaml")}}
+
+{% set CHUNK_SIZE = CHUNK_SIZE | default(64) %}
+{% set N_CHUNKS = (N_NEW_TOKENS + CHUNK_SIZE - 1) // CHUNK_SIZE %}
+{% set TOKENS_PER_CHUNK = (N_NEW_TOKENS + N_CHUNKS - 1) // N_CHUNKS %}
+
+# With one token per chunk there is nothing to solve within a chunk: the UT transform is
+# the identity, so the transformed keys and values are just the beta-scaled ones.
+{% set INTRA_CHUNK = TOKENS_PER_CHUNK > 1 %}
+{% set KT = "KT" if INTRA_CHUNK else "KB" %}
+{% set VT = "VT" if INTRA_CHUNK else "VB" %}
+
+workload:
+  rank_sizes:
+    M:  {{N_NEW_TOKENS}}         # New token(s) processed this step
+    MC: {{TOKENS_PER_CHUNK}}     # Query token within a chunk
+    PC: {{TOKENS_PER_CHUNK}}     # Key/value token within a chunk
+    CH: {{N_CHUNKS}}             # Chunks
+    B:  {{BATCH_SIZE}}           # Batch index
+    H:  {{N_HEADS}}              # Attention heads
+    E:  {{N_EMB_PER_HEAD}}       # Query/key embedding per head; state rows
+    F:  {{N_EMB_PER_HEAD}}       # Value embedding per head; state columns
+    LF: {{N_GATE_LATENT_DIMS}}   # Low-rank dim of the forget-gate projection
+    D:  {{N_HIDDEN_DIMS}}        # Model hidden dim, projection input
+    G:  {{N_HIDDEN_DIMS}}        # Model hidden dim, projection output
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Optionally copy the input tensor onto the accelerator, cut into chunks
+  - {einsum: "I[b, mc, d, ch] = I_in[b, m, d]", is_copy_operation: True}
+
+  # Projection of input into Query Q, Key K, and Value V.
+  - "Q[b, mc, h, e, ch] = I[b, mc, d, ch] * WQ[h, e, d]"
+  - "K[b, mc, h, e, ch] = I[b, mc, d, ch] * WK[h, e, d]"
+  - "V[b, mc, h, f, ch] = I[b, mc, d, ch] * WV[h, f, d]"
+
+  # The channel-wise forget gate is a low-rank projection: hidden dims -> LF -> one value
+  # per head and key channel.
+  - "FL[b, mc, lf, ch] = I[b, mc, d, ch] * WFA[d, lf]"
+  - "FG[b, mc, h, e, ch] = FL[b, mc, lf, ch] * WFB[h, e, lf]"
+
+  # The delta-rule write strength beta is one value per head, and the output gate is a
+  # full-rank projection (use_full_rank_gate) of one value per head and value channel.
+  - "BETA[b, mc, h, ch] = I[b, mc, d, ch] * WBETA[h, d]"
+  - "OG[b, mc, h, f, ch] = I[b, mc, d, ch] * WOG[h, f, d]"
+
+  # Apply the decay to the keys and queries. Chunkwise kernels scale k and q by the
+  # cumulative products of the gate within the chunk, which we fold into these.
+  - einsum: "KG[b, mc, h, e, ch] = K[b, mc, h, e, ch] * FG[b, mc, h, e, ch]"
+    renames: {input: K}
+  - einsum: "QG[b, mc, h, e, ch] = Q[b, mc, h, e, ch] * FG[b, mc, h, e, ch]"
+    renames: {input: Q}
+
+  # Scale keys and values by the write strength beta.
+  - einsum: "KB[b, mc, h, e, ch] = KG[b, mc, h, e, ch] * BETA[b, mc, h, ch]"
+    renames: {input: KG}
+  - einsum: "VB[b, mc, h, f, ch] = V[b, mc, h, f, ch] * BETA[b, mc, h, ch]"
+    renames: {input: V}
+
+  {% if INTRA_CHUNK %}
+  # UT transform: the delta rule within a chunk is a triangular solve against the Gram
+  # matrix of the chunk's keys, (I - tril(beta K K^T, -1))^-1. We model the Gram matrix
+  # explicitly and the inverse as an elementwise pass over it. Applying the result to the
+  # keys and values gives the transformed ("pseudo") keys and values.
+  - einsum: "KK[b, mc, pc, h, ch] = KB[b, mc, h, e, ch] * KG[b, MC: pc, h, e, ch]"
+    renames: {input: KB}
+  - "KK_inv[b, mc, pc, h, ch] = KK[b, mc, pc, h, ch]"
+  - einsum: "KT[b, mc, h, e, ch] = KK_inv[b, mc, pc, h, ch] * KB[b, MC: pc, h, e, ch]"
+    renames: {input: KK_inv}
+  - einsum: "VT[b, mc, h, f, ch] = KK_inv[b, mc, pc, h, ch] * VB[b, MC: pc, h, f, ch]"
+    renames: {input: KK_inv}
+  {% endif %}
+
+  # Delta rule against the state the chunk starts from: subtract what the state already
+  # holds for these keys from the values we are about to write. S_cache is the recurrent
+  # state, which takes the place of the KV cache and is the same size no matter how long
+  # the context is.
+  - einsum: "KTS[b, mc, h, f, ch] = {{KT}}[b, mc, h, e, ch] * S_cache[b, h, e, f, ch]"
+    renames: {input: {{KT}}}
+  - einsum: "VD[b, mc, h, f, ch] = {{VT}}[b, mc, h, f, ch] * KTS[b, mc, h, f, ch]"
+    renames: {input: {{VT}}}
+
+  # Roll the chunk into the state: accumulate the outer products of the chunk's keys with
+  # the values to write, then add them to the (decayed) incoming state.
+  - einsum: "SU[b, h, e, f, ch] = VD[b, mc, h, f, ch] * KG[b, mc, h, e, ch]"
+    renames: {input: VD}
+  - einsum: "S[b, h, e, f, ch] = SU[b, h, e, f, ch] * S_cache[b, h, e, f, ch]"
+    renames: {input: SU}
+
+  # Output is what the queries read from the incoming state, plus what they read from the
+  # values written earlier in their own chunk (the causal mask is assumed, not modeled).
+  - einsum: "OS[b, mc, h, f, ch] = QG[b, mc, h, e, ch] * S_cache[b, h, e, f, ch]"
+    renames: {input: QG}
+  - einsum: "QK[b, mc, pc, h, ch] = QG[b, mc, h, e, ch] * KG[b, MC: pc, h, e, ch]"
+    renames: {input: QG}
+  - einsum: "OI[b, mc, h, f, ch] = QK[b, mc, pc, h, ch] * VD[b, MC: pc, h, f, ch]"
+    renames: {input: QK}
+  - einsum: "O[b, mc, h, f, ch] = OS[b, mc, h, f, ch] + OI[b, mc, h, f, ch]"
+    renames: {input: OI}
+
+  # Apply the output gate (a gated RMSNorm; only the gating multiply is modeled).
+  - einsum: "OGO[b, mc, h, f, ch] = O[b, mc, h, f, ch] * OG[b, mc, h, f, ch]"
+    renames: {input: O}
+
+  # Project into the attention output Z per-chunk, then reshape
+  - "ZC[b, mc, g, ch] = OGO[b, mc, h, f, ch] * WZ[h, f, g]"
+
+  - einsum: "Z[b, m, g] = ZC[b, mc, g, ch]"
+    is_copy_operation: True
