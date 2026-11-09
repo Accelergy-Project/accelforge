@@ -8,7 +8,7 @@ from accelforge.frontend.mapping import Compute, Mapping
 from accelforge.frontend.mapping import TensorHolder as MappingTensorHolder
 
 from accelforge.model._looptree.accesses import isl_buffer_accesses_from_buffet_actions
-from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from accelforge.model._looptree.reuse.isl.des import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 from accelforge.model._looptree.types import Buffet
 
