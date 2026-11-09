@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.plotting.roofline &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx_autodoc_typehints.css?v=057ac668" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=75c7c72ae941e8b558d8"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/plotting/roofline';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script data-domain="accelergy-project.github.io/accelforge" defer="defer" src="https://plausible.emer.org/js/script.file-downloads.outbound-links.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation" aria-expanded="false" aria-controls="pst-primary-sidebar-modal">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal" tabindex="-1"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/micro2026_tutorial.html">
+    MICRO 2026 Tutorial
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-house"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.plotting.roofline</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.plotting.roofline</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Roofline (2D and (3D) plots generated from an architecture description.</span>
+
+<span class="sd">The 3D roofline Gerogiannis et al., &quot;DECA: A Near-Core LLM Decompression Accelerator</span>
+<span class="sd">Grounded on a 3D Roofline Model&quot; (MICRO &#39;25).</span>
+
+<span class="sd">In 3D roofline, throughput is bounded by three rates: the memory, a secondary</span>
+<span class="sd">compute unit (e.g., vector hardware), and a primary compute unit (e.g., matrix</span>
+<span class="sd">hardware)::</span>
+
+<span class="sd">    primary computes/s = min(BW * CI_mem, SECONDARY * CI_secondary, PRIMARY)</span>
+
+<span class="sd">where CI_mem is computes per byte moved to/from memory and CI_secondary is</span>
+<span class="sd">primary computes per secondary compute.</span>
+
+<span class="sd">Sets of Einsums may be plotted as points. Each set is treated as fused, only the</span>
+<span class="sd">set&#39;s input and output tensors (not tensors produced and consumed inside the set)</span>
+<span class="sd">contribute to data movement, and each tensor is moved once.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numbers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Number</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.patches</span><span class="w"> </span><span class="kn">import</span> <span class="n">Patch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">accelforge.frontend.arch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Compute</span><span class="p">,</span> <span class="n">Memory</span><span class="p">,</span> <span class="n">Spatialable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">accelforge.frontend.renames</span><span class="w"> </span><span class="kn">import</span> <span class="n">EinsumName</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">accelforge.frontend.spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Spec</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">accelforge.util._eval_expressions</span><span class="w"> </span><span class="kn">import</span> <span class="n">EvaluationError</span>
+
+<span class="c1"># Region colors: primary compute, secondary compute, memory</span>
+<span class="n">_PRIMARY_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#2a78d6&quot;</span>
+<span class="n">_SECONDARY_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#eb6834&quot;</span>
+<span class="n">_MEMORY_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#1baf7a&quot;</span>
+<span class="n">_POINT_COLOR</span> <span class="o">=</span> <span class="s2">&quot;#1a1a19&quot;</span>
+
+
+<div class="viewcode-block" id="plot_roofline">
+<a class="viewcode-back" href="../../../accelforge.plotting.html#accelforge.plotting.roofline.plot_roofline">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_roofline</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_sets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span> <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">memory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">compute</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">log_scale</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a 2D roofline for the architecture in `spec`, optionally with one point per</span>
+<span class="sd">    fused set of Einsums.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec:</span>
+<span class="sd">        The specification. Its architecture sets the memory bandwidth and peak compute</span>
+<span class="sd">        throughput. If `einsum_sets` is given, it must also include a workload.</span>
+<span class="sd">    einsum_sets:</span>
+<span class="sd">        Sets of Einsum names. Each set is treated as fused: only its input and output</span>
+<span class="sd">        tensors contribute to data movement. A bare Einsum name is a set of one. All</span>
+<span class="sd">        computes in the set are counted against `compute`.</span>
+<span class="sd">    labels:</span>
+<span class="sd">        Labels for each set. Defaults to the Einsum names joined by &quot;+&quot;.</span>
+<span class="sd">    memory:</span>
+<span class="sd">        Name of the memory whose bandwidth bounds performance. Defaults to the outermost</span>
+<span class="sd">        memory.</span>
+<span class="sd">    compute:</span>
+<span class="sd">        Name of the compute unit whose throughput bounds performance. Defaults to the</span>
+<span class="sd">        compute unit with the highest peak throughput.</span>
+<span class="sd">    ax:</span>
+<span class="sd">        A matplotlib Axes to use. A new one is created by default.</span>
+<span class="sd">    log_scale:</span>
+<span class="sd">        Whether to use log-scaled axes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fig, ax</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">_check_einsum_sets</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+    <span class="n">evaluated</span> <span class="o">=</span> <span class="n">_evaluate</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+    <span class="n">memory</span> <span class="o">=</span> <span class="n">_get_memory</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+    <span class="n">compute</span> <span class="o">=</span> <span class="n">_get_compute</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">compute</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;fastest&quot;</span><span class="p">)</span>
+    <span class="n">bandwidth</span> <span class="o">=</span> <span class="n">_peak_bandwidth</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+    <span class="n">peak</span> <span class="o">=</span> <span class="n">_peak_compute</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">compute</span><span class="p">)</span>
+
+    <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">einsum_set</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="n">n_bytes</span> <span class="o">=</span> <span class="n">_bytes_moved</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">einsum_set</span><span class="p">)</span>
+        <span class="n">intensity</span> <span class="o">=</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">n_computes</span><span class="p">(</span><span class="n">einsum_set</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_bytes</span>
+        <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">label</span><span class="p">,</span> <span class="n">intensity</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">peak</span><span class="p">,</span> <span class="n">bandwidth</span> <span class="o">*</span> <span class="n">intensity</span><span class="p">)))</span>
+
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_figure</span><span class="p">()</span>
+
+    <span class="n">ridge</span> <span class="o">=</span> <span class="n">peak</span> <span class="o">/</span> <span class="n">bandwidth</span>
+    <span class="n">intensities</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">points</span> <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">max_intensity</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="mi">2</span> <span class="o">*</span> <span class="n">ridge</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">intensities</span><span class="p">)])</span>
+    <span class="k">if</span> <span class="n">log_scale</span><span class="p">:</span>
+        <span class="n">min_intensity</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">ridge</span> <span class="o">/</span> <span class="mi">100</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">intensities</span><span class="p">)])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">min_intensity</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">min_intensity</span><span class="p">,</span> <span class="n">ridge</span><span class="p">,</span> <span class="n">max_intensity</span><span class="p">],</span>
+        <span class="p">[</span><span class="n">min_intensity</span> <span class="o">*</span> <span class="n">bandwidth</span><span class="p">,</span> <span class="n">peak</span><span class="p">,</span> <span class="n">peak</span><span class="p">],</span>
+        <span class="n">color</span><span class="o">=</span><span class="n">_POINT_COLOR</span><span class="p">,</span>
+        <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">ridge</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">_label_line</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">memory</span><span class="si">}</span><span class="s2">-bound&quot;</span><span class="p">,</span> <span class="n">ridge</span><span class="p">,</span> <span class="n">peak</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">)</span>
+    <span class="n">_label_line</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">compute</span><span class="si">}</span><span class="s2">-bound&quot;</span><span class="p">,</span> <span class="n">ridge</span><span class="p">,</span> <span class="n">peak</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">([</span><span class="n">x</span><span class="p">],</span> <span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">_PRIMARY_COLOR</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+            <span class="n">label</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
+            <span class="n">textcoords</span><span class="o">=</span><span class="s2">&quot;offset points&quot;</span><span class="p">,</span>
+            <span class="n">xytext</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">12</span><span class="p">),</span>
+            <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">log_scale</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xscale</span><span class="p">(</span><span class="s2">&quot;log&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s2">&quot;log&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">min_intensity</span><span class="p">,</span> <span class="n">max_intensity</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Arithmetic intensity (computes / </span><span class="si">{</span><span class="n">memory</span><span class="si">}</span><span class="s2"> byte)&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attainable throughput (</span><span class="si">{</span><span class="n">compute</span><span class="si">}</span><span class="s2"> computes / s)&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">spines</span><span class="o">.</span><span class="n">right</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">spines</span><span class="o">.</span><span class="n">top</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span></div>
+
+
+
+<div class="viewcode-block" id="plot_roofline_3d">
+<a class="viewcode-back" href="../../../accelforge.plotting.html#accelforge.plotting.roofline.plot_roofline_3d">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_roofline_3d</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_sets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span> <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">memory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">primary_compute</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">secondary_compute</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">einsum_to_compute</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">,</span>
+    <span class="n">x_max</span><span class="p">:</span> <span class="n">Number</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">y_max</span><span class="p">:</span> <span class="n">Number</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a 3D roofline (DECA, Section 4.1) for the architecture in `spec`,</span>
+<span class="sd">    optionally with one point per fused set of Einsums.</span>
+
+<span class="sd">    The x axis is primary computes per byte moved to/from `memory`, the y axis is</span>
+<span class="sd">    primary computes per secondary compute, and the z axis is attainable primary</span>
+<span class="sd">    computes per second. The surface is colored by the bounding factor.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec:</span>
+<span class="sd">        The specification. Its architecture must have at least two compute units. If</span>
+<span class="sd">        `einsum_sets` is given, it must also include a workload.</span>
+<span class="sd">    einsum_sets:</span>
+<span class="sd">        Sets of Einsum names. Each set is treated as fused: only its input and output</span>
+<span class="sd">        tensors contribute to data movement. A bare Einsum name is a set of one. A set</span>
+<span class="sd">        with no secondary computes is drawn at the top of the y axis.</span>
+<span class="sd">    labels:</span>
+<span class="sd">        Labels for each set. Defaults to the Einsum names joined by &quot;+&quot;.</span>
+<span class="sd">    memory:</span>
+<span class="sd">        Name of the memory whose bandwidth bounds performance. Defaults to the outermost</span>
+<span class="sd">        memory.</span>
+<span class="sd">    primary_compute:</span>
+<span class="sd">        Name of the primary (e.g., matrix) compute unit. Defaults to the compute unit</span>
+<span class="sd">        with the highest peak throughput.</span>
+<span class="sd">    secondary_compute:</span>
+<span class="sd">        Name of the secondary (e.g., vector) compute unit. Defaults to the other compute</span>
+<span class="sd">        unit if the architecture has exactly two.</span>
+<span class="sd">    einsum_to_compute:</span>
+<span class="sd">        Maps Einsum names to the compute unit (`primary_compute` or</span>
+<span class="sd">        `secondary_compute`) that runs them. Einsums not listed run on whichever of the</span>
+<span class="sd">        two is enabled for them, preferring `primary_compute` if both are.</span>
+<span class="sd">    ax:</span>
+<span class="sd">        A matplotlib 3D Axes to use. A new one is created by default.</span>
+<span class="sd">    resolution:</span>
+<span class="sd">        Number of grid points along each of the x and y axes for the surface.</span>
+<span class="sd">    x_max, y_max:</span>
+<span class="sd">        Upper limits of the x and y axes. By default, twice the ridge point or enough</span>
+<span class="sd">        to include every point. Set these to compare plots on the same axes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fig, ax</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">_check_einsum_sets</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+    <span class="n">evaluated</span> <span class="o">=</span> <span class="n">_evaluate</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+    <span class="n">memory</span> <span class="o">=</span> <span class="n">_get_memory</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+    <span class="n">primary_compute</span> <span class="o">=</span> <span class="n">_get_compute</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">primary_compute</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;fastest&quot;</span><span class="p">)</span>
+    <span class="n">secondary_compute</span> <span class="o">=</span> <span class="n">_get_compute</span><span class="p">(</span>
+        <span class="n">evaluated</span><span class="p">,</span> <span class="n">secondary_compute</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;other&quot;</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">primary_compute</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">primary_compute</span> <span class="o">==</span> <span class="n">secondary_compute</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;primary_compute and secondary_compute must differ, but both are &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">bandwidth</span> <span class="o">=</span> <span class="n">_peak_bandwidth</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+    <span class="n">primary_peak</span> <span class="o">=</span> <span class="n">_peak_compute</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">primary_compute</span><span class="p">)</span>
+    <span class="n">secondary_peak</span> <span class="o">=</span> <span class="n">_peak_compute</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">secondary_compute</span><span class="p">)</span>
+
+    <span class="n">einsum_to_compute</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">einsum_to_compute</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="k">for</span> <span class="n">einsum</span><span class="p">,</span> <span class="n">compute</span> <span class="ow">in</span> <span class="n">einsum_to_compute</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">einsum</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;einsum_to_compute has Einsum </span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2"> not in workload.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">compute</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">primary_compute</span><span class="p">,</span> <span class="n">secondary_compute</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;einsum_to_compute maps </span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">compute</span><span class="si">}</span><span class="s2">, which is neither the &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;primary (</span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2">) nor secondary (</span><span class="si">{</span><span class="n">secondary_compute</span><span class="si">}</span><span class="s2">) &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;compute unit.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">einsum_set</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="n">n_computes</span> <span class="o">=</span> <span class="p">{</span><span class="n">primary_compute</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">secondary_compute</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="n">einsum_set</span><span class="p">:</span>
+            <span class="n">compute</span> <span class="o">=</span> <span class="n">einsum_to_compute</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">einsum</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_compute_for_einsum</span><span class="p">(</span>
+                <span class="n">spec</span><span class="p">,</span> <span class="n">einsum</span><span class="p">,</span> <span class="n">primary_compute</span><span class="p">,</span> <span class="n">secondary_compute</span>
+            <span class="p">)</span>
+            <span class="n">n_computes</span><span class="p">[</span><span class="n">compute</span><span class="p">]</span> <span class="o">+=</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">n_computes</span><span class="p">(</span><span class="n">einsum</span><span class="p">)</span>
+        <span class="n">n_primary</span> <span class="o">=</span> <span class="n">n_computes</span><span class="p">[</span><span class="n">primary_compute</span><span class="p">]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">n_primary</span> <span class="o">/</span> <span class="n">_bytes_moved</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">einsum_set</span><span class="p">)</span>
+        <span class="n">n_secondary</span> <span class="o">=</span> <span class="n">n_computes</span><span class="p">[</span><span class="n">secondary_compute</span><span class="p">]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">n_primary</span> <span class="o">/</span> <span class="n">n_secondary</span> <span class="k">if</span> <span class="n">n_secondary</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">bandwidth</span> <span class="o">*</span> <span class="n">x</span><span class="p">,</span> <span class="n">secondary_peak</span> <span class="o">*</span> <span class="n">y</span><span class="p">,</span> <span class="n">primary_peak</span><span class="p">)</span>
+        <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">label</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
+
+    <span class="n">finite</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">points</span> <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">])]</span>
+    <span class="k">if</span> <span class="n">x_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">x_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="mi">2</span> <span class="o">*</span> <span class="n">primary_peak</span> <span class="o">/</span> <span class="n">bandwidth</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="mf">1.1</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">points</span><span class="p">)])</span>
+    <span class="k">if</span> <span class="n">y_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">y_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="mi">2</span> <span class="o">*</span> <span class="n">primary_peak</span> <span class="o">/</span> <span class="n">secondary_peak</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="mf">1.1</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">finite</span><span class="p">)])</span>
+
+    <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+        <span class="c1"># Draw points in call order so they are not hidden by the surface</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">projection</span><span class="o">=</span><span class="s2">&quot;3d&quot;</span><span class="p">,</span> <span class="n">computed_zorder</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_figure</span><span class="p">()</span>
+
+    <span class="n">xs</span><span class="p">,</span> <span class="n">ys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x_max</span><span class="p">,</span> <span class="n">resolution</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">y_max</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">bandwidth</span> <span class="o">*</span> <span class="n">xs</span><span class="p">,</span> <span class="n">secondary_peak</span> <span class="o">*</span> <span class="n">ys</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">xs</span><span class="p">,</span> <span class="n">primary_peak</span><span class="p">)]</span>
+    <span class="p">)</span>
+    <span class="n">region_colors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">to_rgba</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.75</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="n">_MEMORY_COLOR</span><span class="p">,</span> <span class="n">_SECONDARY_COLOR</span><span class="p">,</span> <span class="n">_PRIMARY_COLOR</span><span class="p">)</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot_surface</span><span class="p">(</span>
+        <span class="n">xs</span><span class="p">,</span>
+        <span class="n">ys</span><span class="p">,</span>
+        <span class="n">bounds</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+        <span class="n">facecolors</span><span class="o">=</span><span class="n">region_colors</span><span class="p">[</span><span class="n">bounds</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)],</span>
+        <span class="n">linewidth</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">antialiased</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">shade</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">y</span> <span class="o">&gt;</span> <span class="n">y_max</span><span class="p">:</span>
+            <span class="n">label</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; (no </span><span class="si">{</span><span class="n">secondary_compute</span><span class="si">}</span><span class="s2"> computes)&quot;</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">y_max</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">([</span><span class="n">x</span><span class="p">],</span> <span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="p">[</span><span class="n">z</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">_POINT_COLOR</span><span class="p">,</span> <span class="n">depthshade</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">],</span> <span class="p">[</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="n">_POINT_COLOR</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">_POINT_COLOR</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x_max</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">y_max</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">primary_peak</span> <span class="o">*</span> <span class="mf">1.05</span><span class="p">)</span>
+    <span class="c1"># The memory-bound face (z = bandwidth * x) faces -x and the secondary-bound face</span>
+    <span class="c1"># (z = secondary_peak * y) faces -y. Viewing from the -x, -y side keeps both facing</span>
+    <span class="c1"># the camera for any slope. Matplotlib&#39;s default (azim=-60) views from +x, where</span>
+    <span class="c1"># the memory-bound face can be edge-on and invisible.</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">view_init</span><span class="p">(</span><span class="n">elev</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">azim</span><span class="o">=-</span><span class="mi">135</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2"> computes / </span><span class="si">{</span><span class="n">memory</span><span class="si">}</span><span class="s2"> byte&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2"> computes / </span><span class="si">{</span><span class="n">secondary_compute</span><span class="si">}</span><span class="s2"> compute&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attainable </span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2"> computes / s&quot;</span><span class="p">,</span> <span class="n">labelpad</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span>
+        <span class="n">handles</span><span class="o">=</span><span class="p">[</span>
+            <span class="n">Patch</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="n">_MEMORY_COLOR</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">memory</span><span class="si">}</span><span class="s2">-bound&quot;</span><span class="p">),</span>
+            <span class="n">Patch</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="n">_SECONDARY_COLOR</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">secondary_compute</span><span class="si">}</span><span class="s2">-bound&quot;</span><span class="p">),</span>
+            <span class="n">Patch</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="n">_PRIMARY_COLOR</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">primary_compute</span><span class="si">}</span><span class="s2">-bound&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+        <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;upper left&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_einsum_sets</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_sets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span> <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+    <span class="k">if</span> <span class="n">einsum_sets</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">labels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;labels were given without einsum_sets.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="n">einsum_sets</span> <span class="o">=</span> <span class="p">[[</span><span class="n">s</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_sets</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">einsum_sets</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;einsum_sets were given, but the spec has no workload. Include a workload &quot;</span>
+            <span class="s2">&quot;in the spec to plot Einsums.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">workload_einsums</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">einsum_set</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">einsum_sets</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">einsum_set</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;einsum_sets[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] is empty.&quot;</span><span class="p">)</span>
+        <span class="n">unknown</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">einsum_set</span> <span class="k">if</span> <span class="n">e</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">workload_einsums</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;einsum_sets[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] has Einsum(s) </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2"> that are not in the &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;workload. Einsums in the workload are &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">workload_einsums</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;+&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">einsum_sets</span><span class="p">]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">einsum_sets</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span><span class="si">}</span><span class="s2"> labels for </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">einsum_sets</span><span class="p">)</span><span class="si">}</span><span class="s2"> einsum_sets.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">einsum_sets</span><span class="p">,</span> <span class="n">labels</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_evaluate</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Spec</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluates the architecture&#39;s throughputs. Architectures may depend on the Einsum</span>
+<span class="sd">    (e.g., a buffer sized by the weight tensor), so this uses the first Einsum for which</span>
+<span class="sd">    the architecture evaluates.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">first_error</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">einsum_name</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span> <span class="ow">or</span> <span class="p">[</span><span class="kc">None</span><span class="p">]:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">calculate_component_costs</span><span class="p">(</span>
+                <span class="n">einsum_name</span><span class="o">=</span><span class="n">einsum_name</span><span class="p">,</span>
+                <span class="n">area</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">energy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">latency</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">leak</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="n">EvaluationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">first_error</span> <span class="o">=</span> <span class="n">first_error</span> <span class="ow">or</span> <span class="n">e</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+        <span class="n">first_error</span><span class="o">.</span><span class="n">add_note</span><span class="p">(</span>
+            <span class="s2">&quot;The architecture may depend on the workload. If so, include a workload &quot;</span>
+            <span class="s2">&quot;in the spec.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">raise</span> <span class="n">first_error</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_instances</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of instances of the named component, including its own spatial fanout.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">leaf</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">iterate_hierarchically</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">leaf</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span>
+                <span class="n">p</span><span class="o">.</span><span class="n">get_fanout</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="o">*</span><span class="n">parents</span><span class="p">,</span> <span class="n">leaf</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Spatialable</span><span class="p">)</span>
+            <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Component </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not found in the architecture.&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_memory</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">memories</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Memory</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">memories</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The architecture has no Memory.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">memories</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">memories</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Memory </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not found. Memories are </span><span class="si">{</span><span class="n">memories</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">name</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_compute</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">exclude</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">computes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Compute</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">computes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Compute </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not found. Compute units are </span><span class="si">{</span><span class="n">computes</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">name</span>
+    <span class="k">if</span> <span class="n">default</span> <span class="o">==</span> <span class="s2">&quot;fastest&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">computes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The architecture has no Compute.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">computes</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">_peak_compute</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
+    <span class="n">others</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">computes</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">exclude</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">others</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Can not pick a secondary compute unit: expected exactly one compute unit &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;other than </span><span class="si">{</span><span class="n">exclude</span><span class="si">}</span><span class="s2">, but found </span><span class="si">{</span><span class="n">others</span><span class="si">}</span><span class="s2">. Set secondary_compute.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">others</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_peak_compute</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Number</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Peak computes per second of all instances of the named compute unit.&quot;&quot;&quot;</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">actions</span><span class="p">[</span><span class="s2">&quot;compute&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">throughput</span> <span class="o">*</span> <span class="n">_instances</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_peak_bandwidth</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Number</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Peak read bandwidth in bytes per second of all instances of the named memory.&quot;&quot;&quot;</span>
+    <span class="n">read</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">actions</span><span class="p">[</span><span class="s2">&quot;read&quot;</span><span class="p">]</span>
+    <span class="n">bandwidth</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">throughput</span> <span class="o">*</span> <span class="n">read</span><span class="o">.</span><span class="n">bits_per_action</span> <span class="o">*</span> <span class="n">_instances</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">bandwidth</span><span class="p">)</span> <span class="ow">or</span> <span class="n">bandwidth</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Memory </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has bandwidth </span><span class="si">{</span><span class="n">bandwidth</span><span class="si">}</span><span class="s2"> bytes/s; a roofline needs a &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;finite, positive bandwidth. Choose a different memory or set a read &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;throughput for </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">bandwidth</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bytes_moved</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">einsum_set</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Bytes of the input and output tensors of a fused set of Einsums.&quot;&quot;&quot;</span>
+    <span class="n">workload</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span>
+    <span class="n">tensors</span> <span class="o">=</span> <span class="n">workload</span><span class="o">.</span><span class="n">input_tensors</span><span class="p">(</span><span class="n">einsum_set</span><span class="p">)</span> <span class="o">|</span> <span class="n">workload</span><span class="o">.</span><span class="n">output_tensors</span><span class="p">(</span><span class="n">einsum_set</span><span class="p">)</span>
+    <span class="n">total_bits</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">:</span>
+        <span class="n">access</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+            <span class="n">a</span>
+            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">einsum_set</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">tensor_accesses</span>
+            <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">tensor</span>
+        <span class="p">)</span>
+        <span class="n">total_bits</span> <span class="o">+=</span> <span class="n">workload</span><span class="o">.</span><span class="n">get_tensor_size</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span> <span class="o">*</span> <span class="n">access</span><span class="o">.</span><span class="n">bits_per_value</span>
+    <span class="k">if</span> <span class="n">total_bits</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Einsums </span><span class="si">{</span><span class="n">einsum_set</span><span class="si">}</span><span class="s2"> move no data.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">total_bits</span> <span class="o">/</span> <span class="mi">8</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_for_einsum</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span> <span class="n">einsum</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="n">primary</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">secondary</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">evaluated</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">_spec_eval_expressions</span><span class="p">(</span><span class="n">einsum_name</span><span class="o">=</span><span class="n">einsum</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">compute</span> <span class="ow">in</span> <span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="n">secondary</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">compute</span><span class="p">)</span><span class="o">.</span><span class="n">enabled</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">compute</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Neither </span><span class="si">{</span><span class="n">primary</span><span class="si">}</span><span class="s2"> nor </span><span class="si">{</span><span class="n">secondary</span><span class="si">}</span><span class="s2"> is enabled for Einsum </span><span class="si">{</span><span class="n">einsum</span><span class="si">}</span><span class="s2">. Set &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;einsum_to_compute to choose one.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_label_line</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">ridge</span><span class="p">,</span> <span class="n">peak</span><span class="p">,</span> <span class="n">side</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+        <span class="n">text</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">ridge</span><span class="p">,</span> <span class="n">peak</span><span class="p">),</span>
+        <span class="n">textcoords</span><span class="o">=</span><span class="s2">&quot;offset points&quot;</span><span class="p">,</span>
+        <span class="n">xytext</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span> <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span> <span class="k">else</span> <span class="o">-</span><span class="mi">6</span><span class="p">,</span> <span class="o">-</span><span class="mi">16</span><span class="p">),</span>
+        <span class="n">ha</span><span class="o">=</span><span class="s2">&quot;left&quot;</span> <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span> <span class="k">else</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span>
+        <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parse_einsum_set</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../../accelforge.plotting.html#accelforge.plotting.roofline.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Plot a 2D roofline or 3D roofline from an architecture spec.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;yaml&quot;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s2">&quot;+&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Spec YAML files (architecture and optional workload).&quot;</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;-e&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;--einsums&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;append&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">_parse_einsum_set</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Comma-separated fused set of Einsums to plot. May be repeated.&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--3d&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;three_d&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--memory&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--compute&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Compute unit (primary compute for --3d).&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--secondary-compute&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Secondary compute for --3d.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--linear&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Linear 2D axes.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-o&quot;</span><span class="p">,</span> <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;roofline.png&quot;</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span>
+
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">Spec</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="o">.</span><span class="n">yaml</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">three_d</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">plot_roofline_3d</span><span class="p">(</span>
+            <span class="n">spec</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">einsums</span><span class="p">,</span>
+            <span class="n">memory</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">memory</span><span class="p">,</span>
+            <span class="n">primary_compute</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">compute</span><span class="p">,</span>
+            <span class="n">secondary_compute</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">secondary_compute</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">plot_roofline</span><span class="p">(</span>
+            <span class="n">spec</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">einsums</span><span class="p">,</span>
+            <span class="n">memory</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">memory</span><span class="p">,</span>
+            <span class="n">compute</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">compute</span><span class="p">,</span>
+            <span class="n">log_scale</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">linear</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.2.0.
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.24.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
