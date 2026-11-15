@@ -2,6 +2,7 @@ from enum import Enum
 from functools import lru_cache
 from math import ceil, prod
 import copy
+import random
 import re
 import resource
 import signal
@@ -835,10 +836,68 @@ def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     return f.xreplace(fs) / f > 1
 
 
+_PROBE_TRIALS = 4
+
+
+def _exact_value(f: Expr, point: dict):
+    try:
+        v = f.xreplace(point)
+    except (TypeError, ValueError):
+        # e.g. a pole inside Max/Min: Max(2, zoo) raises
+        return None
+    return v if v.is_Rational else None
+
+
+def _provably_changes_with(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
+    """
+    Fast path for affects_comparison. Plugs a few positive integers into f and checks
+    whether f(E_2) - f(E) and f(E_2) / f(E) both change when only s changes. If they
+    do, s can't cancel out of either expansion, so affects_comparison is True.
+    Returns False if this doesn't settle it. Floats are compared as exact rationals,
+    so if expand() rounds a term in s to exactly zero, this keeps s where the full
+    check would drop it.
+    """
+    if not all(x.is_positive for x in f.free_symbols):
+        return False
+    # Exact rationals, so float rounding can't make two values look different
+    floats = f.atoms(sympy.Float)
+    if floats:
+        f = f.xreplace({c: sympy.Rational(c) for c in floats})
+    rng = random.Random(0)  # same points on every call
+    syms = sorted(f.free_symbols, key=str)
+    enumerated = [x for x in syms if x in symbols_enumerated]
+    shared = [x for x in syms if x not in symbols_enumerated and x != s]
+    s_enumerated = s in symbols_enumerated
+    minus_changes = ratio_changes = False
+    for _ in range(_PROBE_TRIALS):
+        e1 = {x: sympy.Integer(rng.randint(1, 97)) for x in enumerated}
+        e2 = {x: sympy.Integer(rng.randint(1, 97)) for x in enumerated}
+        sh = {x: sympy.Integer(rng.randint(1, 97)) for x in shared}
+        a, b = (sympy.Integer(v) for v in rng.sample(range(1, 97), 2))
+        if s_enumerated:  # E_2 has its own copy of s, fixed at e2[s]
+            f2a = f2b = _exact_value(f, {**e2, **sh})
+        else:
+            f2a = _exact_value(f, {**e2, **sh, s: a})
+            f2b = _exact_value(f, {**e2, **sh, s: b})
+        f1a = _exact_value(f, {**e1, **sh, s: a})
+        f1b = _exact_value(f, {**e1, **sh, s: b})
+        if any(v is None for v in (f1a, f1b, f2a, f2b)):
+            continue
+        minus_changes |= f2a - f1a != f2b - f1b
+        if min(f1a, f1b, f2a, f2b) > 0:
+            ratio_changes |= f2a / f1a != f2b / f1b
+        if minus_changes and ratio_changes:
+            return True
+    return False
+
+
 @lru_cache(maxsize=10000)
 def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     if not isinstance(f, sympy.Expr):
         return False
+    # Most calls end up True, and getting there through expand() is slow
+    if _provably_changes_with(f, s, symbols_enumerated):
+        return True
     delta = simplify(f_minus_other_f(f, symbols_enumerated))
     if s not in getattr(delta, "free_symbols", set()):
         return False
