@@ -1026,7 +1026,9 @@ def join_pmappings(
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
         def _make_permutations(groups: list[tuple[PmappingGroup, CompatibilityDiff]]):
-            return [(g, p.apply(g.compatibility)) for g, p in groups]
+            return [
+                (g, p.loop_permutation, p.apply(g.compatibility)) for g, p in groups
+            ]
 
         right_permuted = {k: _make_permutations(v) for k, v in right.items()}
         for k in left:
@@ -1038,13 +1040,19 @@ def join_pmappings(
             if not right_matches:
                 continue
 
-            l_permuted = [(a, perm_a.apply(a.compatibility)) for a, perm_a in left[k]]
-            for (a, compatibility_a), (b, compatibility_b) in itertools.product(
+            l_permuted = [
+                (a, perm_a.loop_permutation, perm_a.apply(a.compatibility))
+                for a, perm_a in left[k]
+            ]
+            for (a, pa, compatibility_a), (b, pb, compatibility_b) in itertools.product(
                 l_permuted, right_matches
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                key_check = (id(a), id(b))
+                # Skip repeats that match in both a,b and permutations match the same a
+                # loops and b loops. e.g., a loops [a.1, a.2] <-> b loops [b.1, b.2] is
+                # the same as a loops [a.2, a.1] <-> b loops [b.2, b.1]
+                key_check = (id(a), id(b), tuple(sorted(zip(pa, pb))))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
