@@ -2,7 +2,6 @@ from enum import Enum
 from functools import lru_cache
 from math import ceil, prod
 import copy
-import random
 import re
 import resource
 import signal
@@ -836,57 +835,132 @@ def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     return f.xreplace(fs) / f > 1
 
 
-_PROBE_TRIALS = 4
+# Values given to the symbols of f when looking for a witness in
+# _has_witness_that_s_affects_comparison. Any positive integers would do, since a
+# witness found at any values proves the result. Varied primes make it unlikely that
+# terms cancel by accident at the chosen values, which would only make the search give
+# up and leave the call to the symbolic check.
+_WITNESS_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61)
+_WITNESS_PRIMES += (67, 71, 73, 79, 83, 89, 97)
+
+# How many sets of values to try before leaving the call to the symbolic check.
+_WITNESS_TRIES = 6
 
 
-def _exact_value(f: Expr, point: dict):
+def _prime(index: int) -> sympy.Integer:
+    """Returns the prime at index in _WITNESS_PRIMES, wrapping around at the end."""
+    return sympy.Integer(_WITNESS_PRIMES[index % len(_WITNESS_PRIMES)])
+
+
+def _prime_values(symbols: list[Symbol], first: int) -> dict[Symbol, sympy.Integer]:
+    """Gives the symbols consecutive primes from _WITNESS_PRIMES, starting at first."""
+    return {symbol: _prime(first + i) for i, symbol in enumerate(symbols)}
+
+
+def _exact_value(f: Expr, values: dict[Symbol, sympy.Integer]) -> Expr | None:
+    """Returns f at the given values if the result is an exact rational number.
+
+    Returns None when the result can't be compared exactly. That happens when f is
+    undefined at these values (sympy raises on Max(2, zoo), for example, when a pole is
+    inside a Max), or when the result is not rational (a square root, for example).
+    """
     try:
-        v = f.xreplace(point)
+        value = f.xreplace(values)
     except (TypeError, ValueError):
-        # e.g. a pole inside Max/Min: Max(2, zoo) raises
         return None
-    return v if v.is_Rational else None
+    return value if value.is_Rational else None
 
 
-def _provably_changes_with(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
+def _has_witness_that_s_affects_comparison(
+    f: Expr, s: Symbol, symbols_enumerated: set[Symbol]
+) -> bool:
+    """Tries to show, without expanding, that affects_comparison returns True.
+
+    affects_comparison(f, s, symbols_enumerated) returns True when s is still a free
+    symbol after sympy.expand of both
+
+        f(E_2) - f(E) > 0    and    f(E_2) / f(E) > 1,
+
+    where f(E_2) is f with every enumerated symbol replaced by a new copy of it.
+    Expanding is the slow part, so this function first looks for a witness: values of
+    the symbols where changing only s changes f(E_2) - f(E), and values where changing
+    only s changes f(E_2) / f(E).
+
+    A witness proves the result for every input:
+
+    1. expand() returns an expression with the same value, and an expression that does
+       not contain s has the same value for any two values of s. So if the value
+       changes when only s changes, s is a free symbol of the expanded expression.
+    2. Neither relational can simplify to True or False, which would leave it with no
+       free symbols. Both are False when E_2 equals E, so neither is always True.
+       Swapping E and E_2 negates the difference and inverts the ratio, so if either
+       one were always False, f(E_2) would equal f(E) at the witness values, and it
+       doesn't.
+
+    Values are computed exactly. Floats in f are first replaced by their exact rational
+    value, so rounding can't make two values look different. This is where the answer
+    can differ from the symbolic check: if expand() rounds a term in s to exactly
+    zero, the symbolic check drops s and this function keeps it. Keeping a symbol is
+    the safe direction, because it only means less pruning.
+
+    Only positive integers are tried, so this returns False right away unless every
+    symbol in f is positive. Otherwise a value might be outside a symbol's domain.
+
+    Args:
+        f: The formula being compared.
+        s: The symbol that might affect the comparison.
+        symbols_enumerated: The symbols that E and E_2 each have their own copy of.
+
+    Returns:
+        True if a witness was found, which means affects_comparison is True. False if
+        none was found. False says nothing about s, and the symbolic check decides.
     """
-    Fast path for affects_comparison. Plugs a few positive integers into f and checks
-    whether f(E_2) - f(E) and f(E_2) / f(E) both change when only s changes. If they
-    do, s can't cancel out of either expansion, so affects_comparison is True.
-    Returns False if this doesn't settle it. Floats are compared as exact rationals,
-    so if expand() rounds a term in s to exactly zero, this keeps s where the full
-    check would drop it.
-    """
-    if not all(x.is_positive for x in f.free_symbols):
+    if not all(symbol.is_positive for symbol in f.free_symbols):
         return False
-    # Exact rationals, so float rounding can't make two values look different
+
     floats = f.atoms(sympy.Float)
     if floats:
         f = f.xreplace({c: sympy.Rational(c) for c in floats})
-    rng = random.Random(0)  # same points on every call
-    syms = sorted(f.free_symbols, key=str)
-    enumerated = [x for x in syms if x in symbols_enumerated]
-    shared = [x for x in syms if x not in symbols_enumerated and x != s]
-    s_enumerated = s in symbols_enumerated
-    minus_changes = ratio_changes = False
-    for _ in range(_PROBE_TRIALS):
-        e1 = {x: sympy.Integer(rng.randint(1, 97)) for x in enumerated}
-        e2 = {x: sympy.Integer(rng.randint(1, 97)) for x in enumerated}
-        sh = {x: sympy.Integer(rng.randint(1, 97)) for x in shared}
-        a, b = (sympy.Integer(v) for v in rng.sample(range(1, 97), 2))
-        if s_enumerated:  # E_2 has its own copy of s, fixed at e2[s]
-            f2a = f2b = _exact_value(f, {**e2, **sh})
+
+    symbols = sorted(f.free_symbols, key=str)
+    enumerated = [x for x in symbols if x in symbols_enumerated]
+    shared = [x for x in symbols if x not in symbols_enumerated and x != s]
+
+    difference_changes = False
+    ratio_changes = False
+    for attempt in range(_WITNESS_TRIES):
+        # Each attempt starts E, E_2 and the shared symbols at a different place in
+        # the list, and the offsets keep each enumerated symbol's values in E and E_2
+        # apart. s gets one small and one large value, so that a term in s that only
+        # wins a Max or Min (or changes a ceiling) at one end still shows up.
+        values_e = _prime_values(enumerated, 5 * attempt + 2)
+        values_e_2 = _prime_values(enumerated, 5 * attempt + 12)
+        values_shared = _prime_values(shared, 5 * attempt + 7)
+        s_1, s_2 = _prime(attempt), _prime(-1 - attempt)
+
+        if s in symbols_enumerated:
+            # E_2 has its own copy of s, so f(E_2) is the same for both values of s.
+            f_e_2 = _exact_value(f, {**values_e_2, **values_shared})
+            f_e_2_at_s_1 = f_e_2_at_s_2 = f_e_2
         else:
-            f2a = _exact_value(f, {**e2, **sh, s: a})
-            f2b = _exact_value(f, {**e2, **sh, s: b})
-        f1a = _exact_value(f, {**e1, **sh, s: a})
-        f1b = _exact_value(f, {**e1, **sh, s: b})
-        if any(v is None for v in (f1a, f1b, f2a, f2b)):
+            f_e_2_at_s_1 = _exact_value(f, {**values_e_2, **values_shared, s: s_1})
+            f_e_2_at_s_2 = _exact_value(f, {**values_e_2, **values_shared, s: s_2})
+        f_e_at_s_1 = _exact_value(f, {**values_e, **values_shared, s: s_1})
+        f_e_at_s_2 = _exact_value(f, {**values_e, **values_shared, s: s_2})
+
+        values = (f_e_at_s_1, f_e_at_s_2, f_e_2_at_s_1, f_e_2_at_s_2)
+        if any(value is None for value in values):
             continue
-        minus_changes |= f2a - f1a != f2b - f1b
-        if min(f1a, f1b, f2a, f2b) > 0:
-            ratio_changes |= f2a / f1a != f2b / f1b
-        if minus_changes and ratio_changes:
+
+        if f_e_2_at_s_1 - f_e_at_s_1 != f_e_2_at_s_2 - f_e_at_s_2:
+            difference_changes = True
+        # The ratio needs every value to be positive. A zero would divide by zero, and
+        # step 2 of the argument above only holds for positive values.
+        if all(value > 0 for value in values):
+            if f_e_2_at_s_1 / f_e_at_s_1 != f_e_2_at_s_2 / f_e_at_s_2:
+                ratio_changes = True
+
+        if difference_changes and ratio_changes:
             return True
     return False
 
@@ -895,8 +969,9 @@ def _provably_changes_with(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
 def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     if not isinstance(f, sympy.Expr):
         return False
-    # Most calls end up True, and getting there through expand() is slow
-    if _provably_changes_with(f, s, symbols_enumerated):
+    # A witness settles the common True case without expanding. Without one, the
+    # symbolic check below decides.
+    if _has_witness_that_s_affects_comparison(f, s, symbols_enumerated):
         return True
     delta = simplify(f_minus_other_f(f, symbols_enumerated))
     if s not in getattr(delta, "free_symbols", set()):
