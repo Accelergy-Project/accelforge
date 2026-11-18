@@ -188,7 +188,7 @@ class PmappingDataframe:
 
     def rename(self, renames: dict[str, str]) -> "PmappingDataframe":
         new = self.copy()
-        new.data.rename(columns=renames, inplace=True)
+        new._data = new.data.rename(columns=renames)
         return new
 
     @error_check_wrapper
@@ -307,7 +307,7 @@ class PmappingDataframe:
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
         if not dropcols:
             return
-        self.data.drop(columns=dropcols, inplace=True)
+        self._data = self.data.drop(columns=dropcols)
         self.make_pareto()
 
     @error_check_wrapper
@@ -387,7 +387,7 @@ class PmappingDataframe:
                 max_columns.append(target)
 
             if len(max_columns) == 1:
-                self.data.rename(columns={max_columns[0]: target}, inplace=True)
+                self._data = self.data.rename(columns={max_columns[0]: target})
             else:
                 for c in max_columns:
                     max_to_col(self.data, target, c)
@@ -436,14 +436,13 @@ class PmappingDataframe:
             ).to_numpy()
 
         objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
-        self.data.drop(
+        self._data = self.data.drop(
             columns=[
                 c
                 for c in self.data
                 if (is_objective_col(c) and c not in objectives)
-                or (finished and is_fused_loop_col(c)) # Finished -> no fused loops
+                or (finished and is_fused_loop_col(c))  # Finished -> no fused loops
             ],
-            inplace=True,
         )
 
     def finish(self, metrics: Metrics):
@@ -471,9 +470,9 @@ class PmappingDataframe:
             target = reservation2col(resource, bottom_loop_index + 1, left=True)
             if target in self.data:
                 max_to_col(self.data, target, source)
-                self.data.drop(columns=[source], inplace=True)
+                self._data = self.data.drop(columns=[source])
             else:
-                self.data.rename(columns={source: target}, inplace=True)
+                self._data = self.data.rename(columns={source: target})
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -815,7 +814,7 @@ class PmappingDataframe:
             for c in result.data.columns
             if is_tensor_col(c) and col2nametensor(c) not in live_tensors
         ]
-        result.data.drop(columns=dead_tensor_cols, inplace=True)
+        result._data = result.data.drop(columns=dead_tensor_cols)
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)

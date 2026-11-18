@@ -598,8 +598,8 @@ def clean_compress_and_join_pmappings(
 
     # These are normally dropped during each join, but that never happens if there's
     # just one Einsum, so we do it once more here.
-    joined.data.drop(
-        columns=[c for c in joined.data.columns if is_tensor_col(c)], inplace=True
+    joined._data = joined.data.drop(
+        columns=[c for c in joined.data.columns if is_tensor_col(c)]
     )
 
     for einsum_name in einsum2pmappings:

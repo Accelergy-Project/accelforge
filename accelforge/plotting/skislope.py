@@ -27,7 +27,7 @@ def generate_ski_slope(
     spec.mapper.metrics = af.Metrics.ENERGY | af.Metrics.RESOURCE_USAGE
     result = spec.map_workload_to_arch(einsum_names=einsum_names)
     result = result.data[[GLB_USAGE, ACCESSES]]
-    result.sort_values(GLB_USAGE, inplace=True)
+    result = result.sort_values(GLB_USAGE)
     snowcat_capacity = spec.arch.nodes["GlobalBuffer"].size
     usage = result[GLB_USAGE] * snowcat_capacity
     normalized_accesses = (result[ACCESSES] / y_normalizer).tolist()
