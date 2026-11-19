@@ -1173,7 +1173,7 @@ def coalesce_symbols(
     return symbol2goal
 
 
-_TILE_SHAPE_ORDER = "inner_to_outer_hybrid"
+_TILE_SHAPE_ORDER = "inner_to_outer_hybrid_complete_min_usage_formulas"
 
 
 def grab_symbol(
@@ -1250,6 +1250,15 @@ def grab_symbol(
         if isinstance(tiled_by, Symbol) and tiled_by not in enumerated_set:
             score_unknown -= 1
 
+        # Score for completing min usage formulas
+        score_min_usage = float("inf")
+        for o in objectives:
+            if not o.min_value:
+                continue
+            if s in o._free_symbols:
+                remaining_symbols = len(o._free_symbols - enumerated_set)
+                score_min_usage = min(score_min_usage, remaining_symbols)
+
         # Score for bringing in an entirely-new formula. NOTE: This caused memory to
         # blow up for some workloads when the punishment was set higher.
         # NOTE: Disabled because it was causing memory blow-ups on some arches.
@@ -1258,6 +1267,7 @@ def grab_symbol(
         #         score_unknown -= .1
 
         return (
+            -score_min_usage,  # Complete min usage formulas first
             -keep,  # Punish enumerating keep symbols because they're always diff
             score_unknown,  # Punish bringing in new formulas or unknowns
             score,  # Reward stopping-of-meddling
