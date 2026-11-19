@@ -106,14 +106,7 @@ def quick_insert_reservation_nodes(
 def convert_to_copy(
     mapping: Mapping, workload: Workload
 ) -> tuple[Mapping, dict[TensorName, int]]:
-    # Calculate backer IDs from the ORIGINAL mapping (before deepcopy) so that
-    # the id() values match the node objects used in subsequent analysis.
-    # get_tensor_to_backer_id is read-only, so this is safe.
-    tensor_to_backer_id = get_tensor_to_backer_id(mapping)
-    mapping = list(mapping.nodes)
-
-    mapping = copy.deepcopy(mapping)
-
+    mapping = list(copy.deepcopy(mapping).nodes)
 
     for node in mapping:
         if isinstance(node, TensorHolder):
@@ -145,7 +138,7 @@ def convert_to_copy(
         if i <= backing_index or not isinstance(node, TensorHolder)
     ]
 
-    return Mapping(nodes=mapping), tensor_to_backer_id
+    return Mapping(nodes=mapping)
 
 
 def analyze_reuse_and_add_reservations_to_mapping(
@@ -163,12 +156,12 @@ def analyze_reuse_and_add_reservations_to_mapping(
     tensors = oset(einsum.tensor_names)
 
     if is_copy_operation:
-        mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
+        mapping = convert_to_copy(mapping, workload)
         tensors &= oset.union(
             *[oset(t.tensors) for t in mapping.nodes if isinstance(t, TensorHolder)]
         )
-    else:
-        tensor_to_backer_id = get_tensor_to_backer_id(mapping)
+
+    tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
     if add_reservations:
         mapping = quick_insert_reservation_nodes(

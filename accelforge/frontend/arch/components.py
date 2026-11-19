@@ -966,6 +966,8 @@ class Tensors(EvalableModel):
     :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then all
     tensors must be kept. Any tensors that are in ``back`` will also be added to
     ``keep``.
+    
+    Defaults to Nothing if not defined, except for Tolls, which defaults to Above.
     """
 
     may_keep: TryEvalTo[InvertibleSet[TensorName]] = (
@@ -1270,6 +1272,8 @@ class Toll(TensorHolder):
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(PROCESSING_STAGE_ACTIONS)
+        if self.tensors.keep == "<Defaults to Nothing>":
+            self.tensors.keep = "Above"
 
     def _eval_expressions(self, *args, **kwargs):
         if getattr(self, "_evaluated", False):
