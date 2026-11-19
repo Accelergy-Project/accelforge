@@ -38,6 +38,11 @@ def get_tensor_choices(
         if t.persistent
     )
 
+    # Storage choices that leave some tensor without a storage node are skipped. We
+    # only raise if every storage choice is incomplete.
+    found_complete_choice = False
+    missing_per_choice: list[oset] = []
+
     for choice, symbol_table in make_storage_choices_all_levels(
         nodes=nodes,
         symbol_table=symbol_table,
@@ -83,6 +88,17 @@ def get_tensor_choices(
         if not cur_compute.enabled:
             continue
 
+        # Every pmapping template made from this choice stores the same tensors, so
+        # a choice that misses a tensor can be dropped before ordering.
+        missing = oset(tensors) - oset(t for th in storage_holders for t in th.tensors)
+        if missing:
+            missing_per_choice.append(missing)
+            logging.info(
+                f"\t\tSkipping storage choice that does not store {sorted(missing)}"
+            )
+            continue
+        found_complete_choice = True
+
         for mapping in recursive_order_tensor_choices(
             einsum_name,
             tensors,
@@ -98,6 +114,15 @@ def get_tensor_choices(
         ):
             mapping = insert_tolls(mapping, toll_holders, nodes, fanouts)
             yield mapping, symbol_table, cur_compute
+
+    if missing_per_choice and not found_complete_choice:
+        raise ValueError(
+            f"Einsum {einsum_name} has no pmapping template that stores every tensor. "
+            f"Ensure that there is a storage node storing each tensor in the Einsum. "
+            f"Tensors that no template stores: "
+            f"{sorted(oset.intersection(*missing_per_choice))}. Tensors missing from "
+            f"some template: {sorted(oset.union(*missing_per_choice))}."
+        )
 
 
 def get_tensor_order_constraint(nodes, symbol_table, tensors):

@@ -1,0 +1,10 @@
+# Two-element elementwise product O[n] = I[n] * W[n], 8 bits per value.
+workload:
+  rank_sizes: {N: 2}
+  bits_per_value: {All: 8}
+  einsums:
+  - name: Mul
+    tensor_accesses:
+    - {name: I, projection: [n]}
+    - {name: W, projection: [n]}
+    - {name: O, projection: [n], output: true}

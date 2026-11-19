@@ -5,11 +5,12 @@ import accelforge as af
 from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
 from accelforge.mapper.FFM.main import map_workload_to_arch
+from accelforge.mapper.FFM.mappings import Mappings
 
 try:
-    from .paths import EXAMPLES_DIR
+    from .paths import CURRENT_DIR, EXAMPLES_DIR
 except ImportError:
-    from paths import EXAMPLES_DIR
+    from paths import CURRENT_DIR, EXAMPLES_DIR
 
 M_SHAPE = 64
 KN_SHAPE = 64
@@ -259,3 +260,62 @@ class TestUntrackedSpatialNotPrunedByPareto(unittest.TestCase):
             f"min_usage=1 ({latency_constrained:.6e}). The relaxed search space "
             f"is a superset and should find same-or-better mappings.",
         )
+
+
+class TestIncompleteStorageChoices(unittest.TestCase):
+    """Storage choices that do not store every tensor are skipped (issue #43).
+
+    The workload is O[n] = I[n] * W[n] with two 8-bit elements on one memory, so a
+    complete mapping reads 32 bits (I and W), writes 16 bits (O) and computes twice:
+    energy 32 * 2 + 16 * 3 + 2 * 5 = 122 and latency 2.
+    """
+
+    ARCH = CURRENT_DIR / "input_files" / "one_memory.arch.yaml"
+    WORKLOAD = CURRENT_DIR / "input_files" / "elementwise_mul.workload.yaml"
+
+    def _map(self, **tensors) -> Mappings:
+        spec = Spec.from_yaml(self.ARCH, self.WORKLOAD)
+        for key, value in tensors.items():
+            setattr(spec.arch["MainMemory"].tensors, key, value)
+        return map_workload_to_arch(spec, print_progress=False)
+
+    @staticmethod
+    def _actions(result: Mappings) -> dict[str, float]:
+        cols = [c for c in result.data.columns if "<SEP>action<SEP>" in c]
+        return {c: float(result.data[c].iloc[0]) for c in cols}
+
+    def _assert_same_as_complete_control(self, result: Mappings):
+        control = self._map(keep="All")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(float(result.energy()), 122)
+        self.assertEqual(float(result.latency()), 2)
+        self.assertEqual(float(control.energy()), 122)
+        self.assertEqual(self._actions(result), self._actions(control))
+
+    def test_incomplete_choice_is_skipped(self):
+        # Bypassing O at the only memory gives an incomplete choice. Keeping O gives
+        # the complete one, which must still be found.
+        self._assert_same_as_complete_control(self._map(keep="I | W", may_keep="O"))
+
+    def test_result_does_not_depend_on_expression_order(self):
+        self._assert_same_as_complete_control(self._map(keep="W | I", may_keep="O"))
+
+    def test_matches_prefiltered_search(self):
+        result = self._map(keep="I | W", may_keep="O", min_stored=3)
+        self._assert_same_as_complete_control(result)
+
+    def test_raises_when_no_choice_stores_a_tensor(self):
+        with self.assertRaises(ValueError) as ctx:
+            self._map(keep="I | W", may_keep="Nothing")
+        message = str(ctx.exception)
+        self.assertIn("Einsum Mul", message)
+        self.assertIn("Tensors that no template stores: ['O']", message)
+
+    def test_raises_when_every_choice_misses_some_tensor(self):
+        # Each tensor fits in some choice, but no choice holds all three.
+        with self.assertRaises(ValueError) as ctx:
+            self._map(keep="Nothing", may_keep="All", max_stored=2)
+        message = str(ctx.exception)
+        self.assertIn("Einsum Mul", message)
+        self.assertIn("Tensors that no template stores: []", message)
+        self.assertIn("Tensors missing from some template: ['I', 'O', 'W']", message)
