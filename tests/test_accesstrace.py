@@ -9,7 +9,11 @@ import numpy as np
 import accelforge as af
 from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
-from accelforge.plotting.accesstrace import plot_access_trace
+from accelforge.plotting.accesstrace import (
+    _TILE_GAP_X,
+    _TILE_GAP_Y,
+    plot_access_trace,
+)
 from accelforge.tracegen import trace_accesses
 
 try:
@@ -161,8 +165,14 @@ class TestPlotAccessTrace(unittest.TestCase):
                 (written.timestep >= start) & (written.timestep < end)
             ]
             extents = path.get_extents()
-            self.assertEqual(tuple(extents.min), (start - 0.5, resident.min() - 0.5))
-            self.assertEqual(tuple(extents.max), (end - 0.5, resident.max() + 0.5))
+            np.testing.assert_allclose(
+                extents.min,
+                (start - 0.5 + _TILE_GAP_X, resident.min() - 0.5 + _TILE_GAP_Y),
+            )
+            np.testing.assert_allclose(
+                extents.max,
+                (end - 0.5 - _TILE_GAP_X, resident.max() + 0.5 - _TILE_GAP_Y),
+            )
 
 
 if __name__ == "__main__":

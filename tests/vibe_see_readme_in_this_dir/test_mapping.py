@@ -521,7 +521,7 @@ class TestMapping(unittest.TestCase):
         )
         self.assertEqual(len(m.loops), 2)
 
-    def test_remove_reservations(self):
+    def test_clear_reservations(self):
         m = Mapping(
             nodes=[
                 Temporal(rank_variable="m", tile_shape=4),
@@ -529,7 +529,7 @@ class TestMapping(unittest.TestCase):
                 Compute(einsum="Matmul", component="MAC"),
             ]
         )
-        m.remove_reservations()
+        m._clear_reservations()
         self.assertEqual(len(m.nodes), 2)
         self.assertFalse(any(isinstance(n, Reservation) for n in m.nodes))
 

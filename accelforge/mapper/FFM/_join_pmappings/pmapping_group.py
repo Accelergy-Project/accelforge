@@ -1,5 +1,5 @@
 from collections import defaultdict
-from functools import cached_property
+from functools import cached_property, partial
 from typing import Any, Callable, Iterable
 from accelforge._accelerated_imports import pandas as pd
 from joblib import delayed
@@ -47,13 +47,6 @@ class PmappingGroup:
     def copy(self) -> "PmappingGroup":
         return PmappingGroup(self.compatibility, self.mappings.copy())
 
-    def split_in_half(self) -> tuple["PmappingGroup", "PmappingGroup"]:
-        first_mappings, second_mappings = self.mappings.split_in_half()
-        return (
-            PmappingGroup(self.compatibility, first_mappings),
-            PmappingGroup(self.compatibility, second_mappings),
-        )
-
     def __len__(self) -> int:
         return len(self.mappings)
 
@@ -67,6 +60,7 @@ class PmappingGroup:
         ignored_resources: set[str],
         permuted_compatibility_left: Compatibility,
         permuted_compatibility_right: Compatibility,
+        chunks: list[PmappingDataframe],
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
@@ -116,9 +110,10 @@ class PmappingGroup:
                     do_not_free.add(name)
                     break
 
-        mapping = delayed(self.mappings.merge_next)(
-            right.mappings,
-            duplicated_aliased_tensors,
+        merge = partial(
+            PmappingDataframe.merge_next,
+            right=right.mappings,
+            duplicated_aliased_tensors=duplicated_aliased_tensors,
             compatibility_left=permuted_compatibility_left,
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
@@ -128,11 +123,13 @@ class PmappingGroup:
             _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,
             _is_invalid=_is_invalid,
         )
+        # chunks are chunks of self.mappings. Each is merged in its own job.
+        mappings = [delayed(merge)(chunk) for chunk in chunks]
 
         if not delay:
-            mapping = mapping[0](*mapping[1], **mapping[2])
+            mappings = PmappingDataframe.concat([merge(chunk) for chunk in chunks])
 
-        s = PmappingGroup(compatibility_joined, mapping)
+        s = PmappingGroup(compatibility_joined, mappings)
         assert (
             compatibility_joined.max_above_loop_index == next_shared_loop_index + 1
         ), f"{self.compatibility} {right.compatibility} {next_shared_loop_index + 1} -> {compatibility_joined} {len(compatibility_joined.loops)}"

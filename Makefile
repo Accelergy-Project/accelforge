@@ -24,6 +24,13 @@ INFRA_ALTIMG  := ${INFRA_NAME}:${ALTTAG}
 install-hwcomponents:
 	python3 -m pip install --no-cache-dir hwcomponents hwcomponents-adc hwcomponents-cacti hwcomponents-library hwcomponents-neurosim
 
+# pip installs islpy and overwrites islpy-barvinok, so we need to reinstall
+# islpy-barvinok to get Barvinok support
+.PHONY: install-dev
+install-dev:
+	python3 -m pip install -e .[dev]
+	python3 -m pip install --force-reinstall --no-deps islpy-barvinok
+
 # Login to docker hub
 login:
 	"${DOCKER_EXE}" login --username ${DOCKER_NAME} --password ${DOCKER_PASS}

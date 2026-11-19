@@ -19,7 +19,7 @@ from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
 from accelforge.util._mathfuncs import RESERVATION_PRECISION_TOLERANCE
 from accelforge.util._frozenset import fzs, oset
 
-from accelforge._accelerated_imports import pd
+from accelforge._accelerated_imports import pd, np
 
 from accelforge.mapper.FFM._pareto_df.df_convention import *
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto
@@ -984,23 +984,18 @@ class PmappingDataframe:
             check_above_subset_below=False,
         )
 
-    def split_in_half(self) -> tuple["PmappingDataframe", "PmappingDataframe"]:
-        mid = len(self.data) // 2
-        half_total = self.n_total_pmappings / 2
-        half_valid = self.n_valid_pmappings / 2
-        first = self.update(
-            data=self.data.iloc[:mid].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        second = self.update(
-            data=self.data.iloc[mid:].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        return first, second
+    def split(self, n_chunks: int) -> list["PmappingDataframe"]:
+        """Splits the rows into n_chunks chunks of rows"""
+        if n_chunks == 1:
+            return [self]
+        chunks = []
+        for rows in np.array_split(np.arange(len(self.data)), n_chunks):
+            chunk = copy.copy(self)
+            chunk._data = self.data.take(rows)
+            chunk.n_total_pmappings *= len(rows) / len(self.data)
+            chunk.n_valid_pmappings *= len(rows) / len(self.data)
+            chunks.append(chunk)
+        return chunks
 
     def limit_capacity(
         self,
