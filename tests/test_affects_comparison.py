@@ -15,7 +15,8 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import 
     make_tile_shapes as mts,
 )
 
-x, y, z, n = sympy.symbols("x y z n", integer=True, positive=True)
+# Positive like the mapper's symbols, with no integer=True. Ctrl-F SYMPY_BUG.
+x, y, z, n = sympy.symbols("x y z n", positive=True)
 
 
 def symbolic_check_only(f, s, symbols_enumerated):
