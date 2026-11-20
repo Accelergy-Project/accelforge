@@ -968,6 +968,8 @@ class Tensors(EvalableModel):
     :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then all
     tensors must be kept. Any tensors that are in ``back`` will also be added to
     ``keep``.
+    
+    Defaults to Nothing if not defined, except for Tolls, which defaults to Above.
     """
 
     may_keep: TryEvalTo[InvertibleSet[TensorName]] = (
@@ -1193,6 +1195,12 @@ class Memory(TensorHolder):
     it (e.g., FFM) may, if no mappings satisfy this constraint, return the highest-usage
     mappings. These constraints are disabled for copy Einsums. """
 
+    page_size: EvalsTo[int | float | None] = None
+    """ 
+    If set, every reservation in this `Memory` is rounded up to a multiple of page_size
+    bits.
+    """
+
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
 
@@ -1273,6 +1281,8 @@ class Toll(TensorHolder):
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(PROCESSING_STAGE_ACTIONS)
+        if self.tensors.keep == "<Defaults to Nothing>":
+            self.tensors.keep = "Above"
 
     def _eval_expressions(self, *args, **kwargs):
         if getattr(self, "_evaluated", False):

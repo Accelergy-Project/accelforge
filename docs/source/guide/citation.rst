@@ -19,11 +19,14 @@ They are available as the following:
 
 .. code-block:: bibtex
 
-    @software{accelforge,
-    author={Andrulis, Tanner and Gilbert, Michael},
-    title={AccelForge},
-    url={https://github.com/Accelergy-Project/accelforge},
-    license={MIT},
+    @misc{accelforge,
+          title={AccelForge: Comprehensive Modeling and Co-Design Framework for AI Accelerators}, 
+          author={Tanner Andrulis and Michael Gilbert and Vivienne Sze and Joel S. Emer},
+          year={2026},
+          eprint={2609.11906},
+          archivePrefix={arXiv},
+          primaryClass={cs.AR},
+          url={https://arxiv.org/abs/2609.11906}, 
     }
 
     @INPROCEEDINGS{cimloop,

@@ -25,7 +25,7 @@ def _compress(
     einsum_name: EinsumName, pmappings: PmappingGroup, start_index: int
 ) -> tuple["PmappingDataframe", pd.DataFrame]:
     data = pmappings.mappings.data
-    data.reset_index(drop=True, inplace=True)
+    data = data.reset_index(drop=True)
     data.index += start_index
     keep_cols = [c for c in data.columns if col_used_in_joining(c)]
     compress_cols = [c for c in data.columns if c not in keep_cols]

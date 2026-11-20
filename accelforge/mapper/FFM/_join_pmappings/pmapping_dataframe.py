@@ -8,6 +8,7 @@ from typing import Any, Callable, Iterable
 import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
+from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.frontend.mapping import Loop as MappingLoop
 from accelforge.mapper.FFM._join_pmappings.binding_adapter import BindingAdapter
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
@@ -19,7 +20,7 @@ from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
 from accelforge.util._mathfuncs import RESERVATION_PRECISION_TOLERANCE
 from accelforge.util._frozenset import fzs, oset
 
-from accelforge._accelerated_imports import pd
+from accelforge._accelerated_imports import pd, np
 
 from accelforge.mapper.FFM._pareto_df.df_convention import *
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto
@@ -131,6 +132,8 @@ def get_latency_or_below(
 
 
 class PmappingDataframe:
+    use_simplified_objectives: Metrics | None = None
+
     def __init__(
         self,
         data: pd.DataFrame,
@@ -144,6 +147,7 @@ class PmappingDataframe:
         max_right_to_left: bool = False,
         next_shared_loop_index: int = None,
         excess_resource_tolerance: float = 0,
+        use_simplified_objectives: Metrics | None = None,
     ):
         self._data: pd.DataFrame = reduce_precision(data)
         self._prev_free_to_loop_index = None
@@ -151,6 +155,8 @@ class PmappingDataframe:
         self.n_valid_pmappings: float = n_valid_pmappings
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
+        self.use_simplified_objectives = use_simplified_objectives
+        self.ignored_resources = ignored_resources
 
         if next_shared_loop_index is not None:
             assert (
@@ -177,15 +183,13 @@ class PmappingDataframe:
         if check_above_subset_below:
             self.check_above_subset_below()
 
-        self.ignored_resources = ignored_resources
-
         assert len(self.data.columns) == len(
             oset(self.data.columns)
         ), f"Duplicate columns: {self.data.columns}"
 
     def rename(self, renames: dict[str, str]) -> "PmappingDataframe":
         new = self.copy()
-        new.data.rename(columns=renames, inplace=True)
+        new._data = new.data.rename(columns=renames)
         return new
 
     @error_check_wrapper
@@ -304,11 +308,13 @@ class PmappingDataframe:
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
         if not dropcols:
             return
-        self.data.drop(columns=dropcols, inplace=True)
+        self._data = self.data.drop(columns=dropcols)
         self.make_pareto()
 
     @error_check_wrapper
-    def free_to_loop_index(self, loop_index: int) -> bool:
+    def free_to_loop_index(
+        self, loop_index: int, free_reservations: bool = True
+    ) -> bool:
         """
         Reservations follow:
            A  B
@@ -352,7 +358,9 @@ class PmappingDataframe:
         self._prev_free_to_loop_index = loop_index
 
         drop_columns = []
-        l_reservations, r_reservations = self._make_reservations()
+        l_reservations, r_reservations = (
+            self._make_reservations() if free_reservations else ({}, {})
+        )
         for resource in oset(l_reservations) | oset(r_reservations):
             max_columns = []
             cur_l_reservations = l_reservations.get(resource, oset())
@@ -380,7 +388,7 @@ class PmappingDataframe:
                 max_columns.append(target)
 
             if len(max_columns) == 1:
-                self.data.rename(columns={max_columns[0]: target}, inplace=True)
+                self._data = self.data.rename(columns={max_columns[0]: target})
             else:
                 for c in max_columns:
                     max_to_col(self.data, target, c)
@@ -414,6 +422,35 @@ class PmappingDataframe:
 
         return len(drop_columns) != 0
 
+    def _clean_objectives(self, metrics: Metrics, finished: bool):
+        # Next shared = -1 -> no shared loops in the future
+        if finished:
+            self.limit_capacity(next_shared_loop_index=-1, finished=True)
+        # We do an additional bump to -2 because globally-shared tensors (persistent
+        # tensors) are reserved at above_loop_index -1
+        self.free_to_loop_index(-2, free_reservations=finished)
+
+        if metrics & Metrics.ENERGY_DELAY_PRODUCT:
+            self.data["Total<SEP>energy_delay_product"] = (
+                self.data["Total<SEP>energy"].astype(float)
+                * self.data["Total<SEP>latency"]
+            ).to_numpy()
+
+        objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
+        self._data = self.data.drop(
+            columns=[
+                c
+                for c in self.data
+                if (is_objective_col(c) and c not in objectives)
+                or (finished and is_fused_loop_col(c))  # Finished -> no fused loops
+            ],
+        )
+
+    def finish(self, metrics: Metrics):
+        self._clean_objectives(metrics, finished=True)
+        self.use_simplified_objectives = None
+        self.make_pareto()
+
     @error_check_wrapper
     def shift_bottom_reservation_left(self, bottom_loop_index: int):
         """
@@ -434,9 +471,9 @@ class PmappingDataframe:
             target = reservation2col(resource, bottom_loop_index + 1, left=True)
             if target in self.data:
                 max_to_col(self.data, target, source)
-                self.data.drop(columns=[source], inplace=True)
+                self._data = self.data.drop(columns=[source])
             else:
-                self.data.rename(columns={source: target}, inplace=True)
+                self._data = self.data.rename(columns={source: target})
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -729,6 +766,7 @@ class PmappingDataframe:
             n_valid_pmappings=n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            use_simplified_objectives=self.use_simplified_objectives,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -777,7 +815,7 @@ class PmappingDataframe:
             for c in result.data.columns
             if is_tensor_col(c) and col2nametensor(c) not in live_tensors
         ]
-        result.data.drop(columns=dead_tensor_cols, inplace=True)
+        result._data = result.data.drop(columns=dead_tensor_cols)
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
@@ -921,6 +959,7 @@ class PmappingDataframe:
             n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
             ignored_resources=next(iter(paretos)).ignored_resources,
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
+            use_simplified_objectives=paretos[0].use_simplified_objectives,
         )
         return p
 
@@ -958,6 +997,7 @@ class PmappingDataframe:
             n_valid_pmappings=self.n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            use_simplified_objectives=self.use_simplified_objectives,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
@@ -969,23 +1009,18 @@ class PmappingDataframe:
             check_above_subset_below=False,
         )
 
-    def split_in_half(self) -> tuple["PmappingDataframe", "PmappingDataframe"]:
-        mid = len(self.data) // 2
-        half_total = self.n_total_pmappings / 2
-        half_valid = self.n_valid_pmappings / 2
-        first = self.update(
-            data=self.data.iloc[:mid].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        second = self.update(
-            data=self.data.iloc[mid:].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        return first, second
+    def split(self, n_chunks: int) -> list["PmappingDataframe"]:
+        """Splits the rows into n_chunks chunks of rows"""
+        if n_chunks == 1:
+            return [self]
+        chunks = []
+        for rows in np.array_split(np.arange(len(self.data)), n_chunks):
+            chunk = copy.copy(self)
+            chunk._data = self.data.take(rows)
+            chunk.n_total_pmappings *= len(rows) / len(self.data)
+            chunk.n_valid_pmappings *= len(rows) / len(self.data)
+            chunks.append(chunk)
+        return chunks
 
     def limit_capacity(
         self,
@@ -1064,9 +1099,13 @@ class PmappingDataframe:
 
         self._data = self.data.drop(columns=dropcols)
 
+    def _simplify_objectives_for_prune(self, metrics: Metrics) -> pd.DataFrame:
+        simplified = self.copy()
+        simplified._clean_objectives(metrics, finished=False)
+        return simplified.data.reset_index(drop=True)
+
     def make_pareto(
         self,
-        columns: list[str] = None,
         objective_tolerance: float = 0,
         resource_usage_tolerance: float = 0,
         absolute_resource_usage_tolerance: float = 0,
@@ -1079,13 +1118,20 @@ class PmappingDataframe:
         if self.drop_valid_reservations:
             resource_usage_tolerance = objective_tolerance
 
+        if self.use_simplified_objectives is not None:
+            simplified = self._simplify_objectives_for_prune(
+                self.use_simplified_objectives
+            )
+        else:
+            simplified = self.data
         new_data = makepareto(
-            self.data,
-            columns,
+            simplified,
             resource_usage_tolerance=resource_usage_tolerance,
             absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
             objective_tolerance=objective_tolerance,
         )
+        if self.use_simplified_objectives is not None:
+            new_data = self.data.iloc[new_data.index]
         if inplace:
             self._data = new_data
             return self
@@ -1219,10 +1265,10 @@ class PmappingDataframe:
     def clear_irrelevant_columns(
         self, compatibility: Compatibility
     ) -> "PmappingDataframe":
-        return self.update(
-            data=compatibility.clear_unrelated_columns(self._data),
-            skip_pareto=True,
-        )
+        data = compatibility.clear_unrelated_columns(self._data)
+        if data is self._data:
+            return self
+        return self.update(data=data, skip_pareto=True)
 
 
 def row2pmappings(

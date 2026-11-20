@@ -212,7 +212,9 @@ the set of all rank variables that index into any of the tensors stored in
 
 Every tensor expression also has a ``bits_per_value`` attribute that returns the number
 of bits per value for the tensor. This can only be called on size-one sets of tensors,
-or else an error will be raised.
+or else an error will be raised. Alternatively, ``element_to_bits_per_value`` returns a
+dictionary mapping each tensor in the set to its bits per value. This can be used for
+any number of tensors in the set.
 
 Additional keys can be defined following the renaming section of the :ref:`Workload and
 Renames Specification <renaming-tensors-rank-variables>`.

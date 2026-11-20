@@ -26,8 +26,8 @@ from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates import (
     make_pmapping_templates,
 )
 from accelforge.frontend.mapper.metrics import Metrics
-from accelforge.mapper.FFM._make_pmappings.drop_less_fused_pmappings_that_are_worse import (
-    drop_less_fused_pmappings_that_are_worse,
+from accelforge.mapper.FFM._make_pmappings.drop_more_fused_pmappings_that_are_worse import (
+    drop_more_fused_pmappings_that_are_worse,
 )
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import (
     make_pmappings_from_templates,
@@ -430,7 +430,6 @@ def make_pmappings(
     ) in parallel(
         calls,
         pbar=f"Generating pmappings" if print_progress or one_pbar_only else None,
-        return_as="generator_unordered",
     ):
         pmapping_groups[einsum_name].extend(new_pmapping_groups)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
@@ -454,8 +453,8 @@ def make_pmappings(
     for (einsum_name, _), group in zip(concat_jobs, combined):
         pmapping_groups[einsum_name].append(group)
 
-    if spec.mapper.drop_less_fused_pmappings_that_are_worse:
-        drop_less_fused_pmappings_that_are_worse(
+    if spec.mapper.drop_more_fused_pmappings_that_are_worse:
+        drop_more_fused_pmappings_that_are_worse(
             pmapping_groups, einsum2jobs, print_progress
         )
 

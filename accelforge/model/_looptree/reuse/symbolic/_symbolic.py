@@ -68,6 +68,11 @@ SYMBOL = "symbol"
 
 PRINT_FORMULAS = False
 
+# SYMPY BUG: The following returns True if integer=True is used, but False otherwise.
+# a = sp.Symbol("a", positive=True, integer=True)
+# b = sp.Symbol("b", positive=True, integer=True)
+# 1 < 2 / (a * b)
+# Tested on sympy 1.14.0
 
 def quick_insert_reservation_nodes(
     job: Job, mapping: Mapping | None = None, tensors: oset[TensorName] | None = None
@@ -110,11 +115,7 @@ def convert_to_copy(
 ) -> tuple[Mapping, dict[TensorName, int]]:
     # Calculate backer IDs from the ORIGINAL mapping (before deepcopy) so that
     # the id() values match the node objects used in subsequent analysis.
-    # get_tensor_to_backer_id is read-only, so this is safe.
-    tensor_to_backer_id = get_tensor_to_backer_id(mapping)
-    mapping = list(mapping.nodes)
-
-    mapping = copy.deepcopy(mapping)
+    mapping = list(copy.deepcopy(mapping).nodes)
 
     for node in mapping:
         if isinstance(node, TensorHolder):
@@ -146,7 +147,7 @@ def convert_to_copy(
         if i <= backing_index or not isinstance(node, TensorHolder)
     ]
 
-    return Mapping(nodes=mapping), tensor_to_backer_id
+    return Mapping(nodes=mapping)
 
 
 def analyze_reuse_and_add_reservations_to_mapping(
@@ -164,12 +165,12 @@ def analyze_reuse_and_add_reservations_to_mapping(
     tensors = oset(einsum.tensor_names)
 
     if is_copy_operation:
-        mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
+        mapping = convert_to_copy(mapping, workload)
         tensors &= oset.union(
             *[oset(t.tensors) for t in mapping.nodes if isinstance(t, TensorHolder)]
         )
-    else:
-        tensor_to_backer_id = get_tensor_to_backer_id(mapping)
+
+    tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
     if add_reservations:
         mapping = quick_insert_reservation_nodes(
@@ -248,6 +249,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor,
             job.flattened_arch,
             tensor_rank_variables=rvs,
+            workload=job.spec_one_einsum.workload,
         )
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
@@ -306,6 +308,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
                 t,
                 job.flattened_arch,
                 tensor_rank_variables=einsum.tensor2rank_variables[t],
+                workload=job.spec_one_einsum.workload,
             )
 
     result.symbols = symbols
@@ -1153,9 +1156,8 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
             node.initial_tile_shape = None
         elif node.initial_tile_shape == SYMBOL:
             rank_var_with_initial.add(node.rank_variable)
-            initial_tile_shape = sympy.symbols(
-                f"initial{loop_idx}", positive=True, integer=True
-            )
+            # NO integer=True. Ctrl-F SYMPY_BUG.
+            initial_tile_shape = sympy.symbols(f"initial{loop_idx}", positive=True)
             symbols.append(initial_tile_shape)
             node.initial_tile_shape = initial_tile_shape
 
@@ -1163,7 +1165,8 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
         if job.rank_variable_bounds[node.rank_variable] == 1:
             node.tile_shape = 1
         elif node.tile_shape == SYMBOL:
-            stride = sympy.symbols(f"stride{loop_idx}", positive=True, integer=True)
+            # NO integer=True. Ctrl-F SYMPY_BUG.
+            stride = sympy.symbols(f"stride{loop_idx}", positive=True)
             symbols.append(stride)
             node.tile_shape = stride
 
@@ -1175,7 +1178,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
         #     node.calculated_n_iterations is None
         # ), "Number of iterations is derived from the model. Do not set it!"
         node.calculated_n_iterations = sympy.symbols(
-            iterations2col(loop_idx), positive=True, integer=True
+            iterations2col(loop_idx), positive=True
         )
 
         loop_idx += 1

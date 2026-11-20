@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterator, Iterable
 from enum import Enum
 from dataclasses import dataclass, replace
+import functools
 import itertools
 from numbers import Number
 from typing import Literal, TypeVar
@@ -60,6 +61,24 @@ T = TypeVar("T", bound="Updatable")
 class Updatable:
     def update(self: T, **kwargs) -> T:
         return replace(self, **kwargs)
+
+
+def _cache_by_hash(method):
+    cache = {}
+
+    @functools.wraps(method)
+    def wrapper(self, *args):
+        key = (self._all_attrs_tuple(), args)
+        try:
+            return cache[key]
+        except KeyError:
+            pass
+        if len(cache) > 32768:
+            cache.clear()
+        result = cache[key] = method(self, *args)
+        return result
+
+    return wrapper
 
 
 def _update_rename_dict(
@@ -191,7 +210,9 @@ class Loop(Updatable):
                 r[new_attr_val] = attr_val
             else:
                 new_attr_val = attr_val
-            new = new.update(tile_pattern=new.tile_pattern.update(**{attr: new_attr_val}))
+            new = new.update(
+                tile_pattern=new.tile_pattern.update(**{attr: new_attr_val})
+            )
 
         return r, new
 
@@ -392,7 +413,9 @@ class TensorReservation(Updatable):
             physical_loops.append(l)
         return (
             result,
-            self.update(loops=tuple(loops), physical_spatial_loops=tuple(physical_loops))
+            self.update(
+                loops=tuple(loops), physical_spatial_loops=tuple(physical_loops)
+            ),
         )
 
     def add_n_iteration_symbols(self) -> "TensorReservation":
@@ -441,6 +464,7 @@ class CompatibilityDiff:
     """
     The diff applied to a Compatibility to generate another Compatibility.
     """
+
     loop_permutation: Permutation
 
     def apply(self, c: "Compatibility") -> "Compatibility":
@@ -451,9 +475,13 @@ class CompatibilityDiff:
 @dataclass(frozen=True)
 class Compatibility(Updatable):
     tensors: fzs[TensorReservation]
-    splits: fzs[Split] = fzs()
     reservation_indices: fzs[int] = fzs()
+
+    # Note: The below are NOT in the cross Einsum hash tuple because they don't need to
+    # match across Einsums
+    splits: fzs[Split] = fzs()
     check_reservation_indices: bool = True
+    is_copy: bool = False
 
     @property
     def n_loops(self) -> int:
@@ -470,16 +498,28 @@ class Compatibility(Updatable):
     def loops(self) -> tuple[Loop, ...]:
         return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
 
-    def _get_hash_tuple(self):
+    def _is_compatible_hash_tuple(self):
         return self.n_loops, self.tensors, self.reservation_indices
 
+    def _all_attrs_tuple(self):
+        return (
+            self._is_compatible_hash_tuple(),
+            self.splits,
+            self.check_reservation_indices,
+            self.is_copy,
+        )
+
     def __hash__(self):
-        return hash(self._get_hash_tuple())
+        return hash(self._is_compatible_hash_tuple())
 
     def __eq__(self, other):
+        """
+        CHECKS FOR COMPATIBLITY ACROSS EINSUMS. Not sufficient to determine equality of
+        two compatibilities.
+        """
         if self is other:
             return True
-        return self._get_hash_tuple() == other._get_hash_tuple()
+        return self._is_compatible_hash_tuple() == other._is_compatible_hash_tuple()
 
     def __post_init__(self):
         assert isinstance(self.tensors, fzs)
@@ -544,6 +584,7 @@ class Compatibility(Updatable):
                 tensors=fzs(tensors),
                 splits=self.splits,
                 reservation_indices=self.reservation_indices,
+                is_copy=self.is_copy,
             ),
             renames,
         )
@@ -563,7 +604,14 @@ class Compatibility(Updatable):
         """
         if live_tensors == "All":
             live_tensors = self.tensor_names
+        return self._clear_dead_tensors(
+            fzs(live_tensors), keep_reservation_indices_and_splits
+        )
 
+    @_cache_by_hash
+    def _clear_dead_tensors(
+        self, live_tensors: fzs[str], keep_reservation_indices_and_splits: bool
+    ) -> "Compatibility":
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
         new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
         splits, reservation_indices = self.splits, self.reservation_indices
@@ -585,7 +633,7 @@ class Compatibility(Updatable):
         )
 
     def __lt__(self, other):
-        return self._get_hash_tuple() < other._get_hash_tuple()
+        return self._is_compatible_hash_tuple() < other._is_compatible_hash_tuple()
 
     def __str__(self):
         return self.__repr__()
@@ -605,15 +653,14 @@ class Compatibility(Updatable):
         self_freed = self.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
         )
-        right_freed = right.clear_dead_tensors(
-            live_tensors, keep_reservation_indices_and_splits=True
-        )
         if (
-            self_freed.n_loops > right_freed.n_loops
+            self_freed.n_loops > right.n_loops
+            and not right.is_copy
             and not _force_allow_invalid_only_for_runtime_test
         ):
             # This can be relaxed if we have a way to do order-independent joining
-            # and/or non-looptree mappings.
+            # and/or non-looptree mappings. We CAN do this with copies because the
+            # copies don't actually show up as branches in the tree.
             raise ValueError(
                 f"Can't merge. I have more loops than the next, so my dataflow can't "
                 f"be carried through a LoopTree to where it's needed."
@@ -635,22 +682,27 @@ class Compatibility(Updatable):
     def has_tensor(self, *tensors: TensorReservation) -> bool:
         return all(any(s == t for s in self.tensors) for t in tensors)
 
+    @_cache_by_hash
     def _permute_stops(self):
         stops = oset(len(s.loops) for s in self.tensors)
         stops |= self.reservation_indices
         stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
-    def permute_loops(
-        self,
-        loop_changes: Permutation,
-    ) -> "Compatibility":
+    def check_loop_permutation(self, loop_changes: Permutation):
+        """Raise if the permutation moves a loop across a reservation."""
         permute_stops = self._permute_stops()
         for i, c in enumerate(loop_changes):
             for r in permute_stops:
                 assert (i < r) == (
                     c < r
                 ), f"Loop changes {loop_changes} cross reservation {r}"
+
+    def permute_loops(
+        self,
+        loop_changes: Permutation,
+    ) -> "Compatibility":
+        self.check_loop_permutation(loop_changes)
         new_tensors = fzs(s.permute_loops(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
@@ -673,17 +725,21 @@ class Compatibility(Updatable):
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
         yield from (
-            Permutation(itertools.chain(*loop_changes)) for loop_changes in all_permutations
+            Permutation(itertools.chain(*loop_changes))
+            for loop_changes in all_permutations
         )
 
-    def make_equivalent_compatibilities(self) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
+    @_cache_by_hash
+    def make_equivalent_compatibilities(
+        self,
+    ) -> tuple[tuple["Compatibility", "CompatibilityDiff"], ...]:
         result = []
         for loop_permutation in self._make_equivalent_loop_permutations():
             diff = CompatibilityDiff(
                 loop_permutation=loop_permutation,
             )
             result.append((diff.apply(self), diff))
-        return result
+        return tuple(result)
 
     def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
@@ -826,6 +882,7 @@ class Compatibility(Updatable):
                 Split(split=n, above_loop_index=i) for i in split_above_loop_indices
             ),
             reservation_indices=fzs(reservation_indices),
+            is_copy=bool(einsum.is_copy_operation),
         )
 
     def symbols(self) -> list[str]:
@@ -860,6 +917,7 @@ class Compatibility(Updatable):
             tensors=tensors,
             splits=splits,
             reservation_indices=reservation_indices,
+            is_copy=self.is_copy,
         )
 
     def physical_spatial_loop_iterations(self) -> list[str | int | None]:
@@ -949,6 +1007,7 @@ class Compatibility(Updatable):
             tensors=fzs(t._prepend_symbols(prepend) for t in self.tensors)
         )
 
+    @_cache_by_hash
     def clear_tile_patterns_and_reservation_indices(self) -> "Compatibility":
         return self.update(
             tensors=fzs(t.clear_symbolic_tile_patterns() for t in self.tensors),
@@ -956,6 +1015,7 @@ class Compatibility(Updatable):
             check_reservation_indices=False,
         )
 
+    @_cache_by_hash
     def clear_symbolic_tile_patterns(self) -> "Compatibility":
         return self.update(
             tensors=fzs(t.clear_symbolic_tile_patterns() for t in self.tensors)

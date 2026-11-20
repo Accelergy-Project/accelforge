@@ -17,7 +17,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
-    is_objective_col,
+    uses_objective_tolerance,
 )
 
 from .fast_pareto import fast_pareto_mask
@@ -219,15 +219,12 @@ def multi_round(
 
 def makepareto(
     mappings: pd.DataFrame,
-    columns: list[str] = None,
     split_by_cols: list[str] = (),
     resource_usage_tolerance: float = 0,
     objective_tolerance: float = 0,
     absolute_resource_usage_tolerance: float = 0,
 ) -> pd.DataFrame:
-    # return makepareto_time_compare(mappings)
-    if columns is None:
-        columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
 
     # Number of iterations is derived from the tile shapes, so we don't need to use it,
     # since any row with the same tile shapes will have the same number of iterations.
@@ -249,7 +246,7 @@ def makepareto(
         if len(arr) <= 1 or (arr == arr[0]).all():
             continue
 
-        if c in columns_set and is_objective_col(c):
+        if c in columns_set and uses_objective_tolerance(c):
             to_pareto.append(logscale_to_tolerance(series, objective_tolerance))
             goals.append("min")
         elif c in split_by_cols_set:

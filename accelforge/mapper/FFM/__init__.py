@@ -7,6 +7,11 @@ from accelforge.mapper.FFM.main import (
 )
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
+    JoinRunParameters,
+    JoinStatistics,
+    JoinStepStatistics,
+)
 
 __all__ = [
     "map_workload_to_arch",
@@ -16,4 +21,7 @@ __all__ = [
     "Mappings",
     "Metrics",
     "PmappingGroup",
+    "JoinRunParameters",
+    "JoinStatistics",
+    "JoinStepStatistics",
 ]

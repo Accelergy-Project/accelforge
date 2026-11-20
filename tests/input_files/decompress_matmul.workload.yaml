@@ -1,0 +1,18 @@
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 16
+    n0: 0 <= n0 < 4096
+    n1: 0 <= n1 < 4096
+
+  bits_per_value: {WC: 4, ~WC: 16}
+
+  einsums:
+  - name: Decompress
+    tensor_accesses:
+    - {name: WC, projection: [n0, n1]}
+    - {name: W, projection: [n0, n1], output: True}
+  - name: Matmul
+    tensor_accesses:
+    - {name: I, projection: [m, n0]}
+    - {name: W, projection: [n0, n1]}
+    - {name: O, projection: [m, n1], output: True}
