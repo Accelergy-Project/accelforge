@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 import itertools
 import logging
+import math
 import time
 from typing import Any, Callable, NamedTuple
 
@@ -598,8 +599,8 @@ def clean_compress_and_join_pmappings(
 
     # These are normally dropped during each join, but that never happens if there's
     # just one Einsum, so we do it once more here.
-    joined.data.drop(
-        columns=[c for c in joined.data.columns if is_tensor_col(c)], inplace=True
+    joined._data = joined.data.drop(
+        columns=[c for c in joined.data.columns if is_tensor_col(c)]
     )
 
     for einsum_name in einsum2pmappings:
@@ -977,25 +978,13 @@ def join_pmappings(
 
         # =============================================================================
         # If we're multiprocessing and the left side has fewer groups than the number of
-        # processes, repeatedly split the largest group in half so that the merge work
-        # below can fan out across all workers.
+        # processe, split the left groups.
         # =============================================================================
-        n_procs = get_n_parallel_jobs()
-        n_groups = sum(len(v) for v in left.values())
-        for _ in range(n_procs - n_groups):
-            best_k, best_i, best_len = None, None, -1
-            for k, vs in left.items():
-                for i, (pg, _perm) in enumerate(vs):
-                    length = len(pg.mappings.data) if pg.mappings is not None else 0
-                    if length > best_len:
-                        best_len = length
-                        best_k, best_i = k, i
-            if best_k is None or best_len < 2:
-                break  # nothing left worth splitting
-            pg, perm = left[best_k][best_i]
-            first, second = pg.split_in_half()
-            left[best_k][best_i] = (first, perm)
-            left[best_k].append((second, perm))
+        left_groups = {pg for groups in left.values() for pg, _ in groups}
+        chunk_size = math.ceil(sum(map(len, left_groups)) / get_n_parallel_jobs())
+        left_chunks = {
+            pg: pg.mappings.split(math.ceil(len(pg) / chunk_size)) for pg in left_groups
+        }
 
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping because
@@ -1026,7 +1015,9 @@ def join_pmappings(
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
         def _make_permutations(groups: list[tuple[PmappingGroup, CompatibilityDiff]]):
-            return [(g, p.apply(g.compatibility)) for g, p in groups]
+            return [
+                (g, p.loop_permutation, p.apply(g.compatibility)) for g, p in groups
+            ]
 
         right_permuted = {k: _make_permutations(v) for k, v in right.items()}
         for k in left:
@@ -1038,13 +1029,19 @@ def join_pmappings(
             if not right_matches:
                 continue
 
-            l_permuted = [(a, perm_a.apply(a.compatibility)) for a, perm_a in left[k]]
-            for (a, compatibility_a), (b, compatibility_b) in itertools.product(
+            l_permuted = [
+                (a, perm_a.loop_permutation, perm_a.apply(a.compatibility))
+                for a, perm_a in left[k]
+            ]
+            for (a, pa, compatibility_a), (b, pb, compatibility_b) in itertools.product(
                 l_permuted, right_matches
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                key_check = (id(a), id(b))
+                # Skip repeats that match in both a,b and permutations match the same a
+                # loops and b loops. e.g., a loops [a.1, a.2] <-> b loops [b.1, b.2] is
+                # the same as a loops [a.2, a.1] <-> b loops [b.2, b.1]
+                key_check = (id(a), id(b), tuple(sorted(zip(pa, pb))))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
@@ -1077,6 +1074,7 @@ def join_pmappings(
                         compatibility_joined=compatibility_joined,
                         permuted_compatibility_left=compatibility_a,
                         permuted_compatibility_right=compatibility_b,
+                        chunks=left_chunks[a],
                         delay=DELAY,
                         _pmapping_row_filter_function=row_filter(
                             joined_einsums, compatibility_joined
@@ -1103,6 +1101,7 @@ def join_pmappings(
         for l in left.values():
             for s, _ in l:
                 s.mappings = None
+        del left_chunks
         for r in right.values():
             for s, _ in r:
                 s.mappings = None
@@ -1190,15 +1189,19 @@ def join_pmappings(
         t_merge = time.time()
         if DELAY:
             mappings = parallel(
-                [c.mappings for c in combined],
+                [m for c in combined for m in c.mappings],
                 pbar=(
                     f"Joining pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})"
                     if print_progress
                     else None
                 ),
             )
-            for c, mapping in zip(combined, mappings):
-                c.mappings = mapping
+            # Cat distributed-into-chunk jobs
+            mappings = iter(mappings)
+            for c in combined:
+                c.mappings = PmappingDataframe.concat(
+                    [next(mappings) for _ in c.mappings]
+                )
         merge_time = time.time() - t_merge
         timer.print_time("Pmapping merging")
 

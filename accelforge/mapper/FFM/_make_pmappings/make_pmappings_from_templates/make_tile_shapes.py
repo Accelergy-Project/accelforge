@@ -820,7 +820,7 @@ def symbol2int(symbol: Symbol):
 @lru_cache(maxsize=10000)
 def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     fs = {
-        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        s: sympy.Symbol(f"{s}_2", positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
         for s in sorted(f.free_symbols & symbols_enumerated, key=str)
     }
     return f.xreplace(fs) - f > 0
@@ -829,7 +829,7 @@ def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
 @lru_cache(maxsize=10000)
 def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     fs = {
-        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        s: sympy.Symbol(f"{s}_2", positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
         for s in sorted(f.free_symbols & symbols_enumerated, key=str)
     }
     return f.xreplace(fs) / f > 1
@@ -1173,7 +1173,7 @@ def coalesce_symbols(
     return symbol2goal
 
 
-_TILE_SHAPE_ORDER = "inner_to_outer_hybrid"
+_TILE_SHAPE_ORDER = "inner_to_outer_hybrid_complete_min_usage_formulas"
 
 
 def grab_symbol(
@@ -1250,6 +1250,15 @@ def grab_symbol(
         if isinstance(tiled_by, Symbol) and tiled_by not in enumerated_set:
             score_unknown -= 1
 
+        # Score for completing min usage formulas
+        score_min_usage = float("inf")
+        for o in objectives:
+            if not o.min_value:
+                continue
+            if s in o._free_symbols:
+                remaining_symbols = len(o._free_symbols - enumerated_set)
+                score_min_usage = min(score_min_usage, remaining_symbols)
+
         # Score for bringing in an entirely-new formula. NOTE: This caused memory to
         # blow up for some workloads when the punishment was set higher.
         # NOTE: Disabled because it was causing memory blow-ups on some arches.
@@ -1258,6 +1267,7 @@ def grab_symbol(
         #         score_unknown -= .1
 
         return (
+            -score_min_usage,  # Complete min usage formulas first
             -keep,  # Punish enumerating keep symbols because they're always diff
             score_unknown,  # Punish bringing in new formulas or unknowns
             score,  # Reward stopping-of-meddling
@@ -2067,8 +2077,7 @@ def get_tile_shape_choices(
 
 
 def makesymbol(name: str):
-    # TODO: Do the solve() calls work with integer=True?
-    return Symbol(name, positive=True, integer=True)
+    return Symbol(name, positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
 
 
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:

@@ -19,7 +19,7 @@ from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
 from accelforge.util._mathfuncs import RESERVATION_PRECISION_TOLERANCE
 from accelforge.util._frozenset import fzs, oset
 
-from accelforge._accelerated_imports import pd
+from accelforge._accelerated_imports import pd, np
 
 from accelforge.mapper.FFM._pareto_df.df_convention import *
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto
@@ -188,7 +188,7 @@ class PmappingDataframe:
 
     def rename(self, renames: dict[str, str]) -> "PmappingDataframe":
         new = self.copy()
-        new.data.rename(columns=renames, inplace=True)
+        new._data = new.data.rename(columns=renames)
         return new
 
     @error_check_wrapper
@@ -307,7 +307,7 @@ class PmappingDataframe:
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
         if not dropcols:
             return
-        self.data.drop(columns=dropcols, inplace=True)
+        self._data = self.data.drop(columns=dropcols)
         self.make_pareto()
 
     @error_check_wrapper
@@ -387,7 +387,7 @@ class PmappingDataframe:
                 max_columns.append(target)
 
             if len(max_columns) == 1:
-                self.data.rename(columns={max_columns[0]: target}, inplace=True)
+                self._data = self.data.rename(columns={max_columns[0]: target})
             else:
                 for c in max_columns:
                     max_to_col(self.data, target, c)
@@ -436,14 +436,13 @@ class PmappingDataframe:
             ).to_numpy()
 
         objectives = {f"Total<SEP>{metric.name.lower()}" for metric in metrics}
-        self.data.drop(
+        self._data = self.data.drop(
             columns=[
                 c
                 for c in self.data
                 if (is_objective_col(c) and c not in objectives)
-                or (finished and is_fused_loop_col(c)) # Finished -> no fused loops
+                or (finished and is_fused_loop_col(c))  # Finished -> no fused loops
             ],
-            inplace=True,
         )
 
     def finish(self, metrics: Metrics):
@@ -471,9 +470,9 @@ class PmappingDataframe:
             target = reservation2col(resource, bottom_loop_index + 1, left=True)
             if target in self.data:
                 max_to_col(self.data, target, source)
-                self.data.drop(columns=[source], inplace=True)
+                self._data = self.data.drop(columns=[source])
             else:
-                self.data.rename(columns={source: target}, inplace=True)
+                self._data = self.data.rename(columns={source: target})
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -815,7 +814,7 @@ class PmappingDataframe:
             for c in result.data.columns
             if is_tensor_col(c) and col2nametensor(c) not in live_tensors
         ]
-        result.data.drop(columns=dead_tensor_cols, inplace=True)
+        result._data = result.data.drop(columns=dead_tensor_cols)
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
@@ -985,23 +984,18 @@ class PmappingDataframe:
             check_above_subset_below=False,
         )
 
-    def split_in_half(self) -> tuple["PmappingDataframe", "PmappingDataframe"]:
-        mid = len(self.data) // 2
-        half_total = self.n_total_pmappings / 2
-        half_valid = self.n_valid_pmappings / 2
-        first = self.update(
-            data=self.data.iloc[:mid].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        second = self.update(
-            data=self.data.iloc[mid:].copy(),
-            skip_pareto=True,
-            n_total_pmappings=half_total,
-            n_valid_pmappings=half_valid,
-        )
-        return first, second
+    def split(self, n_chunks: int) -> list["PmappingDataframe"]:
+        """Splits the rows into n_chunks chunks of rows"""
+        if n_chunks == 1:
+            return [self]
+        chunks = []
+        for rows in np.array_split(np.arange(len(self.data)), n_chunks):
+            chunk = copy.copy(self)
+            chunk._data = self.data.take(rows)
+            chunk.n_total_pmappings *= len(rows) / len(self.data)
+            chunk.n_valid_pmappings *= len(rows) / len(self.data)
+            chunks.append(chunk)
+        return chunks
 
     def limit_capacity(
         self,

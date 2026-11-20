@@ -430,7 +430,6 @@ def make_pmappings(
     ) in parallel(
         calls,
         pbar=f"Generating pmappings" if print_progress or one_pbar_only else None,
-        return_as="generator_unordered",
     ):
         pmapping_groups[einsum_name].extend(new_pmapping_groups)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
