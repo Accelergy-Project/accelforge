@@ -715,6 +715,11 @@ _object_setattr = object.__setattr__
 
 def _reconstruct_pydantic_model(cls, d, extra, fs, priv):
     obj = cls.__new__(cls)
+    # If a pickled object is missing fields (i.e., AccelForge was updated after pickling
+    # and added the field) then set them to defaults.
+    for name, field in cls.model_fields.items():
+        if name not in d:
+            d[name] = field.get_default(call_default_factory=True)
     _object_setattr(obj, "__dict__", d)
     _object_setattr(obj, "__pydantic_extra__", extra)
     _object_setattr(obj, "__pydantic_fields_set__", fs)
