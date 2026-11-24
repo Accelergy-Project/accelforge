@@ -1351,7 +1351,7 @@ class Nested(MappingNodeWithChildren):
         tensor_name: TensorName,
         flattened_arch: FlattenedArch,
         tensor_rank_variables: set[str],
-        workload: Workload
+        workload: Workload,
     ) -> Self:
         """
         Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION
@@ -1519,7 +1519,7 @@ class Nested(MappingNodeWithChildren):
                 prev_gt = prev_node2idx[i1] > prev_node2idx[i2]
                 if new_gt == prev_gt:
                     continue
-                
+
                 prev_compact = Nested(nodes=mapping).compact_str()
                 new_compact = Nested(nodes=self.nodes).compact_str()
                 raise ValueError(

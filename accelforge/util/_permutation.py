@@ -11,6 +11,7 @@ class Permutation:
     A sequence on integers from the set of [0,N) representing a permutation
     of a sequence that has N elements.
     """
+
     def __init__(self, permutation: Iterable[int]):
         permutation = list(permutation)
         assert oset(permutation) == oset(range(len(permutation)))
@@ -26,9 +27,7 @@ class Permutation:
         return len(self.permutation)
 
     def apply(
-        self,
-        sequence: Sequence[T],
-        include_remaining_unpermuted: bool=True
+        self, sequence: Sequence[T], include_remaining_unpermuted: bool = True
     ) -> Iterable[T]:
         """
         Apply permutation to sequence. If `include_remaining_unpermuted` and
@@ -39,7 +38,7 @@ class Permutation:
         assert len(sequence) >= len(self)
         yield from (sequence[idx] for idx in self.permutation)
         if include_remaining_unpermuted and len(sequence) > len(self):
-            yield from sequence[len(self):]
+            yield from sequence[len(self) :]
 
     def copy(self) -> "Permutation":
         return Permutation(self.permutation.copy())

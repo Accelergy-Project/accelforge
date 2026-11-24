@@ -276,7 +276,9 @@ class PmappingGroup:
             if include_permutations or combine_equivalent_permutations:
                 keys = compatibility.make_equivalent_compatibilities()
                 for t, equivalence in keys:
-                    pg.compatibility.check_loop_permutation(equivalence.loop_permutation)
+                    pg.compatibility.check_loop_permutation(
+                        equivalence.loop_permutation
+                    )
                     grouped[clear(t)].append((pg, equivalence))
             else:
                 grouped[clear(compatibility)].append(pg)
@@ -332,7 +334,7 @@ class PmappingGroup:
         pbar_postfix: str = "",
         delay: bool = False,
     ) -> list["PmappingGroup"] | tuple[list["PmappingGroup"], list]:
-        """ Combine pmapping groups that have equivalent compatibilities. """
+        """Combine pmapping groups that have equivalent compatibilities."""
         pmapping_groups = [s for s in pmapping_groups if len(s.mappings.data) > 0]
         no_combine = []
         if not _combine_reservations:

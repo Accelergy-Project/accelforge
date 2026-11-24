@@ -16,6 +16,7 @@ RankVariable: TypeAlias = str
 Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
+
 class Rename(EvalableModel):
     """
     A rename of something into something else.

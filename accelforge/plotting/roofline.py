@@ -304,7 +304,7 @@ def plot_roofline_3d(
 def _check_einsum_sets(
     spec: Spec,
     einsum_sets: Iterable[EinsumName | Iterable[EinsumName]] | None,
-    labels: Iterable[str] | None
+    labels: Iterable[str] | None,
 ) -> tuple[list[list[EinsumName]], list[str]]:
     if einsum_sets is None:
         if labels is not None:

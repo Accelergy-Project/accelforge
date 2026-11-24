@@ -9,16 +9,22 @@ try:
 except ImportError:
     from paths import NOTEBOOKS_DIR
 
-TUTORIALS_DIR = NOTEBOOKS_DIR / "tutorials"
+
+class NotebookExecutor(ExecutePreprocessor):
+    """Executes a notebook without acting as the frontend of its Output widgets."""
+
+    def on_comm_open_jupyter_widget(self, msg):
+        # As the frontend, nbclient can miss a cell's reply and wait for it forever
+        return None
 
 
 class TestNotebooks(unittest.TestCase):
-    """Test that all tutorial notebooks execute without errors."""
+    """Test that all notebooks execute without errors."""
 
     @classmethod
     def setUpClass(cls):
-        """Discover all notebooks in the tutorials directory."""
-        all_notebooks = TUTORIALS_DIR.rglob("*.ipynb")
+        """Discover all notebooks in the notebooks directory."""
+        all_notebooks = NOTEBOOKS_DIR.rglob("*.ipynb")
         # Filter out .ipynb_checkpoints directories
         cls.notebooks = sorted(
             [nb for nb in all_notebooks if ".ipynb_checkpoints" not in nb.parts]
@@ -32,7 +38,7 @@ class TestNotebooks(unittest.TestCase):
             nb = nbformat.read(f, as_version=4)
 
         # Configure the executor
-        ep = ExecutePreprocessor(
+        ep = NotebookExecutor(
             timeout=99999999,
             kernel_name="python3",
             allow_errors=False,  # Fail on first error

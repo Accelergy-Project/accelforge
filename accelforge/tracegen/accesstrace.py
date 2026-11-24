@@ -158,7 +158,9 @@ class AccessTrace:
         """Return every :class:`TensorAccessTrace` that touches ``tensor``."""
         return [t for t in self.traces if t.tensor == tensor]
 
-    def tile_lifetime(self, memory_level: str, tensor: TensorName) -> list[tuple[int, int]]:
+    def tile_lifetime(
+        self, memory_level: str, tensor: TensorName
+    ) -> list[tuple[int, int]]:
         """
         The timestep spans over which one tile of ``tensor`` stays resident in
         ``memory_level``. Empty if that level never holds the tensor.
@@ -334,9 +336,7 @@ def trace_accesses(
         n_timesteps=int(n_timesteps),
         tensor_shapes=tensor_shapes,
         tensor_ranks=tensor_ranks,
-        einsum_timespans=dict(
-            sorted(einsum_timespans.items(), key=lambda kv: kv[1])
-        ),
+        einsum_timespans=dict(sorted(einsum_timespans.items(), key=lambda kv: kv[1])),
         tile_windows=_storage_windows(holders, int(n_timesteps), tensor_filter),
         truncated=state.truncated,
     )
@@ -386,9 +386,7 @@ class _Cache:
         if einsum not in self._bounds:
             from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 
-            self._bounds[einsum] = dict(
-                get_rank_variable_bounds(self.workload, einsum)
-            )
+            self._bounds[einsum] = dict(get_rank_variable_bounds(self.workload, einsum))
         return self._bounds[einsum]
 
     def projection(self, einsum: EinsumName, tensor: TensorName):
@@ -404,7 +402,9 @@ class _Cache:
             self._projections[key] = tuple(
                 (
                     rank,
-                    tuple(RankVariable(str(s)) for s in sorted(expr.free_symbols, key=str)),
+                    tuple(
+                        RankVariable(str(s)) for s in sorted(expr.free_symbols, key=str)
+                    ),
                     sympy.lambdify(sorted(expr.free_symbols, key=str), expr, "numpy"),
                 )
                 for rank, expr in exprs.items()
@@ -459,7 +459,9 @@ def _loops_of(node: Nested) -> list[Loop]:
     return [child for child in node.nodes if isinstance(child, Loop)]
 
 
-def _measure(node: MappingNode, cache: _Cache, state: "_Layout") -> tuple[int, str | None]:
+def _measure(
+    node: MappingNode, cache: _Cache, state: "_Layout"
+) -> tuple[int, str | None]:
     """
     Bottom-up pass: record each loop's iteration count and each node's duration.
 
@@ -609,9 +611,7 @@ def _emit(
             if isinstance(sub, Loop):
                 depth += 1
             elif isinstance(sub, Storage):
-                holders.append(
-                    _Held(sub, levels + my_levels[:depth], t0, inner[depth])
-                )
+                holders.append(_Held(sub, levels + my_levels[:depth], t0, inner[depth]))
         _emit(child, state, levels + my_levels, t0, leaves, holders)
 
 
@@ -816,7 +816,9 @@ def _enumerate_leaf(leaf: _Leaf, cache: _Cache, max_points: int):
             timestep = timestep + loop_idx[i] * level.stride
 
     base = {rv: np.zeros(n_loop_points, dtype=np.int64) for rv in rank_vars}
-    extent = {rv: np.full(n_loop_points, bounds[rv], dtype=np.int64) for rv in rank_vars}
+    extent = {
+        rv: np.full(n_loop_points, bounds[rv], dtype=np.int64) for rv in rank_vars
+    }
     for i, rv in enumerate(loop_rank_vars):
         if rv is None:
             continue

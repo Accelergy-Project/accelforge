@@ -72,7 +72,7 @@ class RankVariableTranslation:
     ) -> dict[tuple[int, TensorName], set[Rank]] | None:
         """
         Returns {(loop index, tensor): the ranks of the tensor that the loop indexes}.
-        
+
         Checks Einsums starting from right_index to the last one above any left tensor
         (e.g., for a fused loop, if left has one tensor stored under this loop, we check
         until the last consumer of this tensor).
@@ -83,7 +83,8 @@ class RankVariableTranslation:
             for i, loop in enumerate(t.loops):
                 loop_tensor2rank[i, t.name] = str(loop.rank_name)
                 loop2last_use[i] = max(
-                    loop2last_use.get(i, -1), self.tensor2last_einsum_using_it.get(t.name, -1)
+                    loop2last_use.get(i, -1),
+                    self.tensor2last_einsum_using_it.get(t.name, -1),
                 )
 
         loop_tensor2ranks: dict[tuple[int, TensorName], set[Rank]] = {

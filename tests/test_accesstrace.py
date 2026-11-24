@@ -98,7 +98,9 @@ class TestTraceAccesses(unittest.TestCase):
 
         (outputs,) = trace.for_tensor("O")
         self.assertTrue(outputs.is_output)
-        self.assertEqual(outputs.element.tolist(), [p for p in range(8) for _ in range(3)])
+        self.assertEqual(
+            outputs.element.tolist(), [p for p in range(8) for _ in range(3)]
+        )
 
     def test_spatial_loops_share_a_timestep(self):
         """Spatial iterations run concurrently, so they do not advance the clock."""
@@ -116,9 +118,7 @@ class TestTraceAccesses(unittest.TestCase):
         trace = trace_accesses(_conv_spec())
         windows = trace.tile_lifetime("GlobalBuffer", "I")
         self.assertEqual(len(windows), trace.tensor_shapes["O"][0])
-        self.assertEqual(
-            windows, [(t, t + 3) for t in range(0, trace.n_timesteps, 3)]
-        )
+        self.assertEqual(windows, [(t, t + 3) for t in range(0, trace.n_timesteps, 3)])
 
 
 class TestPlotAccessTrace(unittest.TestCase):
@@ -135,9 +135,7 @@ class TestPlotAccessTrace(unittest.TestCase):
 
     def test_color_by_access_and_rank(self):
         spec = _matmul_spec("fused_matmuls_to_simple")
-        fig, axes = plot_access_trace(
-            spec, tensors=["A"], color_by="access", rank="M"
-        )
+        fig, axes = plot_access_trace(spec, tensors=["A"], color_by="access", rank="M")
         self.assertEqual(axes[0].get_ylabel(), "M")
 
     def test_memory_level_shades_one_block_per_tile(self):

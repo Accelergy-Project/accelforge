@@ -23,7 +23,11 @@ from matplotlib.patches import Patch, Rectangle
 
 from accelforge._accelerated_imports import numpy as np
 
-from accelforge.tracegen.accesstrace import AccessTrace, TensorAccessTrace, trace_accesses
+from accelforge.tracegen.accesstrace import (
+    AccessTrace,
+    TensorAccessTrace,
+    trace_accesses,
+)
 
 __all__ = ["plot_access_trace"]
 
@@ -125,7 +129,9 @@ def plot_access_trace(
         raise ValueError(f"color_by must be 'einsum' or 'access'. Got {color_by!r}.")
 
     if not isinstance(trace, AccessTrace):
-        trace = trace_accesses(trace, workload=workload, tensors=tensors, **trace_kwargs)
+        trace = trace_accesses(
+            trace, workload=workload, tensors=tensors, **trace_kwargs
+        )
     elif trace_kwargs:
         raise TypeError(
             f"Got {sorted(trace_kwargs)}, but `trace` is already an AccessTrace. Pass "
@@ -315,8 +321,8 @@ def _tile_blocks(
         blocks.extend(
             Rectangle(
                 (live_start - 0.5 + _TILE_GAP_X, float(run[0]) - 0.5 + _TILE_GAP_Y),
-                live_end - live_start - 2*_TILE_GAP_X,
-                float(run[-1] - run[0]) + 1 - 2*_TILE_GAP_Y,
+                live_end - live_start - 2 * _TILE_GAP_X,
+                float(run[-1] - run[0]) + 1 - 2 * _TILE_GAP_Y,
             )
             for run in runs
         )

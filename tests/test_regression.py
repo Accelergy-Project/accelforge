@@ -128,20 +128,50 @@ REGRESSION_CASES = {
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
     ],
     af.examples.arches.snowcat: [
-        {"workload": af.examples.workloads.basic.matmuls_any_einsums, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
+        {
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        },
         {"workload": af.examples.workloads.basic.matvecs},
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
         {"workload": af.examples.workloads.cnns.mobilenet.mobilenet_28},
         {"workload": af.examples.workloads.transformers.mamba, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.llama.llama3_8B, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.mixtral, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.qwen.qwen3_8B, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.qwen.qwen3_30B_A3B, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.deepseek, "jinja_parse_data": _PF},
-        {"workload": af.examples.workloads.transformers.llama.llama4_scout, "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"}},
-        {"workload": af.examples.workloads.transformers.llama.llama4_maverick, "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"}},
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_6_7B,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_175B,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.llama.llama3_8B,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.mixtral,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.qwen.qwen3_8B,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.qwen.qwen3_30B_A3B,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.deepseek,
+            "jinja_parse_data": _PF,
+        },
+        {
+            "workload": af.examples.workloads.transformers.llama.llama4_scout,
+            "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"},
+        },
+        {
+            "workload": af.examples.workloads.transformers.llama.llama4_maverick,
+            "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"},
+        },
     ],
 }
 
@@ -175,7 +205,9 @@ def _run(arch, workload, fused):
         jinja_parse_data=workload.get("jinja_parse_data"),
     )
     spec.mapper.metrics = (
-        Metrics.ENERGY if arch in ENERGY_UNFUSED_ARCHES else Metrics.ENERGY_DELAY_PRODUCT
+        Metrics.ENERGY
+        if arch in ENERGY_UNFUSED_ARCHES
+        else Metrics.ENERGY_DELAY_PRODUCT
     )
     spec.mapper.max_fused_loops = 1
     if not fused:

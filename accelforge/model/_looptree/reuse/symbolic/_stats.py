@@ -234,7 +234,7 @@ class BuffetStats:
         return ActionCounts({a: self.net_total_actions(a) for a in self.total_actions})
 
     def min_take_zero(self, other: "BuffetStats") -> "BuffetStats":
-        """ Take the smallest value of each stat, or zero if either is zero """
+        """Take the smallest value of each stat, or zero if either is zero"""
         new = copy.copy(self)
         for k, v in self.__dict__.items():
             other_v = other.__dict__[k]

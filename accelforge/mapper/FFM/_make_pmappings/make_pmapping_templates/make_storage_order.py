@@ -433,10 +433,7 @@ def valid_tensor_holder_order(
                 between = mapping[i + 1 : j]
                 holders_between = [n for n in between if isinstance(n, TensorHolder)]
                 if any(h.component != s1 for h in holders_between):
-                    return (
-                        False,
-                        f"Nodes for memory level {s1} are not back-to-back."
-                    )
+                    return (False, f"Nodes for memory level {s1} are not back-to-back.")
 
     for i, m0 in enumerate(mapping):
         for j, m1 in enumerate(mapping[i:]):

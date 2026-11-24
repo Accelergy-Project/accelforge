@@ -1443,14 +1443,14 @@ class Workload(EvalableModel):
         return self.n_computes(einsum_name) > n_outputs
 
     def _rearrange_to_increase_fusion_opportunity(self) -> list[EinsumName]:
-        """ 
+        """
         VIBE CODE WARNING: This function is vibe coded. See
         rearrange_workload_to_increase_fusion_opportunity() in spec.py
         """
         max_placed_sets_per_size = 10_000
         einsums = list(self.einsums)
         n = len(einsums)
-        
+
         bpv = {t.name: t.bits_per_value for e in einsums for t in e.tensor_accesses}
         producers = {t: i for i, e in enumerate(einsums) for t in e.output_tensor_names}
         consumers = {
