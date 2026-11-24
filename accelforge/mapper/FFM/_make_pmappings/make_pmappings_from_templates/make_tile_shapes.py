@@ -820,7 +820,7 @@ def symbol2int(symbol: Symbol):
 @lru_cache(maxsize=10000)
 def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     fs = {
-        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        s: sympy.Symbol(f"{s}_2", positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
         for s in sorted(f.free_symbols & symbols_enumerated, key=str)
     }
     return f.xreplace(fs) - f > 0
@@ -829,7 +829,7 @@ def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
 @lru_cache(maxsize=10000)
 def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     fs = {
-        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        s: sympy.Symbol(f"{s}_2", positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
         for s in sorted(f.free_symbols & symbols_enumerated, key=str)
     }
     return f.xreplace(fs) / f > 1
@@ -2077,8 +2077,7 @@ def get_tile_shape_choices(
 
 
 def makesymbol(name: str):
-    # TODO: Do the solve() calls work with integer=True?
-    return Symbol(name, positive=True, integer=True)
+    return Symbol(name, positive=True) # NO integer=True. Ctrl-F SYMPY_BUG.
 
 
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
