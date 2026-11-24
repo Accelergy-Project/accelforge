@@ -175,8 +175,9 @@ Some tags are added automatically:
       tags: [this_is_a]
     - einsum: B[m, n] = A[m, n] * S[m, n]
 
-  # Architecture expressions are evaluated once for each Einsum. This buffer keeps all
-  # tensors for A (tagged this_is_a and matmul_like) and only the inputs for B.
+  # Architecture expressions are evaluated for each Einsum + configuration. This
+  # buffer keeps all tensors for A (tagged this_is_a and matmul_like) and only the
+  # inputs for B.
   arch:
     nodes:
     - !Memory

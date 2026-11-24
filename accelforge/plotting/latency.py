@@ -46,8 +46,8 @@ def _latency_timeline(
         spec = deepcopy(spec)
         spec.model.metrics = spec.mapper.info_metrics
         spec.mapping = mappings.data.iloc[0]["Total<SEP>mapping"](_for_model=True)
-        flattened_arches = mappings.flattened_arches
-        evaluated_specs = mappings.evaluated_specs
+        flattened_arches = mappings._flattened_arches
+        evaluated_specs = mappings._evaluated_specs
 
     pmappings = _model_pmappings(spec, flattened_arches, evaluated_specs)
     einsums = list(pmappings.einsum2pmappings)

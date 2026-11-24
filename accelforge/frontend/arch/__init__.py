@@ -1,4 +1,4 @@
-from .arch import Arch
+from .arch import Arch, ArchConfiguration, ArchConfigurationName
 from .spatialable import *
 from .structure import *
 from .components import *

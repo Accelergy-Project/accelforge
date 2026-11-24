@@ -1,0 +1,18 @@
+# A matmul followed by an elementwise bias multiply, for the configurations test.
+workload:
+  rank_sizes:
+    M: 16
+    N0: 16
+    N1: 16
+  bits_per_value: {All: 8}
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: T0, projection: [m, n0]}
+    - {name: W0, projection: [n0, n1]}
+    - {name: T1, projection: [m, n1], output: true}
+  - name: Bias
+    tensor_accesses:
+    - {name: T1, projection: [m, n1]}
+    - {name: B0, projection: [m, n1]}
+    - {name: T2, projection: [m, n1], output: true}

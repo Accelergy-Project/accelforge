@@ -1,15 +1,44 @@
 from typing import (
     Any,
+    TypeAlias,
 )
 
 from accelforge.util._basetypes import (
+    EvalableList,
+    EvalableModel,
     EvalExtras,
+    EvalsTo,
     _PostCall,
 )
 
 from accelforge.frontend.arch.structure import Leaf, Branch, Hierarchical
 from accelforge.frontend.arch.components import Component
 from accelforge.frontend.arch.spatialable import Spatialable, Spatial
+
+ArchConfigurationName: TypeAlias = str
+ArchConfigurationFlag: TypeAlias = str
+
+
+class ArchConfiguration(EvalableModel):
+    """A configuration of the architecture. Only one configuration can be active at a
+    time. Each configuration has associated flags that are available when parsing the
+    architecture and can be used to modify the architecture's behavior."""
+
+    name: ArchConfigurationName
+    """ The name of this configuration. """
+
+    allowed_if: EvalsTo[bool] = True
+    """
+    The configuration is allowed if this expression evaluates to True. For example,
+    len(All) == 2 means the configuration is allowed only for two-tensor Einsums.
+    """
+
+    flags: list[ArchConfigurationFlag] = []
+    """
+    The configuration's flags. These are all set to True when the configuration is
+    active, and False when a different configuration is active (unless they are also in
+    the active configuration).
+    """
 
 
 class Arch(Hierarchical):
@@ -28,11 +57,52 @@ class Arch(Hierarchical):
     reference Einsum-specific symbols.
     """
 
+    configurations: EvalableList[ArchConfiguration] = EvalableList()
+    """
+    Configurations of the architecture. Only one configuration can be active at a time,
+    and when it is active, its flags are set to True.
+    """
+
     extra_attributes_for_all_component_models: EvalExtras = EvalExtras()
     """
     Extra attributes to pass to all component models. This can be used to pass global
     attributes, such as technology node or clock period, to every component model.
     """
+
+    def _configuration_flags(
+        self, cur_configuration: ArchConfigurationName | None
+    ) -> dict[str, bool]:
+        if not self.configurations and cur_configuration is not None:
+            raise ValueError(
+                f"Architecture has no configurations, but configuration "
+                f"{cur_configuration} was given."
+            )
+        if cur_configuration is None and self.configurations:
+            raise ValueError(
+                f"Architecture has configurations, but no configuration was given. "
+                f"Available configurations: {[c.name for c in self.configurations]}"
+            )
+
+        if not self.configurations:
+            return {}
+
+        if cur_configuration not in [c.name for c in self.configurations]:
+            raise ValueError(
+                f"Configuration {cur_configuration} not found in architecture. "
+                f"Available configurations: {[c.name for c in self.configurations]}"
+            )
+
+        if not self.configurations[cur_configuration].allowed_if:
+            raise ValueError(
+                f"Configuration {cur_configuration} is not allowed for this Einsum."
+            )
+
+        flags = {}
+        for c in self.configurations:
+            flags.update({f: False for f in c.flags})
+
+        flags.update({f: True for f in self.configurations[cur_configuration].flags})
+        return flags
 
     @property
     def total_area(self) -> float:
@@ -125,6 +195,7 @@ class Arch(Hierarchical):
                 return evaluated
 
         cur_st = dict(symbol_table)
+        cur_st.update(self._configuration_flags(symbol_table["arch_configuration"]))
 
         for node in self.get_nodes_of_type(Leaf):
             cur_st[node.name] = node
@@ -139,6 +210,8 @@ class Arch(Hierarchical):
                 "extra_attributes_for_all_component_models",
             ),
         )
+        # Checks if the configuration is valid for the current spec and Einsum
+        evaluated._configuration_flags(symbol_table["arch_configuration"])
         return evaluated, symbol_table
 
     def __getitem__(self, name: str) -> Leaf:

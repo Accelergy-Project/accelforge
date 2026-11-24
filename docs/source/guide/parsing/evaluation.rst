@@ -194,14 +194,17 @@ Additionally, the following special variables are available:
 - ``<Any Tag>``: Einsums may be given ``tags`` (see :ref:`specifying-workload`). Every
   tag of every Einsum is available as a boolean: True if the current Einsum has the tag
   and False otherwise.
-
-.. - ``Einsum``: The name of the currently-processed Einsum. May be used in expressions
-..   such as ``Inputs if Einsum == "Conv" else All``.
 - ``MemoryObject.Tensors``: The set of all tensors that are stored in the memory object.
   Architectures are evaluated from the top down, so this will only be available
   ``MemoryObject`` has been evaluated. Lower-level memory objects may reference upper-level
   memory objects, but not vice versa. Additionally, this may not be used for energy and
   area calculations.
+- ``arch_configuration``: The name of the architecture's active configuration, or
+  None if the architecture has no configurations.
+- ``<All flags of the architecture configurations>``: If the architecture has
+  configurations, then all flags of the currently-active configuration are set to True.
+  The flags of other configurations are set to False unless they are also in the
+  currently-active configuration. 
 
 All tensor expressions can be converted into relevant rank variables by accessing
 ``.rank_variables``, which will return the set of all rank variables that index into the

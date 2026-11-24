@@ -113,8 +113,8 @@ def map_workload_to_arch(
         try:
             this_mapping = evaluate_mapping(
                 local_spec,
-                flattened_arches=mappings.flattened_arches,
-                evaluated_specs=mappings.evaluated_specs,
+                flattened_arches=mappings._flattened_arches,
+                evaluated_specs=mappings._evaluated_specs,
             )
         except:
             # import os
@@ -313,8 +313,10 @@ def _make_pmappings(
     for einsum_name, jobs in einsum2jobs.items():
         for job in jobs:
             compute_name = job.flattened_arch[-1].name
-            flattened_arches[(einsum_name, compute_name)] = job.flattened_arch
-            evaluated_specs[einsum_name] = job.spec_one_einsum
+            configuration = job.mapping.nodes[-1].arch_configuration
+            key = (einsum_name, compute_name, configuration)
+            flattened_arches[key] = job.flattened_arch
+            evaluated_specs[(einsum_name, configuration)] = job.spec_one_einsum
 
     m = MultiEinsumPmappings(
         spec,

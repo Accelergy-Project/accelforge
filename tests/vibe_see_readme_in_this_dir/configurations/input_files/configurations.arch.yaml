@@ -1,0 +1,26 @@
+arch:
+  configurations:
+  - {name: a, flags: [A]}
+  - {name: b, flags: [B]}
+  - {name: a_and_b, allowed_if: matmul_like, flags: [A, B]}
+  nodes:
+  - !Memory
+    name: main_memory
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Memory
+    name: LocalBuffer
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Compute
+    name: mac
+    leak_power: 0
+    area: 0
+    # Each flag makes matmuls cost less. Elementwise Einsums have identical templates
+    # and costs under every configuration
+    actions:
+    - {name: compute, energy: 4 - A - 2 * B if matmul_like else 1, throughput: inf, latency: 0}

@@ -630,8 +630,8 @@ def clean_compress_and_join_pmappings(
         joined.data,
         total_mappings=joined.n_total_pmappings,
         valid_mappings=joined.n_valid_pmappings,
-        flattened_arches=pmappings.flattened_arches,
-        evaluated_specs=pmappings.evaluated_specs,
+        flattened_arches=pmappings._flattened_arches,
+        evaluated_specs=pmappings._evaluated_specs,
     )
     if report_statistics:
         return mappings, statistics

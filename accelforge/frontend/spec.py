@@ -9,6 +9,7 @@ from accelforge.frontend.arch import (
     Leaf,
     Component,
     Arch,
+    ArchConfigurationName,
     Container,
     Spatialable,
 )
@@ -92,6 +93,7 @@ class Spec(EvalableModel):
         einsum_name: EinsumName | None = None,
         eval_arch: bool = True,
         eval_non_arch: bool = True,
+        configuration: ArchConfigurationName | None = None,
     ) -> Self:
         """
         Parse all string expressions in the spec into concrete values.
@@ -107,6 +109,11 @@ class Spec(EvalableModel):
 
         eval_non_arch: bool = True
             Whether to evaluate expressions in the non-architecture fields.
+
+        configuration: str | None = None
+            Which of the architecture's configurations is active while evaluating the
+            architecture. Required if the architecture has configurations. Must be None
+            if the architecture has no configurations.
 
         Returns
         -------
@@ -163,6 +170,7 @@ class Spec(EvalableModel):
                 st.update(evaluated_workload.empty_renames())
             tags = evaluated_workload._tags_as_bools(einsum_name)
             st.update(tags)
+            st["arch_configuration"] = configuration
 
             if eval_arch:
                 evaluated_arch, st = self.arch._eval_expressions(st)
@@ -195,6 +203,7 @@ class Spec(EvalableModel):
         throughput: bool = True,
         latency: bool = True,
         leak: bool = True,
+        configuration: ArchConfigurationName | None = None,
     ) -> "Spec":
         """
         Populates per-component area, energy, throughput, and/or leak power. For each
@@ -225,6 +234,10 @@ class Spec(EvalableModel):
             Whether to compute and populate latency entries.
         leak : bool, optional
             Whether to compute and populate leak power entries.
+        configuration : str | None, optional
+            Which of the architecture's configurations is active. Required if the
+            architecture has configurations. Must be None if the architecture has no
+            configurations.
         """
         if not area and not energy and not throughput and not latency and not leak:
             return self
@@ -239,7 +252,9 @@ class Spec(EvalableModel):
 
         try:
             if not getattr(self, "_evaluated", False):
-                self = self._spec_eval_expressions(einsum_name=einsum_name)
+                self = self._spec_eval_expressions(
+                    einsum_name=einsum_name, configuration=configuration
+                )
             else:
                 self = self.model_copy()
                 self.arch = self.arch.model_copy(deep=True)
@@ -298,6 +313,7 @@ class Spec(EvalableModel):
         self,
         compute_node: str | Compute | None = None,
         einsum_name: EinsumName | None = None,
+        configuration: ArchConfigurationName | None = None,
     ) -> list[FlattenedArch] | FlattenedArch:
         """
         Return the architecture as paths of ``Leaf`` instances from the highest-level
@@ -314,6 +330,11 @@ class Spec(EvalableModel):
         einsum_name: EinsumName | None = None
             Optional Einsum name to populate symbols with the Einsum's symbols from the
             workload. If None, no symbols are populated from the workload.
+
+        configuration: str | None = None
+            Which of the architecture's configurations is active. Required if the
+            architecture has configurations. Must be None if the architecture has no
+            configurations.
 
         Returns
         -------
@@ -334,7 +355,9 @@ class Spec(EvalableModel):
             self, "_evaluated", False
         ), "Spec must be evaluated before getting flattened architecture"
         if einsum_name is not None:
-            self = self._spec_eval_expressions(einsum_name=einsum_name)
+            self = self._spec_eval_expressions(
+                einsum_name=einsum_name, configuration=configuration
+            )
 
         all_leaves = self.arch.get_nodes_of_type(Leaf)
         found_names = oset()

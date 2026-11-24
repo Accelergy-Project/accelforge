@@ -1,6 +1,7 @@
 from accelforge.frontend.renames import TensorName
 from collections import defaultdict
 from accelforge.frontend import arch
+from accelforge.frontend.arch import ArchConfigurationName
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import EinsumName
 from accelforge._accelerated_imports import pd
@@ -43,15 +44,128 @@ def _series2list(
     return [v] if list_if_one else v
 
 
-class Mappings:
+class MappingResult:
+    """
+    Shared functionality for :class:`~accelforge.mapper.FFM.Mappings` and
+    :class:`~accelforge.mapper.FFM.MultiEinsumPmappings`.
+
+    Parameters
+    ----------
+    spec:
+        The specification used to generate the mappings.
+    flattened_arches:
+        A dictionary of (EinsumName, Compute Name, configuration) to lists of
+        architecture nodes. These contain the evaluated and flattened architecture node
+        for that combination of Einsum, compute, and arch configuration.
+    evaluated_specs:
+        A dictionary of (EinsumName, configuration) to evaluated specifications. These
+        contain the evaluated specification for that particular Einsum and arch
+        configuration.
+    """
+
+    def __init__(
+        self,
+        spec: Spec,
+        flattened_arches: dict[
+            (EinsumName, str, ArchConfigurationName | None), list[arch.Leaf]
+        ],
+        evaluated_specs: dict[(EinsumName, ArchConfigurationName | None), Spec],
+    ):
+        self.spec: Spec = spec
+        self._flattened_arches: dict[
+            (EinsumName, str, ArchConfigurationName | None), list[arch.Leaf]
+        ] = flattened_arches
+        self._evaluated_specs: dict[
+            (EinsumName, ArchConfigurationName | None), Spec
+        ] = evaluated_specs
+
+    def get_evaluated_spec(
+        self, einsum_name: EinsumName, config: ArchConfigurationName | None = None
+    ) -> Spec:
+        """
+        Returns the evaluated specification for the given Einsum and arch configuration.
+
+        Parameters
+        ----------
+        einsum_name:
+            The name of the Einsum for which the desired evaluated specification is
+            requested.
+        config:
+            The name of the architecture configuration for which the desired evaluated
+            specification is requested. If None, then there may not be any architecture
+            configurations for the architecture.
+        """
+        if (einsum_name, config) in self._evaluated_specs:
+            return self._evaluated_specs[(einsum_name, config)]
+
+        keys = list(self._evaluated_specs.keys())
+        if einsum_name not in [k[0] for k in keys]:
+            raise ValueError(
+                f"No evaluated spec found for Einsum {einsum_name}. Available "
+                f"Einsums: {sorted(set(k[0] for k in keys))}"
+            )
+
+        matched_einsums = [k for k in keys if k[0] == einsum_name]
+        if config not in [k[1] for k in matched_einsums]:
+            raise ValueError(
+                f"No evaluated spec found for Einsum {einsum_name} with config "
+                f"{config}. Available configs: {[k[1] for k in matched_einsums]}"
+            )
+
+        assert False, "BUG, shouldn't get here"
+
+    def get_flattened_arch(
+        self,
+        einsum_name: EinsumName,
+        compute_name: str,
+        config: ArchConfigurationName | None = None,
+    ) -> list[arch.Leaf]:
+        """
+        Returns the evaluated and flattened architecture nodes for the given Einsum,
+        compute and arch configuration.
+
+        Parameters
+        ----------
+        einsum_name:
+            The name of the Einsum for which the desired flattened architecture is
+            requested.
+        """
+        if (einsum_name, compute_name, config) in self._flattened_arches:
+            return self._flattened_arches[(einsum_name, compute_name, config)]
+
+        keys = list(self._flattened_arches.keys())
+        if einsum_name not in [k[0] for k in keys]:
+            raise ValueError(
+                f"No flattened arch found for Einsum {einsum_name}. Available "
+                f"Einsums: {sorted(set(k[0] for k in keys))}"
+            )
+
+        matched_einsums = [k for k in keys if k[0] == einsum_name]
+        if compute_name not in [k[1] for k in matched_einsums]:
+            raise ValueError(
+                f"No flattened arch found for Einsum {einsum_name} with compute "
+                f"{compute_name}. Available computes: "
+                f"{sorted(set(k[1] for k in matched_einsums))}"
+            )
+
+        matched_computes = [k for k in matched_einsums if k[1] == compute_name]
+        if config not in [k[2] for k in matched_computes]:
+            raise ValueError(
+                f"No flattened arch found for Einsum {einsum_name} with compute "
+                f"{compute_name} and config {config}. Available configs: "
+                f"{[k[2] for k in matched_computes]}"
+            )
+
+        assert False, "BUG, shouldn't get here"
+
+
+class Mappings(MappingResult):
     """
     A collection of mappings and their evaluation results, generated by
     :func:`~accelforge.mapper.FFM.join_pmappings`.
 
     Attributes
     ----------
-    spec:
-        The specification used to generate the mappings.
     einsum_names:
         The names of the Einsums in these mappings.
     data:
@@ -64,13 +178,6 @@ class Mappings:
     valid_mappings:
         The number of valid mappings that have been explored in order to get the
         mappings in the dataframe, equal to the valid mapspace size.
-    flattened_arches:
-        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
-        contain the evaluated and flattened architecture node for that particular Einsum
-        and compute combination.
-    evaluated_specs:
-        A dictionary of Einsum names to evaluated specifications. These contain the
-        evaluated specification for that particular Einsum.
     """
 
     def __init__(
@@ -80,18 +187,16 @@ class Mappings:
         data: pd.DataFrame,
         total_mappings: int,
         valid_mappings: int,
-        flattened_arches: dict[(EinsumName, str), list[arch.Leaf]],
-        evaluated_specs: dict[EinsumName, Spec],
+        flattened_arches: dict[
+            (EinsumName, str, ArchConfigurationName | None), list[arch.Leaf]
+        ],
+        evaluated_specs: dict[(EinsumName, ArchConfigurationName | None), Spec],
     ):
-        self.spec: Spec = spec
+        super().__init__(spec, flattened_arches, evaluated_specs)
         self.einsum_names: list[EinsumName] = einsum_names
         self.data: pd.DataFrame = data
         self.total_mappings: int = total_mappings
         self.valid_mappings: int = valid_mappings
-        self.flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] = (
-            flattened_arches
-        )
-        self.evaluated_specs: dict[EinsumName, Spec] = evaluated_specs
 
     def n_computes(self, einsum_name: EinsumName | None = None) -> int:
         """
@@ -121,9 +226,9 @@ class Mappings:
             A dictionary of: {Tensor name: Number of bits} for each tensor in the spec.
         """
         assert (
-            self.evaluated_specs is not None
+            self._evaluated_specs is not None
         ), "Can't get per-tensor size if no Einsums have been mapped."
-        workload = next(iter(self.evaluated_specs.values())).workload
+        workload = next(iter(self._evaluated_specs.values())).workload
         sizes = get_per_tensor_n_elements(workload)
         if not return_n_elements:
             for einsum in workload.einsums:
@@ -140,8 +245,8 @@ class Mappings:
             data=self.data,
             total_mappings=self.total_mappings,
             valid_mappings=self.valid_mappings,
-            flattened_arches=self.flattened_arches,
-            evaluated_specs=self.evaluated_specs,
+            flattened_arches=self._flattened_arches,
+            evaluated_specs=self._evaluated_specs,
         )
         data.update(kwargs)
         return Mappings(**data)

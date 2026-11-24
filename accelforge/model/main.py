@@ -5,6 +5,7 @@ from uuid import uuid4
 from accelforge._accelerated_imports import pandas as pd
 
 from accelforge.frontend import arch
+from accelforge.frontend.arch import ArchConfigurationName
 from accelforge.frontend.arch import Memory
 from accelforge.frontend.mapping.mapping import MappingNodeWithChildren
 from accelforge.frontend.renames import EinsumName
@@ -41,8 +42,12 @@ class InvalidMappingError(Exception):
 
 def evaluate_mapping(
     spec: Spec,
-    flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
-    evaluated_specs: dict[EinsumName, Spec] | None = None,
+    flattened_arches: (
+        dict[(EinsumName, str, ArchConfigurationName | None), list[arch.Leaf]] | None
+    ) = None,
+    evaluated_specs: (
+        dict[(EinsumName, ArchConfigurationName | None), Spec] | None
+    ) = None,
 ):
     """
     Evaluate a mapping.
@@ -52,14 +57,14 @@ def evaluate_mapping(
     spec:
         The specification of architecture, workload, and mapping.
     flattened_arches:
-        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
-        contain the evaluated and flattened architecture node for that particular Einsum
-        and compute combination. If provided, then these will be used instead of
-        re-parsing the architecture.
+        A dictionary of (EinsumName, compute name, configuration) to lists of
+        architecture nodes. These contain the evaluated and flattened architecture for
+        that combination of Einsum, compute and arch configuration. If provided, then
+        these will be used instead of re-parsing the architecture.
     evaluated_specs:
-        A dictionary of Einsum names to evaluated specifications. These contain the evaluated
-        specification for that particular Einsum. If provided, then these will be used
-        instead of re-parsing the specification.
+        A dictionary of (EinsumName, configuration) to evaluated specifications. These
+        contain the evaluated specification for that Einsum and arch configuration. If
+        provided, then these will be used instead of re-parsing the specification.
     """
     from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
         clean_compress_and_join_pmappings,
@@ -75,8 +80,12 @@ def evaluate_mapping(
 
 def _model_pmappings(
     spec: Spec,
-    flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
-    evaluated_specs: dict[EinsumName, Spec] | None = None,
+    flattened_arches: (
+        dict[(EinsumName, str, ArchConfigurationName | None), list[arch.Leaf]] | None
+    ) = None,
+    evaluated_specs: (
+        dict[(EinsumName, ArchConfigurationName | None), Spec] | None
+    ) = None,
 ):
     """
     Run the model on each pmapping, returning ready-to-join per-Einsum pmappings.
@@ -86,6 +95,7 @@ def _model_pmappings(
         PmappingDataframe,
     )
     from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+    from accelforge.mapper.FFM.mappings import MappingResult
     from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
     from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
         get_rank_variable_bounds_for_all_einsums,
@@ -135,17 +145,24 @@ def _model_pmappings(
 
         einsum_name = pmapping.nodes[-1].einsum
         compute_name = pmapping.nodes[-1].component
+        configuration = pmapping.nodes[-1].arch_configuration
         pmapping_id = uuid4()
         job = copy(original_job)
 
         if flattened_arches is not None:
-            flattened_arch = flattened_arches[(einsum_name, compute_name)]
-            cur_spec = evaluated_specs[einsum_name]
+            # Cast so that the MappingResult checkers raise good erors when keys aren't
+            # in flattened_arches or evaluated_specs.
+            mapping_result = MappingResult(spec, flattened_arches, evaluated_specs)
+            flattened_arch = mapping_result.get_flattened_arch(
+                einsum_name, compute_name, configuration
+            )
+            cur_spec = mapping_result.get_evaluated_spec(einsum_name, configuration)
 
         else:
             cur_spec = spec.calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
+                configuration=configuration,
             )
             flattened_arch = cur_spec._get_flattened_architecture(
                 compute_node=pmapping.nodes[-1].component

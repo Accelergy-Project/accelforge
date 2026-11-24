@@ -51,6 +51,7 @@ from accelforge.frontend.workload import RankVariable, TensorName
 from accelforge.util._visualization import ColorMap, _pydot_graph
 from accelforge.util.parallel import _SVGJupyterRender
 from accelforge.frontend import arch
+from accelforge.frontend.arch import ArchConfigurationName
 from accelforge.util.indent import print
 
 T = TypeVar("T", bound="MappingNode")
@@ -717,12 +718,20 @@ class Compute(MappingNode):
     """ The :class:`~accelforge.frontend.arch.Compute` object performing the
     computation. """
 
+    arch_configuration: ArchConfigurationName | None = None
+    """
+    The architecture configuration active while this compute node is running.
+    """
+
     @override
     def compact_str(self) -> str:
-        return f"{self.component} computes {self.einsum}"
+        return str(self)
 
     def __str__(self) -> str:
-        return f"{self.component} computes {self.einsum}"
+        s = f"{self.component} computes {self.einsum}"
+        if self.arch_configuration is None:
+            return s
+        return f"{s}\nArch configuration {self.arch_configuration}"
 
     def _render_node_shape(self) -> str:
         return "ellipse"

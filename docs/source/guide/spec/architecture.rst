@@ -30,13 +30,18 @@ types are preceded by the ``!`` character. An example architecture is shown belo
 Flattening
 ----------
 
-A given Einsum may be executed only on a single
+A given Einsum may be executed only with a single
+:py:class:`~accelforge.frontend.arch.arch.ArchConfiguration` and on a single
 :py:class:`~accelforge.frontend.arch.Compute`, and it may use hardware objects between
 the root of the tree and the leaf for that
 :py:class:`~accelforge.frontend.arch.Compute`. Flattening an architecture converts a
 tree architecture into multiple parallel *Flattened Architectures*, each one
-representing one possible path from the root of the tree to the leaf for that
-:py:class:`~accelforge.frontend.arch.Compute`.
+representing a single configuration and one possible path from the root of the tree to
+the leaf for that :py:class:`~accelforge.frontend.arch.Compute`. Every combination of
+one :py:class:`~accelforge.frontend.arch.arch.ArchConfiguration` and
+:py:class:`~accelforge.frontend.arch.Compute` is tried, though any combination may be
+disabled by modifying the :py:attr:`~accelforge.frontend.arch.Compute.enabled` or
+:py:attr:`~accelforge.frontend.arch.arch.ArchConfiguration.allowed_if` attributes.
 
 For example, in the architecture above, there are two compute units, the ``scalar_unit``
 and the ``mac``. Flattening this architecture will produce two Flattened Architectures;
@@ -87,6 +92,39 @@ syntax:
     ...
 
 
+Configurations
+--------------
+
+:docstring:`accelforge.frontend.arch.ArchConfiguration`
+
+Configurations are written in the ``configurations`` list of the architecture:
+
+.. code-block:: yaml
+
+  arch:
+    configurations:
+    # A is True and B is False when "a" is active.
+    - {name: ConfigA, flags: [A]} 
+    # B is True and A is False when "b" is active. len(All) == 2 means that the
+    # configuration is allowed only for Einsums with two tensors.
+    - {name: ConfigB, allowed_if: len(All) == 2, flags: [B]}
+
+    nodes:
+    - !Memory
+      name: GlobalBuffer
+      # The buffer keeps all tensors in configuration a and only the inputs in
+      # configuration b
+      tensors: {keep: All if A else Inputs}
+      energy_scale: 2 if arch_configuration == "ConfigA" else 1
+
+The architecture is evaluated for each Einsum + configuration, and the name of the
+active configuration is available as ``arch_configuration``. For each Einsum, the mapper
+explores all configurations with ``allowed_if`` evaluating to True. When a mapping is
+given to the model, the active configuration for each Einsum is the
+:py:attr:`~accelforge.frontend.mapping.Compute.arch_configuration` of its
+:py:class:`~accelforge.frontend.mapping.Compute` node.
+
+.. include-attrs:: accelforge.frontend.arch.ArchConfiguration
 
 Spatial Fanouts
 ---------------

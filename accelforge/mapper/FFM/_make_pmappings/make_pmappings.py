@@ -10,10 +10,11 @@ from tqdm import tqdm
 
 
 from accelforge.frontend import arch
+from accelforge.frontend.arch import ArchConfigurationName
 from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.renames import Rank, RankVariable
 from accelforge.frontend.spec import Spec
-from accelforge.frontend.mapping import Loop, Mapping, TensorHolder
+from accelforge.frontend.mapping import Compute, Loop, Mapping, TensorHolder
 from accelforge.util._frozenset import oset
 from accelforge.frontend._workload_isl._isl import (
     get_rank_variable_bounds,
@@ -95,37 +96,48 @@ def get_jobs(
     fusable_tensors = spec.workload.shared_tensor_names()
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
-    einsum2spec: dict[EinsumName, Spec] = {}
+    einsum2spec: dict[EinsumName, dict[ArchConfigurationName | None, Spec]] = {}
     s = "Getting energy, leak power, latency, and throughput for components running each Einsum. "
 
-    def _get_per_einsum_spec(spec, einsum_name):
-        result = (
-            spec._spec_eval_expressions(
+    def _get_per_einsum_spec(spec, einsum_name, configuration):
+        try:
+            evaluated = spec._spec_eval_expressions(
                 einsum_name=einsum_name,
                 eval_arch=True,
                 eval_non_arch=False,
+                configuration=configuration,
             )
-            .calculate_component_costs(
+        except ValueError:  # The configuration is not allowed for this Einsum
+            return einsum_name, configuration, None
+        result = (
+            evaluated.calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
+                configuration=configuration,
             )
             ._for_einsum(einsum_name)
             ._clear_component_models()
         )
-        return einsum_name, _memmap_read(result)
+        return einsum_name, configuration, _memmap_read(result)
 
-    for einsum_name, result in parallel(
+    configurations = [c.name for c in spec.arch.configurations]
+    if not configurations:
+        configurations = [None]
+    for einsum_name, configuration, result in parallel(
         [
-            delayed(_get_per_einsum_spec)(spec, einsum_name)
+            delayed(_get_per_einsum_spec)(spec, einsum_name, configuration)
             for einsum_name in einsum_names
+            for configuration in configurations
         ],
         pbar=s if print_progress else None,
     ):
-        einsum2spec[einsum_name] = result
+        specs = einsum2spec.setdefault(einsum_name, {})
+        if result is not None:
+            specs[configuration] = result
 
     def make_jobs_for_einsum(
         einsum_name: EinsumName,
-        spec: Spec,
+        specs: dict[ArchConfigurationName | None, Spec],
         stride_and_halo: dict[
             EinsumName,
             dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]],
@@ -135,33 +147,39 @@ def get_jobs(
         intermediate_tensors: set[TensorName],
     ):
         jobs = {}
-        workload_einsum = spec.workload.einsums[einsum_name]
-        for flattened_arch in spec._get_flattened_architecture(einsum_name=einsum_name):
-            # Create jobs for each Einsum
-            job = Job(
-                spec_one_einsum=spec,
-                einsum_name=einsum_name,
-                metrics=metrics,
-                rank_variable_bounds=rank_variable_bounds,
-                flattened_arch=_memmap_read(flattened_arch),
-                job_id=uuid.uuid4(),
-                fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
-                stride_and_halo=stride_and_halo,
-                initial_delta_choices=initial_delta_choices_for_einsum,
-                objective_tolerance=spec.mapper.objective_tolerance,
-                resource_usage_tolerance=spec.mapper.resource_usage_tolerance,
-                workload_n_einsums=n_einsums,
-                intermediate_tensors=intermediate_tensors
-                & workload_einsum.tensor_names,
-                explore_imperfect_spatial_loops=bool(
-                    spec.mapper.explore_imperfect_spatial_loops
-                ),
-                explore_imperfect_temporal_loops=bool(
-                    spec.mapper.explore_imperfect_temporal_loops
-                ),
-            )
-            for j in make_pmapping_templates(job, print_progress):
-                jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
+        for configuration, spec in specs.items():
+            workload_einsum = spec.workload.einsums[einsum_name]
+            for flattened_arch in spec._get_flattened_architecture(
+                einsum_name=einsum_name, configuration=configuration
+            ):
+                # Create jobs for each Einsum
+                job = Job(
+                    spec_one_einsum=spec,
+                    einsum_name=einsum_name,
+                    metrics=metrics,
+                    rank_variable_bounds=rank_variable_bounds,
+                    flattened_arch=_memmap_read(flattened_arch),
+                    job_id=uuid.uuid4(),
+                    fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
+                    stride_and_halo=stride_and_halo,
+                    initial_delta_choices=initial_delta_choices_for_einsum,
+                    objective_tolerance=spec.mapper.objective_tolerance,
+                    resource_usage_tolerance=spec.mapper.resource_usage_tolerance,
+                    workload_n_einsums=n_einsums,
+                    intermediate_tensors=intermediate_tensors
+                    & workload_einsum.tensor_names,
+                    explore_imperfect_spatial_loops=bool(
+                        spec.mapper.explore_imperfect_spatial_loops
+                    ),
+                    explore_imperfect_temporal_loops=bool(
+                        spec.mapper.explore_imperfect_temporal_loops
+                    ),
+                )
+                for j in make_pmapping_templates(job, print_progress):
+                    compute = j.mapping.nodes[-1]
+                    assert isinstance(compute, Compute), "BUG: compute is not last"
+                    compute.arch_configuration = configuration
+                    jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
         return einsum_name, jobs
 
@@ -180,13 +198,13 @@ def get_jobs(
         [
             delayed(make_jobs_for_einsum)(
                 einsum_name,
-                spec._for_einsum(einsum_name),
+                {c: s._for_einsum(einsum_name) for c, s in specs.items()},
                 stride_and_halo,
                 initial_delta_chocies[einsum_name],
                 n_einsums,
                 intermediate_tensors,
             )
-            for einsum_name, spec in einsum2spec.items()
+            for einsum_name, specs in einsum2spec.items()
         ],
         pbar="Generating jobs" if print_progress else None,
     ):
